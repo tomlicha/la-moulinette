@@ -66,7 +66,7 @@ function setState(s: ConnectionState, detail?: string) {
   disconnectBtn.disabled = !connected;
   ergBtn.disabled = !connected || !!ride || !trainer?.capabilities.targetPower;
   simBtn.disabled = !connected || !!ride || !trainer?.capabilities.simulation;
-  rideBtn.disabled = !connected || !trainer?.capabilities.simulation;
+  rideBtn.disabled = !connected; // la puissance seule suffit : la pente n'est envoyée que si le trainer sait la simuler
   if (s === 'disconnected') stopRide(false);
   if (connected && trainer) {
     const c = trainer.capabilities;
@@ -120,7 +120,7 @@ function tickRide() {
   show('r-alt', s.altitudeM);
   $('r-time').textContent = fmtTime(s.elapsedS);
 
-  if (currentState === 'connected' && throttle.shouldSend(s.gradePct, now)) {
+  if (currentState === 'connected' && trainer?.capabilities.simulation && throttle.shouldSend(s.gradePct, now)) {
     throttle.markSent(s.gradePct, now);
     hub.setSimulation({ gradePct: s.gradePct, massKg: ride.rider.massKg }).catch((e) => {
       log(`pente non envoyée : ${e instanceof Error ? e.message : e}`);
