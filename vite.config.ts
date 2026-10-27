@@ -3,6 +3,7 @@ import type { IncomingMessage } from 'node:http';
 import { loadEnv, type Plugin } from 'vite';
 import { configDefaults, defineConfig } from 'vitest/config';
 import type { Tokens } from './src/export/strava/api';
+import { createIntervalsRelay, PREFIX as INTERVALS_PREFIX } from './src/export/intervals/relay';
 import { createStravaRelay, PREFIX, type TokenStore } from './src/export/strava/relay';
 
 const TOKEN_FILE = '.strava-tokens.json';
@@ -33,27 +34,28 @@ async function readBody(req: IncomingMessage): Promise<Buffer> {
 }
 
 /**
- * Relais Strava dans le serveur de dev. Les variables STRAVA_* ne portent pas le préfixe VITE_ :
- * Vite ne les expose donc jamais au navigateur.
+ * Relais Strava et intervals.icu dans le serveur de dev. Les variables STRAVA_* et INTERVALS_* ne portent pas
+ * le préfixe VITE_ : Vite ne les expose donc jamais au navigateur.
  */
-function stravaRelay(env: Record<string, string>): Plugin {
+function exportRelays(env: Record<string, string>): Plugin {
   return {
-    name: 'zwift2-strava-relay',
+    name: 'zwift2-export-relays',
     configureServer(server) {
       const relay = createStravaRelay({
         clientId: env.STRAVA_CLIENT_ID,
         clientSecret: env.STRAVA_CLIENT_SECRET,
         store: fileStore,
       });
+      const intervals = createIntervalsRelay({ apiKey: env.INTERVALS_API_KEY });
       server.middlewares.use(async (req, res, next) => {
-        if (!req.url?.startsWith(PREFIX)) return next();
+        if (!req.url?.startsWith(PREFIX) && !req.url?.startsWith(INTERVALS_PREFIX)) return next();
         try {
           const method = req.method ?? 'GET';
           const headers = new Headers();
           for (const [k, v] of Object.entries(req.headers)) if (typeof v === 'string') headers.set(k, v);
           const body = method === 'GET' || method === 'HEAD' ? undefined : new Uint8Array(await readBody(req));
           const request = new Request(`http://${req.headers.host}${req.url}`, { method, headers, body });
-          const response = await relay(request);
+          const response = (await relay(request)) ?? (await intervals(request));
           if (!response) return next();
           res.statusCode = response.status;
           response.headers.forEach((v, k) => res.setHeader(k, v));
@@ -68,7 +70,7 @@ function stravaRelay(env: Record<string, string>): Plugin {
 }
 
 export default defineConfig(({ mode }) => ({
-  plugins: [stravaRelay(loadEnv(mode, process.cwd(), 'STRAVA_'))],
+  plugins: [exportRelays(loadEnv(mode, process.cwd(), ['STRAVA_', 'INTERVALS_']))],
   // Chargé à la demande par l'export : sans cela, Vite l'optimise au premier clic et recharge la page, ce qui efface la sortie en cours.
   optimizeDeps: { include: ['@garmin/fitsdk'] },
   test: {

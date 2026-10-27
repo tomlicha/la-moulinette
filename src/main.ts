@@ -240,6 +240,7 @@ const exporter = setupExport({
   hub,
   button: $<HTMLButtonElement>('export-fit'),
   stravaButton: $<HTMLButtonElement>('export-strava'),
+  intervalsButton: $<HTMLButtonElement>('export-intervals'),
   log,
 });
 

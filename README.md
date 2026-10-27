@@ -41,9 +41,17 @@ Le protocole Wahoo est repris du code de GoldenCheetah, sans documentation offic
 
 `src/sensors/hub.ts` fusionne le trainer et la ceinture cardio ; les deux se reconnectent seuls après une coupure (60 s maximum).
 
-### Export FIT et envoi à Strava
+### Export FIT, intervals.icu et Strava
 
 `src/export/` : la sortie est enregistrée à 1 Hz (puissance, cadence, cardio, et vitesse, distance, altitude quand la sortie virtuelle tourne), en pause quand le trainer est déconnecté. « Exporter FIT » télécharge un fichier FIT Activity encodé avec le SDK officiel de Garmin (`@garmin/fitsdk`), chargé seulement à l'export.
+
+Envoi à intervals.icu, sans abonnement, depuis le serveur de dev uniquement :
+
+1. Sur https://intervals.icu/settings, tout en bas, copier la clé d'API personnelle.
+2. Copier `.env.example` en `.env.local` et renseigner `INTERVALS_API_KEY` (le fichier n'est jamais commité).
+3. Relancer `npm run dev` : le bouton « Envoyer à intervals.icu » apparaît. Il dépose le fichier FIT et le journal affiche le lien de l'activité.
+
+La clé reste dans le relais du serveur Vite (`src/export/intervals/relay.ts`) et n'est jamais envoyée au navigateur ; ne la colle ni dans le code ni dans une conversation. intervals.icu écarte les fichiers en double : renvoyer la même sortie ne crée rien de plus. Le dépôt est fait d'après la documentation d'intervals.icu (`POST /api/v1/athlete/0/activities`, authentification basique `API_KEY`) ; il n'a pas encore tourné avec une vraie clé, et la forme exacte de la réponse (identifiant de l'activité) est lue de façon tolérante.
 
 Envoi à Strava, depuis le serveur de dev uniquement :
 

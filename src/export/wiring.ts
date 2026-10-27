@@ -1,4 +1,5 @@
 import { RideRecorder } from './recorder';
+import { getStatus as getIntervalsStatus, sendToIntervals } from './intervals/client';
 import { getStatus, sendToStrava, waitForLogin, type StravaStatus } from './strava/client';
 import type { SensorHub } from '../sensors/hub';
 import type { ConnectionState } from '../sensors/types';
@@ -34,12 +35,14 @@ export function setupExport(opts: {
   hub: SensorHub;
   button: HTMLButtonElement;
   stravaButton: HTMLButtonElement;
+  intervalsButton: HTMLButtonElement;
   log: (msg: string) => void;
 }): ExportWiring {
-  const { hub, button, stravaButton, log } = opts;
+  const { hub, button, stravaButton, intervalsButton, log } = opts;
   const recorder = new RideRecorder();
   let exported: Exported | undefined;
   let strava: StravaStatus | undefined;
+  let intervalsConfigured = false;
   let busy = false;
 
   const refreshStrava = () =>
@@ -48,6 +51,9 @@ export function setupExport(opts: {
       .catch(() => (strava = undefined)); // pas de relais (build statique) : le bouton Strava reste caché
 
   void refreshStrava();
+  getIntervalsStatus()
+    .then((s) => (intervalsConfigured = s.configured))
+    .catch(() => {}); // pas de relais (build statique) : le bouton intervals.icu reste caché
 
   hub.on('measurement', (m) => {
     recorder.update({ powerW: m.powerW, cadenceRpm: m.cadenceRpm, heartRateBpm: m.heartRateBpm }, Date.now());
@@ -60,6 +66,8 @@ export function setupExport(opts: {
     stravaButton.hidden = !strava?.configured;
     stravaButton.disabled = busy || (n === 0 && !exported);
     stravaButton.textContent = n === 0 && exported ? 'Réessayer l’envoi à Strava' : 'Envoyer à Strava';
+    intervalsButton.hidden = !intervalsConfigured;
+    intervalsButton.disabled = busy || (n === 0 && !exported);
   }
 
   setInterval(() => {
@@ -96,6 +104,40 @@ export function setupExport(opts: {
     }
   });
 
+  const rideName = (startMs: number) => {
+    const date = new Date(startMs);
+    const hhmm = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    return `Sortie zwift-2 du ${date.toLocaleDateString('fr-FR')} à ${hhmm}`;
+  };
+
+  intervalsButton.addEventListener('click', async () => {
+    busy = true;
+    refreshButtons();
+    try {
+      const out = await prepare();
+      if (!out) {
+        log('intervals.icu : rien à envoyer');
+        return;
+      }
+      log('intervals.icu : envoi en cours…');
+      const result = await sendToIntervals(out.bytes, { name: rideName(out.startMs), externalId: `zwift2-${out.startMs}` });
+      if (result.ok) {
+        log(
+          result.created
+            ? `intervals.icu : activité créée ${result.activityUrl ?? ''}`
+            : 'intervals.icu : déjà présente (fichier identique), rien de créé',
+        );
+      } else {
+        log(`intervals.icu : échec (${result.message})`);
+      }
+    } catch (e) {
+      log(`intervals.icu : échec (${errMsg(e)}), la sortie est gardée en mémoire`);
+    } finally {
+      busy = false;
+      refreshButtons();
+    }
+  });
+
   stravaButton.addEventListener('click', async () => {
     // La fenêtre de connexion doit s'ouvrir dans le geste utilisateur, avant tout `await`, sinon elle est bloquée.
     const needsLogin = strava?.configured && !strava.connected;
@@ -123,9 +165,7 @@ export function setupExport(opts: {
         log(`Strava : connecté${strava.athlete ? ` (${strava.athlete})` : ''}`);
       }
 
-      const date = new Date(out.startMs);
-      const hhmm = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-      const name = `Sortie zwift-2 du ${date.toLocaleDateString('fr-FR')} à ${hhmm}`;
+      const name = rideName(out.startMs);
       log('Strava : envoi en cours…');
       const result = await sendToStrava(out.bytes, { name, externalId: `zwift2-${out.startMs}` });
       if (result.ok) {
