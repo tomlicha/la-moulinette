@@ -45,6 +45,14 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
   private lastCrank?: CyclingPowerFrame['crank'];
   private hasControl = false;
   private wahooCp?: BluetoothRemoteGATTCharacteristic;
+  private userDisconnect = false;
+  private reconnecting = false;
+  /** Dernière consigne ERG ou SIM, rejouée après une reconnexion. */
+  private lastCommand?: () => Promise<void>;
+
+  /** Pauses entre tentatives de reconnexion ; la dernière valeur se répète jusqu'à `reconnectTimeoutMs`. */
+  reconnectDelaysMs = [0, 500, 1000, 2000, 3000];
+  reconnectTimeoutMs = 60_000;
 
   async connect(): Promise<void> {
     if (!webBluetoothAvailable()) {
@@ -52,6 +60,7 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
       this.emit('state', 'error', msg);
       throw new Error(msg);
     }
+    this.userDisconnect = false;
     this.emit('state', 'connecting');
     try {
       this.device = await navigator.bluetooth.requestDevice({
@@ -69,15 +78,53 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
   }
 
   async disconnect(): Promise<void> {
+    this.userDisconnect = true;
+    this.lastCommand = undefined;
     this.device?.gatt?.disconnect();
   }
 
   private onDisconnected() {
+    if (this.reconnecting) return; // coupure provoquée par la boucle de reconnexion elle-même
     this.hasControl = false;
     this.controlPoint = undefined;
     this.wahooCp = undefined;
+    this.lastCrank = undefined;
+    this.pending = undefined;
     this.emit('log', 'GATT déconnecté');
-    this.emit('state', 'disconnected');
+    if (this.userDisconnect) this.emit('state', 'disconnected');
+    else void this.reconnect();
+  }
+
+  /** Reconnexion sans nouvelle sélection : Chrome garde l'autorisation tant que la page reste ouverte. */
+  private async reconnect() {
+    this.reconnecting = true;
+    const started = performance.now();
+    try {
+      for (let attempt = 0; !this.userDisconnect; attempt++) {
+        if (performance.now() - started > this.reconnectTimeoutMs) {
+          this.emit('state', 'error', 'reconnexion abandonnée');
+          return;
+        }
+        const delay = this.reconnectDelaysMs[Math.min(attempt, this.reconnectDelaysMs.length - 1)] ?? 0;
+        if (delay) await new Promise((r) => setTimeout(r, delay));
+        if (this.userDisconnect) break;
+        this.emit('state', 'connecting', `reconnexion, essai ${attempt + 1}`);
+        try {
+          await this.setup();
+        } catch (e) {
+          this.emit('log', `essai ${attempt + 1} échoué : ${e instanceof Error ? e.message : e}`);
+          this.device?.gatt?.disconnect(); // repart d'une session propre : évite les abonnements en double
+          continue;
+        }
+        this.emit('log', `reconnecté en ${((performance.now() - started) / 1000).toFixed(1)} s`);
+        this.emit('state', 'connected', this.name);
+        await this.lastCommand?.().catch((e) => this.emit('log', `consigne non rejouée : ${e}`));
+        return;
+      }
+      this.emit('state', 'disconnected');
+    } finally {
+      this.reconnecting = false;
+    }
   }
 
   private async setup() {
@@ -245,14 +292,22 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
   }
 
   async setTargetPower(watts: number): Promise<void> {
-    if (this.wahooCp) return this.writeWahoo(`ERG ${watts} W`, [wahooTargetPower(watts)]);
-    await this.ensureControl();
-    await this.command(encodeTargetPower(watts));
+    const apply = async () => {
+      if (this.wahooCp) return this.writeWahoo(`ERG ${watts} W`, [wahooTargetPower(watts)]);
+      await this.ensureControl();
+      await this.command(encodeTargetPower(watts));
+    };
+    await apply();
+    this.lastCommand = apply;
   }
 
   async setSimulation(p: SimulationParams): Promise<void> {
-    if (this.wahooCp) return this.writeWahoo(`SIM ${p.gradePct} %`, wahooSimulation(p));
-    await this.ensureControl();
-    await this.command(encodeSimulation(p));
+    const apply = async () => {
+      if (this.wahooCp) return this.writeWahoo(`SIM ${p.gradePct} %`, wahooSimulation(p));
+      await this.ensureControl();
+      await this.command(encodeSimulation(p));
+    };
+    await apply();
+    this.lastCommand = apply;
   }
 }
