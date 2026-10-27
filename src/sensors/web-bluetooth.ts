@@ -45,6 +45,8 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
   private lastCrank?: CyclingPowerFrame['crank'];
   private hasControl = false;
   private wahooCp?: BluetoothRemoteGATTCharacteristic;
+  /** Paramètres du mode simulation Wahoo déjà écrits sur cette session ; inutile de les renvoyer à chaque pente. */
+  private wahooSimKey?: string;
   private userDisconnect = false;
   private reconnecting = false;
   /** Dernière consigne ERG ou SIM, rejouée après une reconnexion. */
@@ -88,6 +90,7 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
     this.hasControl = false;
     this.controlPoint = undefined;
     this.wahooCp = undefined;
+    this.wahooSimKey = undefined;
     this.lastCrank = undefined;
     this.pending = undefined;
     this.emit('log', 'GATT déconnecté');
@@ -293,7 +296,10 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
 
   async setTargetPower(watts: number): Promise<void> {
     const apply = async () => {
-      if (this.wahooCp) return this.writeWahoo(`ERG ${watts} W`, [wahooTargetPower(watts)]);
+      if (this.wahooCp) {
+        this.wahooSimKey = undefined; // l'ERG quitte le mode simulation : il faudra le reprogrammer
+        return this.writeWahoo(`ERG ${watts} W`, [wahooTargetPower(watts)]);
+      }
       await this.ensureControl();
       await this.command(encodeTargetPower(watts));
     };
@@ -303,7 +309,14 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
 
   async setSimulation(p: SimulationParams): Promise<void> {
     const apply = async () => {
-      if (this.wahooCp) return this.writeWahoo(`SIM ${p.gradePct} %`, wahooSimulation(p));
+      if (this.wahooCp) {
+        const [mode, grade] = wahooSimulation(p);
+        const key = `${p.massKg}|${p.crr}|${p.cw}`;
+        const frames = key === this.wahooSimKey ? [grade!] : [mode!, grade!];
+        await this.writeWahoo(`SIM ${p.gradePct.toFixed(1)} %`, frames);
+        this.wahooSimKey = key;
+        return;
+      }
       await this.ensureControl();
       await this.command(encodeSimulation(p));
     };

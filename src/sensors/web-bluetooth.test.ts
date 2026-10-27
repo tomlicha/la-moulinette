@@ -130,4 +130,20 @@ describe('WebBluetoothTrainer, chemin Wahoo', () => {
       [0x46, 0x00, 0x80],
     ]);
   });
+
+  it('renvoie le mode simulation une seule fois, puis seulement la pente', async () => {
+    const power = new FakeChar(uuid(0x2a63));
+    const wahooCp = new FakeChar(WAHOO_CHAR);
+    install(new FakeDevice([new FakeService(uuid(0x1818), [power]), new FakeService(WAHOO_SVC, [wahooCp])]));
+    const { t } = trainer();
+    await t.connect();
+    await t.setSimulation({ gradePct: 2, massKg: 80 });
+    await t.setSimulation({ gradePct: 3, massKg: 80 });
+    expect(wahooCp.writes.map((w) => w[0])).toEqual([0x43, 0x46, 0x46]);
+
+    await t.setSimulation({ gradePct: 3, massKg: 90 }); // masse changée : mode renvoyé
+    await t.setTargetPower(150); // l'ERG sort du mode simulation
+    await t.setSimulation({ gradePct: 3, massKg: 90 });
+    expect(wahooCp.writes.map((w) => w[0])).toEqual([0x43, 0x46, 0x46, 0x43, 0x46, 0x42, 0x43, 0x46]);
+  });
 });
