@@ -40,13 +40,16 @@ export function setupExport(opts: {
   }, 1000);
 
   button.addEventListener('click', async () => {
+    // Le SDK FIT pèse environ 380 Ko : chargé seulement à l'export. Il l'est avant `finish`, qui vide l'enregistrement.
+    const { encodeActivity, fitFileName } = await import('./fit-activity').catch((e) => {
+      log(`export FIT : chargement impossible (${e instanceof Error ? e.message : e})`);
+      throw e;
+    });
     const rec = recorder.finish(Date.now());
     if (!rec) {
       log('export FIT : rien à exporter');
       return;
     }
-    // Le SDK FIT pèse environ 380 Ko : chargé seulement à l'export, pas au démarrage de l'app.
-    const { encodeActivity, fitFileName } = await import('./fit-activity');
     const bytes = encodeActivity(rec);
     download(fitFileName(rec.startMs), bytes);
     log(`export FIT : ${rec.samples.length} échantillons, ${Math.round(bytes.length / 1024)} Ko`);
