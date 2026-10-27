@@ -1,4 +1,3 @@
-import { encodeActivity, fitFileName } from './fit-activity';
 import { RideRecorder } from './recorder';
 import type { SensorHub } from '../sensors/hub';
 import type { ConnectionState } from '../sensors/types';
@@ -40,12 +39,14 @@ export function setupExport(opts: {
     button.textContent = n ? `Exporter FIT (${n} s${recorder.state === 'paused' ? ', en pause' : ''})` : 'Exporter FIT';
   }, 1000);
 
-  button.addEventListener('click', () => {
+  button.addEventListener('click', async () => {
     const rec = recorder.finish(Date.now());
     if (!rec) {
       log('export FIT : rien à exporter');
       return;
     }
+    // Le SDK FIT pèse environ 380 Ko : chargé seulement à l'export, pas au démarrage de l'app.
+    const { encodeActivity, fitFileName } = await import('./fit-activity');
     const bytes = encodeActivity(rec);
     download(fitFileName(rec.startMs), bytes);
     log(`export FIT : ${rec.samples.length} échantillons, ${Math.round(bytes.length / 1024)} Ko`);
