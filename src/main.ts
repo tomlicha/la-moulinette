@@ -35,6 +35,8 @@ const POWER_STALE_MS = 3000;
 const rideBtn = $<HTMLButtonElement>('ride-toggle');
 const massInput = $<HTMLInputElement>('mass');
 const throttle = new GradeThrottle();
+/** ERG engagé : la consigne de puissance prime, et l'envoi de la pente du parcours est suspendu pour ne pas la remplacer. */
+let ergActive = false;
 let ride: Ride | undefined;
 let rideTimer: ReturnType<typeof setInterval> | undefined;
 let lastTick = 0;
@@ -64,10 +66,13 @@ function setState(s: ConnectionState, detail?: string) {
   connectBle.disabled = busy;
   connectSim.disabled = busy;
   disconnectBtn.disabled = !connected;
-  ergBtn.disabled = !connected || !!ride || !trainer?.capabilities.targetPower;
+  ergBtn.disabled = !connected || !trainer?.capabilities.targetPower;
   simBtn.disabled = !connected || !!ride || !trainer?.capabilities.simulation;
   rideBtn.disabled = !connected; // la puissance seule suffit : la pente n'est envoyée que si le trainer sait la simuler
-  if (s === 'disconnected') stopRide(false);
+  if (s === 'disconnected') {
+    stopRide(false);
+    setErgActive(false);
+  }
   if (connected && trainer) {
     const c = trainer.capabilities;
     const range = c.powerRange ? `, plage ${c.powerRange.min}–${c.powerRange.max} W` : '';
@@ -120,13 +125,20 @@ function tickRide() {
   show('r-alt', s.altitudeM);
   $('r-time').textContent = fmtTime(s.elapsedS);
 
-  if (currentState === 'connected' && trainer?.capabilities.simulation && throttle.shouldSend(s.gradePct, now)) {
+  if (currentState === 'connected' && trainer?.capabilities.simulation && !ergActive && throttle.shouldSend(s.gradePct, now)) {
     throttle.markSent(s.gradePct, now);
     hub.setSimulation({ gradePct: s.gradePct, massKg: ride.rider.massKg }).catch((e) => {
       log(`pente non envoyée : ${e instanceof Error ? e.message : e}`);
       setTimeout(() => throttle.reset(), 2000); // nouvel essai, sans marteler le trainer
     });
   }
+}
+
+function setErgActive(on: boolean) {
+  ergActive = on;
+  ergBtn.textContent = on ? "Désengager l'ERG" : "Engager l'ERG";
+  ergBtn.classList.toggle('secondary', on);
+  if (!on) throttle.reset(); // en sortie, la prochaine mise à jour renvoie la pente du parcours
 }
 
 function startRide() {
@@ -144,6 +156,7 @@ function startRide() {
 function stopRide(resetTrainer = true) {
   if (!ride) return;
   clearInterval(rideTimer);
+  setErgActive(false);
   view?.setState({ distanceM: ride.snapshot().distanceM, speedKmh: 0, cadenceRpm: 0 });
   ride = undefined;
   rideBtn.textContent = 'Démarrer la sortie';
@@ -164,12 +177,14 @@ async function start(t: TrainerAdapter) {
   }
 }
 
-async function send(label: string, fn: () => Promise<void>) {
+async function send(label: string, fn: () => Promise<void>): Promise<boolean> {
   try {
     await fn();
     log(`${label} envoyé`);
+    return true;
   } catch (e) {
     log(`${label} refusé : ${e instanceof Error ? e.message : e}`);
+    return false;
   }
 }
 
@@ -189,13 +204,30 @@ disconnectHr.addEventListener('click', () => void hrMonitor?.disconnect());
 connectBle.addEventListener('click', () => void start(new WebBluetoothTrainer()));
 connectSim.addEventListener('click', () => void start(new SimulatedTrainer()));
 disconnectBtn.addEventListener('click', () => void trainer?.disconnect());
-ergBtn.addEventListener('click', () => {
+ergBtn.addEventListener('click', async () => {
+  if (ergActive) {
+    setErgActive(false);
+    if (ride) {
+      log("ERG désengagé : pente du parcours reprise");
+    } else {
+      // Hors sortie, le trainer ne quitte l'ERG qu'avec une consigne de pente.
+      const g = Number(gradeInput.value);
+      await send(`ERG désengagé, SIM ${g} %`, () => hub.setSimulation({ gradePct: g }));
+    }
+    return;
+  }
+  const w = Number(ergInput.value);
+  if (await send(`ERG ${w} W`, () => hub.setTargetPower(w))) setErgActive(true);
+});
+// Changer la cible pendant que l'ERG est engagé l'applique aussitôt.
+ergInput.addEventListener('change', () => {
+  if (!ergActive) return;
   const w = Number(ergInput.value);
   void send(`ERG ${w} W`, () => hub.setTargetPower(w));
 });
-simBtn.addEventListener('click', () => {
+simBtn.addEventListener('click', async () => {
   const g = Number(gradeInput.value);
-  void send(`SIM ${g} %`, () => hub.setSimulation({ gradePct: g }));
+  if (await send(`SIM ${g} %`, () => hub.setSimulation({ gradePct: g }))) setErgActive(false); // le SIM remplace l'ERG
 });
 gradeInput.addEventListener('input', () => {
   $('grade-out').textContent = `${gradeInput.value} %`;
