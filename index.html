@@ -11,6 +11,15 @@
       <h1>PoC · connexion home trainer</h1>
       <p id="support" class="note"></p>
 
+      <section class="view">
+        <canvas id="view"></canvas>
+        <div id="view-stats" class="view-stats">rendu : initialisation…</div>
+        <p class="note">
+          Rendu : <a href="?renderer=webgl2">forcer WebGL2</a> · <a href="?">WebGPU si disponible</a> ·
+          <a href="?quality=low">qualité réduite</a>
+        </p>
+      </section>
+
       <section class="row">
         <button id="connect-ble">Connecter (Bluetooth)</button>
         <button id="connect-sim" class="secondary">Trainer simulé</button>

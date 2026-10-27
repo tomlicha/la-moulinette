@@ -2,6 +2,7 @@ import { HeartRateMonitor } from './sensors/heart-rate-monitor';
 import { SensorHub } from './sensors/hub';
 import { SimulatedTrainer } from './sensors/simulator';
 import { WebBluetoothTrainer, webBluetoothAvailable } from './sensors/web-bluetooth';
+import { RideView } from './render/ride-view';
 import { GradeThrottle } from './sim/grade-throttle';
 import { DEFAULT_RIDER } from './sim/physics';
 import { Ride } from './sim/ride';
@@ -37,6 +38,8 @@ let ride: Ride | undefined;
 let rideTimer: ReturnType<typeof setInterval> | undefined;
 let lastTick = 0;
 let lastPower = { w: 0, at: 0 };
+let lastCadence = { rpm: 0, at: 0 };
+let view: RideView | undefined;
 let currentState: ConnectionState = 'disconnected';
 
 const hex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, '0')).join(' ');
@@ -87,6 +90,7 @@ hub.on('raw', (src, data) => {
 hub.on('measurement', (m) => {
   frames++;
   if (m.powerW !== undefined) lastPower = { w: m.powerW, at: performance.now() };
+  if (m.cadenceRpm !== undefined) lastCadence = { rpm: m.cadenceRpm, at: performance.now() };
   show('m-power', m.powerW);
   show('m-cadence', m.cadenceRpm);
   show('m-speed', m.speedKmh, 1);
@@ -102,6 +106,11 @@ function tickRide() {
   const power = now - lastPower.at > POWER_STALE_MS ? 0 : lastPower.w;
   const s = ride.advance((now - lastTick) / 1000, power);
   lastTick = now;
+  view?.setState({
+    distanceM: s.distanceM,
+    speedKmh: s.speedKmh,
+    cadenceRpm: now - lastCadence.at > POWER_STALE_MS ? 0 : lastCadence.rpm,
+  });
   show('r-speed', s.speedKmh, 1);
   show('r-dist', s.distanceM / 1000, 2);
   show('r-grade', s.gradePct, 1);
@@ -132,6 +141,7 @@ function startRide() {
 function stopRide(resetTrainer = true) {
   if (!ride) return;
   clearInterval(rideTimer);
+  view?.setState({ distanceM: ride.snapshot().distanceM, speedKmh: 0, cadenceRpm: 0 });
   ride = undefined;
   rideBtn.textContent = 'Démarrer la sortie';
   massInput.disabled = false;
@@ -202,3 +212,23 @@ if (webBluetoothAvailable()) {
   $('support').textContent =
     'Web Bluetooth indisponible ici (Chrome ou Edge, en HTTPS ou sur localhost). Le trainer simulé reste utilisable.';
 }
+
+const params = new URLSearchParams(location.search);
+RideView.create($<HTMLCanvasElement>('view'), DEMO_ROUTE, {
+  forceWebGL: params.get('renderer') === 'webgl2',
+  quality: params.get('quality') === 'low' ? 'low' : 'high',
+})
+  .then((v) => {
+    view = v;
+    v.onStats = (s) => {
+      $('view-stats').textContent =
+        `${s.backend === 'webgpu' ? 'WebGPU' : 'WebGL2'} · ${s.fps.toFixed(0)} i/s · ` +
+        `p50 ${s.frameP50Ms.toFixed(1)} ms · p95 ${s.frameP95Ms.toFixed(1)} ms · ` +
+        `${(s.triangles / 1000).toFixed(0)} k triangles · ${s.drawCalls} appels`;
+    };
+    log(`rendu 3D : ${v.backend === 'webgpu' ? 'WebGPU' : 'WebGL2'}`);
+  })
+  .catch((e) => {
+    $('view-stats').textContent = 'rendu 3D indisponible';
+    log(`rendu 3D indisponible : ${e instanceof Error ? e.message : e}`);
+  });
