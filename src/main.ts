@@ -6,6 +6,7 @@ import { RideView } from './render/ride-view';
 import { GradeThrottle } from './sim/grade-throttle';
 import { DEFAULT_RIDER } from './sim/physics';
 import { Ride } from './sim/ride';
+import { setupExport } from './export/wiring';
 import { DEMO_ROUTE } from './sim/route';
 import type { ConnectionState, TrainerAdapter } from './sensors/types';
 
@@ -55,6 +56,7 @@ function log(msg: string) {
 
 function setState(s: ConnectionState, detail?: string) {
   currentState = s;
+  exporter.onTrainerState(s);
   stateEl.dataset.s = s;
   stateEl.textContent = `trainer : ${detail ? `${s} · ${detail}` : s}`;
   const connected = s === 'connected';
@@ -105,6 +107,7 @@ function tickRide() {
   const now = performance.now();
   const power = now - lastPower.at > POWER_STALE_MS ? 0 : lastPower.w;
   const s = ride.advance((now - lastTick) / 1000, power);
+  exporter.onRide(s);
   lastTick = now;
   view?.setState({
     distanceM: s.distanceM,
@@ -198,6 +201,13 @@ gradeInput.addEventListener('input', () => {
   $('grade-out').textContent = `${gradeInput.value} %`;
 });
 $('copy-log').addEventListener('click', () => void navigator.clipboard.writeText(logEl.textContent ?? ''));
+
+const exporter = setupExport({
+  hub,
+  button: $<HTMLButtonElement>('export-fit'),
+  stravaButton: $<HTMLButtonElement>('export-strava'),
+  log,
+});
 
 setInterval(() => {
   show('m-rate', frames);
