@@ -42,6 +42,7 @@ let rideTimer: ReturnType<typeof setInterval> | undefined;
 let lastTick = 0;
 let lastPower = { w: 0, at: 0 };
 let lastCadence = { rpm: 0, at: 0 };
+let lastMeasurementAt = 0;
 let view: RideView | undefined;
 let currentState: ConnectionState = 'disconnected';
 
@@ -96,6 +97,7 @@ hub.on('raw', (src, data) => {
 });
 hub.on('measurement', (m) => {
   frames++;
+  lastMeasurementAt = performance.now();
   if (m.powerW !== undefined) lastPower = { w: m.powerW, at: performance.now() };
   if (m.cadenceRpm !== undefined) lastCadence = { rpm: m.cadenceRpm, at: performance.now() };
   show('m-power', m.powerW);
@@ -244,6 +246,10 @@ const exporter = setupExport({
 setInterval(() => {
   show('m-rate', frames);
   frames = 0;
+  // Capteur muet : mieux vaut un tiret que la dernière valeur affichée comme si elle était actuelle.
+  if (lastMeasurementAt && performance.now() - lastMeasurementAt > POWER_STALE_MS) {
+    for (const id of ['m-power', 'm-cadence', 'm-speed', 'm-hr']) show(id, undefined);
+  }
 }, 1000);
 
 if (webBluetoothAvailable()) {

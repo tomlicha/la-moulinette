@@ -43,6 +43,10 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
   private queue: Promise<unknown> = Promise.resolve();
   private last: Measurement = { t: 0 };
   private lastCrank?: CyclingPowerFrame['crank'];
+  private lastCrankEventAt = 0;
+
+  /** Sans nouvel évènement de manivelle depuis ce délai, le cycliste ne pédale plus : cadence 0. */
+  cadenceTimeoutMs = 2000;
   private hasControl = false;
   private wahooCp?: BluetoothRemoteGATTCharacteristic;
   /** Paramètres du mode simulation Wahoo déjà écrits sur cette session ; inutile de les renvoyer à chaque pente. */
@@ -92,6 +96,7 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
     this.wahooCp = undefined;
     this.wahooSimKey = undefined;
     this.lastCrank = undefined;
+    this.lastCrankEventAt = 0;
     this.pending = undefined;
     this.emit('log', 'GATT déconnecté');
     if (this.userDisconnect) this.emit('state', 'disconnected');
@@ -213,7 +218,14 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
       if (f.crank) {
         if (this.lastCrank) {
           const rpm = cadenceFromCrank(this.lastCrank, f.crank);
-          if (rpm !== undefined) patch.cadenceRpm = rpm;
+          const now = performance.now();
+          if (rpm !== undefined) {
+            patch.cadenceRpm = rpm;
+            this.lastCrankEventAt = now;
+          } else if (now - this.lastCrankEventAt > this.cadenceTimeoutMs) {
+            // Les compteurs de manivelle ne bougent plus : sans ce repli, la dernière cadence resterait affichée.
+            patch.cadenceRpm = 0;
+          }
         }
         this.lastCrank = f.crank;
       }

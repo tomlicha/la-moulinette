@@ -39,7 +39,10 @@ export function resistanceForce(v: number, gradePct: number, p: RiderParams, hea
   return p.massKg * G * (p.crr * Math.cos(theta) + Math.sin(theta)) + 0.5 * p.airDensity * p.cdA * vr * Math.abs(vr);
 }
 
-/** Avance d'un pas de `dt` secondes avec une puissance maintenue ; renvoie la nouvelle vitesse (m/s) et la distance parcourue (m). */
+/**
+ * Avance d'un pas de `dt` secondes avec une puissance maintenue ; renvoie la nouvelle vitesse (m/s) et la distance parcourue (m).
+ * `brakeMs2` est une décélération supplémentaire (freinage), 0 par défaut.
+ */
 export function step(
   v: number,
   powerW: number,
@@ -47,9 +50,10 @@ export function step(
   dt: number,
   p: RiderParams,
   headwindMs = 0,
+  brakeMs2 = 0,
 ): { v: number; dist: number } {
   const drive = (p.efficiency * Math.max(0, powerW)) / Math.max(v, V_MIN);
-  const a = (drive - resistanceForce(v, gradePct, p, headwindMs)) / p.massKg;
+  const a = (drive - resistanceForce(v, gradePct, p, headwindMs)) / p.massKg - (v > 0 ? brakeMs2 : 0);
   const next = Math.max(0, v + a * dt);
   return { v: next, dist: 0.5 * (v + next) * dt };
 }

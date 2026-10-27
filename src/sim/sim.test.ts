@@ -136,6 +136,38 @@ describe('sortie virtuelle', () => {
   });
 });
 
+describe('arrêt de pédalage', () => {
+  const pedal = (ride: Ride, watts: number, seconds: number) => {
+    let s = ride.snapshot();
+    for (let i = 0; i < seconds * 20; i++) s = ride.advance(0.05, watts);
+    return s;
+  };
+
+  it("s'arrête en quelques secondes à plat quand le cycliste ne pédale plus", () => {
+    const ride = new Ride(new Route('plat', [{ lengthM: 50000, gradePct: 0 }]));
+    expect(pedal(ride, 250, 120).speedKmh).toBeGreaterThan(30);
+    expect(pedal(ride, 0, 10).speedKmh).toBeLessThan(0.5);
+  });
+
+  it('ne freine pas avant le délai : une courte pause garde la vitesse', () => {
+    const ride = new Ride(new Route('plat', [{ lengthM: 50000, gradePct: 0 }]));
+    const before = pedal(ride, 250, 120).speedKmh;
+    expect(pedal(ride, 0, 1).speedKmh).toBeGreaterThan(before - 3);
+  });
+
+  it('ne freine pas en descente', () => {
+    const ride = new Ride(new Route('descente', [{ lengthM: 50000, gradePct: -5 }]));
+    expect(pedal(ride, 0, 60).speedKmh).toBeGreaterThan(40);
+  });
+
+  it('repart normalement dès que la puissance revient', () => {
+    const ride = new Ride(new Route('plat', [{ lengthM: 50000, gradePct: 0 }]));
+    pedal(ride, 250, 60);
+    pedal(ride, 0, 10);
+    expect(pedal(ride, 250, 60).speedKmh).toBeGreaterThan(30);
+  });
+});
+
 describe('GradeThrottle', () => {
   it('envoie la première valeur, puis seulement un changement notable et espacé', () => {
     const t = new GradeThrottle(0.5, 1000);

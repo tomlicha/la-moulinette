@@ -146,4 +146,26 @@ describe('WebBluetoothTrainer, chemin Wahoo', () => {
     await t.setSimulation({ gradePct: 3, massKg: 90 });
     expect(wahooCp.writes.map((w) => w[0])).toEqual([0x43, 0x46, 0x46, 0x43, 0x46, 0x42, 0x43, 0x46]);
   });
+
+  it('passe la cadence à 0 quand les compteurs de manivelle ne bougent plus', async () => {
+    const power = new FakeChar(uuid(0x2a63));
+    install(new FakeDevice([new FakeService(uuid(0x1818), [power])]));
+    const { t } = trainer();
+    t.cadenceTimeoutMs = 30;
+    const rpm: (number | undefined)[] = [];
+    t.on('measurement', (m) => rpm.push(m.cadenceRpm));
+    await t.connect();
+
+    // flags 0x0020 : manivelle ; 100 W ; tours puis temps en 1/1024 s
+    power.emit(0x20, 0x00, 100, 0, 10, 0, 0x00, 0x00);
+    power.emit(0x20, 0x00, 100, 0, 11, 0, 0x00, 0x04); // 1 tour en 1 s : 60 rpm
+    expect(rpm.at(-1)).toBeCloseTo(60);
+
+    power.emit(0x20, 0x00, 100, 0, 11, 0, 0x00, 0x04); // compteurs inchangés, délai pas écoulé
+    expect(rpm.at(-1)).toBeCloseTo(60);
+
+    await new Promise((r) => setTimeout(r, 50));
+    power.emit(0x20, 0x00, 0, 0, 11, 0, 0x00, 0x04); // toujours inchangés, délai écoulé
+    expect(rpm.at(-1)).toBe(0);
+  });
 });
