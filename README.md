@@ -39,3 +39,17 @@ Le protocole Wahoo est repris du code de GoldenCheetah, sans documentation offic
 `src/sim/` : modèle physique vélo (puissance, pente, air, roulement, inertie), parcours bouclé et sortie à pas fixe de 50 ms, déterministe et sans dépendance au DOM, donc réutilisable côté serveur. Sur la page, « Démarrer la sortie » fait avancer ce modèle avec la puissance mesurée et renvoie la pente du parcours au trainer en mode SIM. Aspiration, inertie des roues et limite d'adhérence ne sont pas encore modélisées.
 
 `src/sensors/hub.ts` fusionne le trainer et la ceinture cardio ; les deux se reconnectent seuls après une coupure (60 s maximum).
+
+### Export FIT et envoi à Strava
+
+`src/export/` : la sortie est enregistrée à 1 Hz (puissance, cadence, cardio, et vitesse, distance, altitude quand la sortie virtuelle tourne), en pause quand le trainer est déconnecté. « Exporter FIT » télécharge un fichier FIT Activity encodé avec le SDK officiel de Garmin (`@garmin/fitsdk`), chargé seulement à l'export.
+
+Envoi à Strava, depuis le serveur de dev uniquement :
+
+1. Créer une application sur https://www.strava.com/settings/api avec « Authorization Callback Domain » = `localhost`.
+2. Copier `.env.example` en `.env.local` et renseigner `STRAVA_CLIENT_ID` et `STRAVA_CLIENT_SECRET`.
+3. `npm run dev`, puis « Envoyer à Strava » : la première fois, une fenêtre Strava demande l'autorisation (`activity:write`).
+
+Strava exige le `client_secret` pour l'échange et le rafraîchissement des jetons, et sa documentation ne prévoit pas PKCE : le secret ne peut pas vivre dans le navigateur. Un relais dans le serveur Vite (`src/export/strava/relay.ts`) garde donc le secret et les jetons (`.strava-tokens.json`, ignoré par le dépôt) ; la page ne parle qu'à `localhost`. Les variables `STRAVA_*` n'ont pas le préfixe `VITE_` et ne sont jamais envoyées au navigateur. Un déploiement public demandera de rejouer ce relais sur un vrai serveur : le gestionnaire de routes est indépendant de Vite (`Request` vers `Response`), seul le magasin de jetons et l'adaptateur de `vite.config.ts` sont à remplacer.
+
+Depuis le 1er juin 2026, une nouvelle application Strava ne sert qu'un athlète (jusqu'à dix sans revue) et des sources signalent qu'un abonnement Strava est exigé pour les nouveaux développeurs : à vérifier sur la page du programme avant de compter dessus.

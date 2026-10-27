@@ -192,7 +192,12 @@ gradeInput.addEventListener('input', () => {
 });
 $('copy-log').addEventListener('click', () => void navigator.clipboard.writeText(logEl.textContent ?? ''));
 
-const exporter = setupExport({ hub, button: $<HTMLButtonElement>('export-fit'), log });
+const exporter = setupExport({
+  hub,
+  button: $<HTMLButtonElement>('export-fit'),
+  stravaButton: $<HTMLButtonElement>('export-strava'),
+  log,
+});
 
 setInterval(() => {
   show('m-rate', frames);
