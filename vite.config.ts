@@ -69,6 +69,8 @@ function stravaRelay(env: Record<string, string>): Plugin {
 
 export default defineConfig(({ mode }) => ({
   plugins: [stravaRelay(loadEnv(mode, process.cwd(), 'STRAVA_'))],
+  // Chargé à la demande par l'export : sans cela, Vite l'optimise au premier clic et recharge la page, ce qui efface la sortie en cours.
+  optimizeDeps: { include: ['@garmin/fitsdk'] },
   test: {
     // Les worktrees d'agents vivent sous .claude/ : leurs copies du code ne sont pas à tester ici.
     exclude: [...configDefaults.exclude, '.claude/**'],

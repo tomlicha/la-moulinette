@@ -15,7 +15,7 @@ Mise à jour du 27 octobre 2026. Référence : [analyse technique](analyse-techn
 | Ceinture cardio autonome | Codée, avec reconnexion | Oui sur un Garmin HRM-Pro+ : connexion, valeurs affichées, reconnexion (18,6 s, mais la ceinture était coupée pendant l'essai : le seuil de 5 s reste non mesuré) |
 | Simulation physique | Fait : puissance, pente, air, roulement, inertie, freinage sans pédalage, parcours bouclé | Ressenti du SIM confirmé ; réglages à affiner |
 | Rendu 3D | Première itération : monde, ombres en cascades, cycliste animé, caméra de poursuite, WebGPU et repli WebGL2 | WebGPU confirmé sur l'ordinateur de Tom ; **aucune mesure de performance** |
-| Export FIT | Fait et testé avec le décodeur de Garmin | **Non** : bouton non essayé dans un navigateur |
+| Export FIT | Fait ; bouton essayé dans la vraie page avec le trainer simulé, fichier relu avec le décodeur de Garmin | Fichier non encore ouvert dans Strava ni Garmin Connect |
 | Envoi à Strava | Fait via un relais dans le serveur de dev | **Non** : jamais lancé avec de vrais identifiants |
 | Tapis, capteur de foulée (seconde vague) | Non commencé | — |
 | Multijoueur, backend, comptes | Non commencé | — |
@@ -29,7 +29,7 @@ L'ordre suit le risque : on lève d'abord ce qui peut invalider l'architecture, 
 ### Étape 1. Fermer les inconnues de ce qui existe (court)
 
 1. **Mesurer le rendu.** Relever la ligne de statistiques de la vue 3D (i/s, p50, p95, triangles) sur l'ordinateur de Tom, en WebGPU puis en WebGL2, pendant une sortie de plusieurs minutes. Cible : p95 ≤ 16,7 ms (ENF-02). C'est la première donnée réelle pour le PoC 2.
-2. **Essayer l'export FIT** : faire une sortie, exporter, ouvrir le fichier dans un outil tiers. Ensuite, créer l'application Strava et tester l'envoi une fois.
+2. **Essayer l'export FIT avec ton matériel** : faire une sortie, exporter, ouvrir le fichier dans un outil tiers. Ensuite, créer l'application Strava et tester l'envoi une fois (abonnement Strava requis, voir plus bas).
 3. **Couvrir plus de matériel.** Un trainer qui expose FTMS (une autre marque que Wahoo). Sans cela, le chemin FTMS, le socle de l'analyse, n'est jamais passé sur un vrai appareil (EF-01, EF-02, PoC 1).
 4. **Affiner le ressenti** : freinage à l'arrêt, pente de départ de la boucle, vitesse virtuelle comparée à celle du trainer.
 
@@ -65,7 +65,7 @@ Comptes (OIDC), base PostgreSQL, hébergement avec région européenne, anglais 
 
 - **Mesures de performance** : la ligne de statistiques de la vue 3D sur chaque appareil disponible.
 - **Matériel** : un trainer FTMS d'une autre marque, un iPhone (idéalement un iPhone 11), un Android milieu de gamme de 2021.
-- **Comptes** : compte développeur Apple pour l'étape 4 ; application Strava pour tester l'envoi. Des sources tierces disent qu'un abonnement Strava est exigé pour les nouveaux développeurs depuis juin 2026 : à vérifier avant de créer l'application.
+- **Comptes** : compte développeur Apple pour l'étape 4 ; application Strava pour tester l'envoi. Un abonnement Strava payant est exigé pour créer une application depuis le 1er juin 2026 (rapporté par plusieurs médias, non relu dans la documentation officielle) : à confirmer sur la page du programme avant de payer.
 - **Demandes d'accès API** (action 5 de l'analyse) : Garmin Connect, TrainingPeaks, Wahoo. Les délais sont longs et indépendants de nous, donc à déposer maintenant même si l'intégration vient tard.
 
 ## Points ouverts

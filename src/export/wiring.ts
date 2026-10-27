@@ -24,7 +24,7 @@ function download(name: string, bytes: Uint8Array) {
   a.href = url;
   a.download = name;
   a.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 30_000); // libérer tout de suite peut interrompre le téléchargement sur certains navigateurs
 }
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
