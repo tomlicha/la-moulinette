@@ -52,6 +52,16 @@ describe('uploadActivity', () => {
     expect(r).toEqual({ created: true, activityId: 'i123456' });
   });
 
+  it("lit l'identifiant dans la forme réellement renvoyée par intervals.icu", async () => {
+    const real = { icu_athlete_id: 'i1', id: 'i202546479', activities: [{ icu_athlete_id: 'i1', id: 'i202546479' }] };
+    const { fetcher } = fakeIntervals(() => new Response(JSON.stringify(real), { status: 201 }));
+    expect(await uploadActivity(KEY, FIT, { name: 'x', externalId: 'y' }, fetcher)).toEqual({ created: true, activityId: 'i202546479' });
+
+    const onlyList = { activities: [{ id: 'i7' }] };
+    const f2 = fakeIntervals(() => new Response(JSON.stringify(onlyList), { status: 200 })).fetcher;
+    expect(await uploadActivity(KEY, FIT, { name: 'x', externalId: 'y' }, f2)).toEqual({ created: false, activityId: 'i7' });
+  });
+
   it('distingue un doublon (200) d\'une création (201)', async () => {
     const { fetcher } = fakeIntervals(duplicate);
     expect(await uploadActivity(KEY, FIT, { name: 'x', externalId: 'y' }, fetcher)).toEqual({ created: false, activityId: undefined });

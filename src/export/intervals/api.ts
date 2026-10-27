@@ -48,9 +48,11 @@ export async function uploadActivity(apiKey: string, fit: Uint8Array, meta: Uplo
   if (res.status === 401 || res.status === 403) throw new IntervalsError('Clé intervals.icu refusée', res.status);
   if (!res.ok) throw new IntervalsError(`Dépôt refusé (HTTP ${res.status})`, res.status);
 
-  // La réponse est une liste de références d'activité ; sa forme exacte n'est pas détaillée dans la documentation.
+  // Réponse observée sur un vrai compte : { icu_athlete_id, id, activities: [{ icu_athlete_id, id }] }.
+  // On accepte aussi une simple liste, forme que la documentation laisse entendre.
   const body: unknown = await res.json().catch(() => undefined);
-  const first = Array.isArray(body) ? body[0] : body;
-  const id = (first as { id?: string | number } | undefined)?.id;
+  type Ref = { id?: string | number; activities?: Ref[] };
+  const ref = (Array.isArray(body) ? body[0] : body) as Ref | undefined;
+  const id = ref?.id ?? ref?.activities?.[0]?.id;
   return { created: res.status === 201, activityId: id === undefined ? undefined : String(id) };
 }

@@ -51,7 +51,7 @@ Envoi à intervals.icu, sans abonnement, depuis le serveur de dev uniquement :
 2. Copier `.env.example` en `.env.local` et renseigner `INTERVALS_API_KEY` (le fichier n'est jamais commité).
 3. Relancer `npm run dev` : le bouton « Envoyer à intervals.icu » apparaît. Il dépose le fichier FIT et le journal affiche le lien de l'activité.
 
-La clé reste dans le relais du serveur Vite (`src/export/intervals/relay.ts`) et n'est jamais envoyée au navigateur ; ne la colle ni dans le code ni dans une conversation. intervals.icu écarte les fichiers en double : renvoyer la même sortie ne crée rien de plus. Le dépôt est fait d'après la documentation d'intervals.icu (`POST /api/v1/athlete/0/activities`, authentification basique `API_KEY`) ; il n'a pas encore tourné avec une vraie clé, et la forme exacte de la réponse (identifiant de l'activité) est lue de façon tolérante.
+La clé reste dans le relais du serveur Vite (`src/export/intervals/relay.ts`) et n'est jamais envoyée au navigateur ; ne la colle ni dans le code ni dans une conversation. intervals.icu écarte les fichiers en double : renvoyer la même sortie ne crée rien de plus. Le dépôt est fait d'après la documentation d'intervals.icu (`POST /api/v1/athlete/0/activities`, authentification basique `API_KEY`) ; validé de bout en bout sur un vrai compte le 27 octobre 2026 : activité créée (type `VirtualRide`, source `UPLOAD`, puissance et distance présentes), renvoi du même fichier détecté comme doublon sans rien créer, suppression de l'activité de test.
 
 Envoi à Strava, depuis le serveur de dev uniquement :
 

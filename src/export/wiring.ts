@@ -125,7 +125,7 @@ export function setupExport(opts: {
         log(
           result.created
             ? `intervals.icu : activité créée ${result.activityUrl ?? ''}`
-            : 'intervals.icu : déjà présente (fichier identique), rien de créé',
+            : `intervals.icu : déjà présente (fichier identique), rien de créé ${result.activityUrl ?? ''}`,
         );
       } else {
         log(`intervals.icu : échec (${result.message})`);
