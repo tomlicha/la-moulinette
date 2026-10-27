@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>zwift-2 · PoC connexion home trainer</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <main>
+      <h1>PoC · connexion home trainer</h1>
+      <p id="support" class="note"></p>
+
+      <section class="row">
+        <button id="connect-ble">Connecter (Bluetooth)</button>
+        <button id="connect-sim" class="secondary">Trainer simulé</button>
+        <button id="disconnect" class="secondary" disabled>Déconnecter</button>
+        <span id="state" class="pill">déconnecté</span>
+      </section>
+
+      <section class="metrics">
+        <div><span id="m-power">–</span><label>W</label></div>
+        <div><span id="m-cadence">–</span><label>rpm</label></div>
+        <div><span id="m-speed">–</span><label>km/h</label></div>
+        <div><span id="m-hr">–</span><label>bpm</label></div>
+        <div><span id="m-distance">–</span><label>m</label></div>
+        <div><span id="m-rate">–</span><label>trames/s</label></div>
+      </section>
+
+      <section class="controls">
+        <h2>Pilotage</h2>
+        <div class="row">
+          <label for="erg">ERG, puissance cible</label>
+          <input id="erg" type="number" min="0" max="1000" step="5" value="150" />
+          <span>W</span>
+          <button id="erg-send" disabled>Envoyer</button>
+        </div>
+        <div class="row">
+          <label for="grade">SIM, pente</label>
+          <input id="grade" type="range" min="-10" max="20" step="0.5" value="0" />
+          <output id="grade-out">0 %</output>
+          <button id="sim-send" disabled>Envoyer</button>
+        </div>
+        <p id="caps" class="note"></p>
+      </section>
+
+      <section>
+        <h2>Journal</h2>
+        <pre id="log"></pre>
+        <button id="copy-log" class="secondary">Copier le journal</button>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
