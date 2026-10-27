@@ -7,7 +7,7 @@ import {
   decodeIndoorBikeData,
 } from './decoders';
 import { decodeResponse, encodeSimulation, encodeTargetPower } from './control-point';
-import { wahooGrade, wahooSimMode, wahooTargetPower } from './wahoo';
+import { wahooGrade, wahooSimMode, wahooSimulation, wahooTargetPower } from './wahoo';
 
 const u8 = (...n: number[]) => Uint8Array.from(n);
 
@@ -96,5 +96,11 @@ describe('Wahoo propriétaire', () => {
   it('encode le mode simulation : poids x100, Crr x10000, Cw x1000', () => {
     // 80 kg = 8000 = 0x1f40 ; Crr 0,004 = 40 = 0x28 ; Cw 0,51 = 510 = 0x01fe
     expect([...wahooSimMode(80, 0.004, 0.51)]).toEqual([0x43, 0x40, 0x1f, 0x28, 0x00, 0xfe, 0x01]);
+  });
+
+  it('utilise la masse fournie dans la séquence de simulation', () => {
+    // 72 kg = 7200 = 0x1c20
+    const [mode] = wahooSimulation({ gradePct: 0, massKg: 72 });
+    expect([...mode!].slice(0, 3)).toEqual([0x43, 0x20, 0x1c]);
   });
 });

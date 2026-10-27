@@ -33,8 +33,26 @@
         <div><span id="m-rate">–</span><label>trames/s</label></div>
       </section>
 
+      <section>
+        <h2>Sortie virtuelle · parcours « Colline », 6 km en boucle</h2>
+        <div class="row">
+          <label for="mass">Masse cycliste + vélo</label>
+          <input id="mass" type="number" min="30" max="200" step="1" value="80" />
+          <span>kg</span>
+          <button id="ride-toggle" disabled>Démarrer la sortie</button>
+        </div>
+        <div class="metrics">
+          <div><span id="r-speed">–</span><label>km/h virtuels</label></div>
+          <div><span id="r-dist">–</span><label>km</label></div>
+          <div><span id="r-grade">–</span><label>% pente</label></div>
+          <div><span id="r-alt">–</span><label>m altitude</label></div>
+          <div><span id="r-time">–</span><label>temps</label></div>
+        </div>
+        <p class="note">La puissance mesurée fait avancer le modèle physique ; la pente du parcours est envoyée au trainer en mode SIM.</p>
+      </section>
+
       <section class="controls">
-        <h2>Pilotage</h2>
+        <h2>Pilotage manuel</h2>
         <div class="row">
           <label for="erg">ERG, puissance cible</label>
           <input id="erg" type="number" min="0" max="1000" step="5" value="150" />

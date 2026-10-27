@@ -28,6 +28,8 @@ export interface SimulationParams {
   crr?: number;
   /** Coefficient de traînée (kg/m). */
   cw?: number;
+  /** Masse cycliste + vélo en kg, pour les protocoles qui la portent (Wahoo). */
+  massKg?: number;
 }
 
 export interface SensorEvents {

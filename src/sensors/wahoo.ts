@@ -33,6 +33,6 @@ export const wahooSimMode = (weightKg: number, crr: number, cw: number) =>
 export const wahooGrade = (gradePct: number) => frame(WAHOO_OP.setSimGrade, (gradePct / 100 + 1) * 32768);
 
 /** Séquence complète pour une simulation : paramètres physiques puis pente. */
-export function wahooSimulation(p: SimulationParams, weightKg = 80): Uint8Array<ArrayBuffer>[] {
-  return [wahooSimMode(weightKg, p.crr ?? 0.004, p.cw ?? 0.51), wahooGrade(p.gradePct)];
+export function wahooSimulation(p: SimulationParams): Uint8Array<ArrayBuffer>[] {
+  return [wahooSimMode(p.massKg ?? 80, p.crr ?? 0.004, p.cw ?? 0.51), wahooGrade(p.gradePct)];
 }

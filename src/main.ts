@@ -2,6 +2,10 @@ import { HeartRateMonitor } from './sensors/heart-rate-monitor';
 import { SensorHub } from './sensors/hub';
 import { SimulatedTrainer } from './sensors/simulator';
 import { WebBluetoothTrainer, webBluetoothAvailable } from './sensors/web-bluetooth';
+import { GradeThrottle } from './sim/grade-throttle';
+import { DEFAULT_RIDER } from './sim/physics';
+import { Ride } from './sim/ride';
+import { DEMO_ROUTE } from './sim/route';
 import type { ConnectionState, TrainerAdapter } from './sensors/types';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -24,6 +28,17 @@ let trainer: TrainerAdapter | undefined;
 let hrMonitor: HeartRateMonitor | undefined;
 let frames = 0;
 
+/** Au-delà de ce délai sans mesure de puissance, le cycliste est considéré à l'arrêt dans la simulation. */
+const POWER_STALE_MS = 3000;
+const rideBtn = $<HTMLButtonElement>('ride-toggle');
+const massInput = $<HTMLInputElement>('mass');
+const throttle = new GradeThrottle();
+let ride: Ride | undefined;
+let rideTimer: ReturnType<typeof setInterval> | undefined;
+let lastTick = 0;
+let lastPower = { w: 0, at: 0 };
+let currentState: ConnectionState = 'disconnected';
+
 const hex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, '0')).join(' ');
 const show = (id: string, v: number | undefined, digits = 0) => {
   $(id).textContent = v === undefined ? '–' : v.toFixed(digits);
@@ -36,6 +51,7 @@ function log(msg: string) {
 }
 
 function setState(s: ConnectionState, detail?: string) {
+  currentState = s;
   stateEl.dataset.s = s;
   stateEl.textContent = `trainer : ${detail ? `${s} · ${detail}` : s}`;
   const connected = s === 'connected';
@@ -43,8 +59,10 @@ function setState(s: ConnectionState, detail?: string) {
   connectBle.disabled = busy;
   connectSim.disabled = busy;
   disconnectBtn.disabled = !connected;
-  ergBtn.disabled = !connected || !trainer?.capabilities.targetPower;
-  simBtn.disabled = !connected || !trainer?.capabilities.simulation;
+  ergBtn.disabled = !connected || !!ride || !trainer?.capabilities.targetPower;
+  simBtn.disabled = !connected || !!ride || !trainer?.capabilities.simulation;
+  rideBtn.disabled = !connected || !trainer?.capabilities.simulation;
+  if (s === 'disconnected') stopRide(false);
   if (connected && trainer) {
     const c = trainer.capabilities;
     const range = c.powerRange ? `, plage ${c.powerRange.min}–${c.powerRange.max} W` : '';
@@ -68,12 +86,61 @@ hub.on('raw', (src, data) => {
 });
 hub.on('measurement', (m) => {
   frames++;
+  if (m.powerW !== undefined) lastPower = { w: m.powerW, at: performance.now() };
   show('m-power', m.powerW);
   show('m-cadence', m.cadenceRpm);
   show('m-speed', m.speedKmh, 1);
   show('m-hr', m.heartRateBpm);
   show('m-distance', m.distanceM);
 });
+
+const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+function tickRide() {
+  if (!ride) return;
+  const now = performance.now();
+  const power = now - lastPower.at > POWER_STALE_MS ? 0 : lastPower.w;
+  const s = ride.advance((now - lastTick) / 1000, power);
+  lastTick = now;
+  show('r-speed', s.speedKmh, 1);
+  show('r-dist', s.distanceM / 1000, 2);
+  show('r-grade', s.gradePct, 1);
+  show('r-alt', s.altitudeM);
+  $('r-time').textContent = fmtTime(s.elapsedS);
+
+  if (currentState === 'connected' && throttle.shouldSend(s.gradePct, now)) {
+    throttle.markSent(s.gradePct, now);
+    hub.setSimulation({ gradePct: s.gradePct, massKg: ride.rider.massKg }).catch((e) => {
+      log(`pente non envoyée : ${e instanceof Error ? e.message : e}`);
+      setTimeout(() => throttle.reset(), 2000); // nouvel essai, sans marteler le trainer
+    });
+  }
+}
+
+function startRide() {
+  const massKg = Number(massInput.value) || DEFAULT_RIDER.massKg;
+  ride = new Ride(DEMO_ROUTE, { ...DEFAULT_RIDER, massKg });
+  throttle.reset();
+  lastTick = performance.now();
+  rideTimer = setInterval(tickRide, 100);
+  rideBtn.textContent = 'Arrêter la sortie';
+  massInput.disabled = true;
+  setState(currentState, trainer?.name);
+  log(`sortie virtuelle démarrée (${massKg} kg)`);
+}
+
+function stopRide(resetTrainer = true) {
+  if (!ride) return;
+  clearInterval(rideTimer);
+  ride = undefined;
+  rideBtn.textContent = 'Démarrer la sortie';
+  massInput.disabled = false;
+  log('sortie virtuelle arrêtée');
+  if (resetTrainer && currentState === 'connected') void hub.setSimulation({ gradePct: 0 }).catch(() => {});
+  setState(currentState, trainer?.name);
+}
+
+rideBtn.addEventListener('click', () => (ride ? stopRide() : startRide()));
 
 async function start(t: TrainerAdapter) {
   attach(t);
