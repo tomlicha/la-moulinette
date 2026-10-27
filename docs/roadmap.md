@@ -12,7 +12,7 @@ Mise à jour du 27 octobre 2026. Référence : [analyse technique](analyse-techn
 | Pilotage ERG et SIM | Fait par le protocole propriétaire Wahoo ; ERG engageable et désengageable à tout moment | Oui sur le KICKR |
 | Pilotage FTMS | Codé et testé sur un faux appareil | **Non** : le KICKR n'expose pas FTMS |
 | Capteur de puissance seul | Fait : lecture, cadence déduite de la manivelle, cadence à 0 à l'arrêt | Oui sur un Stages (connexion) ; correction de cadence à confirmer |
-| Ceinture cardio autonome | Codée, avec reconnexion | Connexion oui sur un Garmin HRM-Pro+ ; valeurs affichées et reconnexion **à confirmer** |
+| Ceinture cardio autonome | Codée, avec reconnexion | Connexion et valeurs affichées : oui sur un Garmin HRM-Pro+ ; reconnexion **à confirmer** |
 | Simulation physique | Fait : puissance, pente, air, roulement, inertie, freinage sans pédalage, parcours bouclé | Ressenti du SIM confirmé ; réglages à affiner |
 | Rendu 3D | Première itération : monde, ombres en cascades, cycliste animé, caméra de poursuite, WebGPU et repli WebGL2 | WebGPU confirmé sur l'ordinateur de Tom ; **aucune mesure de performance** |
 | Export FIT | Fait et testé avec le décodeur de Garmin | **Non** : bouton non essayé dans un navigateur |
@@ -30,7 +30,7 @@ L'ordre suit le risque : on lève d'abord ce qui peut invalider l'architecture, 
 
 1. **Mesurer le rendu.** Relever la ligne de statistiques de la vue 3D (i/s, p50, p95, triangles) sur l'ordinateur de Tom, en WebGPU puis en WebGL2, pendant une sortie de plusieurs minutes. Cible : p95 ≤ 16,7 ms (ENF-02). C'est la première donnée réelle pour le PoC 2.
 2. **Essayer l'export FIT** : faire une sortie, exporter, ouvrir le fichier dans un outil tiers. Ensuite, créer l'application Strava et tester l'envoi une fois.
-3. **Couvrir plus de matériel.** Vérifier les valeurs de la ceinture cardio (la connexion est validée) et sa reconnexion, et surtout un trainer qui expose FTMS (une autre marque que Wahoo). Sans cela, le chemin FTMS, le socle de l'analyse, n'est jamais passé sur un vrai appareil (EF-01, EF-02, PoC 1).
+3. **Couvrir plus de matériel.** Vérifier la reconnexion de la ceinture cardio (connexion et valeurs validées), et surtout un trainer qui expose FTMS (une autre marque que Wahoo). Sans cela, le chemin FTMS, le socle de l'analyse, n'est jamais passé sur un vrai appareil (EF-01, EF-02, PoC 1).
 4. **Affiner le ressenti** : freinage à l'arrêt, pente de départ de la boucle, vitesse virtuelle comparée à celle du trainer.
 
 ### Étape 2. Séances structurées (moyen, valeur directe)
