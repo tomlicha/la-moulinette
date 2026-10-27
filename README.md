@@ -30,6 +30,8 @@ Web Bluetooth exige Chrome ou Edge et un contexte sécurisé (localhost ou HTTPS
 |---|---|---|---|---|---|
 | Wahoo KICKR (81B5) | Web Bluetooth, Chrome (Windows) | Cycling Power (1818) | oui | oui | Pas de FTMS exposé : contrôle par le service propriétaire Wahoo (`a026ee01…`, opcodes 0x42, 0x43, 0x46). Cache Bluetooth Windows à vider si les services paraissent obsolètes. |
 
+Reconnexion automatique (coupure du KICKR en cours d'ERG) : 3,4 s et 3,7 s, du premier coup, avec rejeu de la consigne ERG (réponse du trainer : succès). Exigence ENF-06 : moins de 5 s. Deux mesures seulement ; presque tout le temps est pris par la connexion GATT et la découverte des services.
+
 Le protocole Wahoo est repris du code de GoldenCheetah, sans documentation officielle. Il faut tester les autres marques en FTMS (voir la matrice de compatibilité de l'analyse).
 
 ### Sortie virtuelle et physique
