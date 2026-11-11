@@ -7,6 +7,7 @@ import { GradeThrottle } from './sim/grade-throttle';
 import { DEFAULT_RIDER } from './sim/physics';
 import { Ride } from './sim/ride';
 import { setupExport } from './export/wiring';
+import { setupTelemetry } from './telemetry/wiring';
 import { DEMO_ROUTE } from './sim/route';
 import type { ConnectionState, TrainerAdapter } from './sensors/types';
 import { ErgFollower } from './workout/erg-follower';
@@ -78,7 +79,21 @@ function log(msg: string) {
   const ts = new Date().toLocaleTimeString('fr-FR');
   logEl.textContent += `${ts}  ${msg}\n`;
   logEl.scrollTop = logEl.scrollHeight;
+  telemetry.record(msg);
 }
+
+// Envoie le journal au serveur de logs dès qu'une erreur survient (voir src/telemetry/). `roleState` n'est lu qu'à l'envoi,
+// bien après l'évaluation du module.
+const telemetry = setupTelemetry({
+  log,
+  context: () => ({
+    trainer: trainer?.name,
+    trainerState: currentState,
+    capabilities: trainer?.capabilities,
+    heartRateState: roleState.hr,
+    rideRunning: !!ride,
+  }),
+});
 
 function setState(s: ConnectionState, detail?: string) {
   currentState = s;

@@ -7,7 +7,8 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "assets": "node tools/assets/build.ts"
+    "assets": "node tools/assets/build.ts",
+    "logs:serve": "node tools/log-server.ts"
   },
   "devDependencies": {
     "@gltf-transform/core": "^4.5.1",
