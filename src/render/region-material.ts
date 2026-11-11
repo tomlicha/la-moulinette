@@ -10,19 +10,22 @@ export type Kit = Partial<Record<RegionName, Partial<Finish>>>;
  * et se recolore en changeant les tableaux, sans dupliquer le modèle.
  */
 export class RegionMaterial extends THREE.MeshStandardNodeMaterial {
-  private readonly colors: THREE.Color[];
-  private readonly roughness: number[];
-  private readonly metalness: number[];
+  /** Couleurs des zones, modifiables en place (maillot d'équipe, couleur du vélo). */
+  readonly regionColors: THREE.Color[];
+  private readonly regionRoughness: number[];
+  private readonly regionMetalness: number[];
 
   constructor(kit: Kit = {}) {
     super();
     const finishes = REGION_NAMES.map((name) => ({ ...DEFAULT_FINISH[name], ...kit[name] }));
-    this.colors = finishes.map((f) => new THREE.Color(f.color));
-    this.roughness = finishes.map((f) => f.roughness);
-    this.metalness = finishes.map((f) => f.metalness);
+    this.regionColors = finishes.map((f) => new THREE.Color(f.color));
+    this.regionRoughness = finishes.map((f) => f.roughness);
+    this.regionMetalness = finishes.map((f) => f.metalness);
     const region = int(attribute('_region', 'float').add(0.5));
-    this.colorNode = uniformArray(this.colors, 'color').element(region);
-    this.roughnessNode = uniformArray(this.roughness, 'float').element(region);
-    this.metalnessNode = uniformArray(this.metalness, 'float').element(region);
+    type ColorNode = NonNullable<THREE.MeshStandardNodeMaterial['colorNode']>;
+    type FloatNode = NonNullable<THREE.MeshStandardNodeMaterial['roughnessNode']>;
+    this.colorNode = uniformArray(this.regionColors, 'color').element(region) as unknown as ColorNode;
+    this.roughnessNode = uniformArray(this.regionRoughness, 'float').element(region) as unknown as FloatNode;
+    this.metalnessNode = uniformArray(this.regionMetalness, 'float').element(region) as unknown as FloatNode;
   }
 }

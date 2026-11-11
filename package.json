@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "assets": "node tools/assets/build.ts"
   },
   "devDependencies": {
     "@gltf-transform/core": "^4.5.1",

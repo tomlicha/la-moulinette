@@ -170,6 +170,22 @@ export class MeshBuilder {
     return this.indices.length / 3;
   }
 
+  /** Ajoute un maillage déjà construit (surface implicite extraite, par exemple). */
+  addMesh(vertices: { p: Vector3; n: Vector3; region: number; skin: Skin }[], indices: ArrayLike<number>): this {
+    const base = this.positions.length / 3;
+    for (const v of vertices) {
+      this.positions.push(v.p.x, v.p.y, v.p.z);
+      this.normals.push(v.n.x, v.n.y, v.n.z);
+      this.regions.push(v.region);
+      for (let m = 0; m < 4; m++) {
+        this.joints.push(v.skin.joints[m] ?? 0);
+        this.weights.push(v.skin.weights[m] ?? 0);
+      }
+    }
+    for (let i = 0; i < indices.length; i++) this.indices.push(base + indices[i]!);
+    return this;
+  }
+
   sweep(spec: SweepSpec): this {
     const path = spec.path;
     const s0 = spec.s0 ?? 0;

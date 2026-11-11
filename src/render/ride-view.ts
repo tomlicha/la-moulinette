@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import type { Route } from '../sim/route';
 import { createRenderer, type Backend } from './renderer';
+import { loadRiderAssets, type RiderAssets } from './assets';
 import { Rider } from './rider';
 import { buildWorld, WORLD_HIGH, WORLD_LOW } from './world';
 import { WorldPath } from './world-path';
@@ -38,7 +39,7 @@ export class RideView {
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(58, 16 / 9, 0.3, 8000);
   private readonly path: WorldPath;
-  private readonly rider = new Rider();
+  private readonly rider: Rider;
   private readonly sky: THREE.Mesh;
   private readonly frameTimes: number[] = [];
   private readonly resizeObserver: ResizeObserver;
@@ -57,7 +58,9 @@ export class RideView {
     private readonly canvas: HTMLCanvasElement,
     route: Route,
     quality: Quality,
+    assets: RiderAssets,
   ) {
+    this.rider = new Rider(assets);
     this.path = new WorldPath(route);
     const world = buildWorld(this.path, this.scene, quality === 'high' ? WORLD_HIGH : WORLD_LOW);
     this.sky = world.sky;
@@ -76,8 +79,8 @@ export class RideView {
     route: Route,
     opts: { forceWebGL?: boolean; quality?: Quality } = {},
   ): Promise<RideView> {
-    const { renderer, backend } = await createRenderer(canvas, opts.forceWebGL);
-    return new RideView(renderer, backend, canvas, route, opts.quality ?? 'high');
+    const [{ renderer, backend }, assets] = await Promise.all([createRenderer(canvas, opts.forceWebGL), loadRiderAssets()]);
+    return new RideView(renderer, backend, canvas, route, opts.quality ?? 'high', assets);
   }
 
   setState(s: ViewState) {
