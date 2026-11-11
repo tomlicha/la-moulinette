@@ -9,6 +9,11 @@ import { Ride } from './sim/ride';
 import { setupExport } from './export/wiring';
 import { DEMO_ROUTE } from './sim/route';
 import type { ConnectionState, TrainerAdapter } from './sensors/types';
+import { ErgFollower } from './workout/erg-follower';
+import { STEP_LABEL, type Workout } from './workout/model';
+import { profileShapes } from './workout/profile';
+import { parseWorkout, WorkoutRunner, type WorkoutState } from './workout/runner';
+import demoWorkout from '../samples/workouts/decouverte.zwo?raw';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -70,6 +75,7 @@ function setState(s: ConnectionState, detail?: string) {
   ergBtn.disabled = !connected || !trainer?.capabilities.targetPower;
   simBtn.disabled = !connected || !!ride || !trainer?.capabilities.simulation;
   rideBtn.disabled = !connected; // la puissance seule suffit : la pente n'est envoyée que si le trainer sait la simuler
+  refreshWorkoutButtons();
   if (s === 'disconnected') {
     stopRide(false);
     setErgActive(false);
@@ -209,6 +215,10 @@ disconnectBtn.addEventListener('click', () => void trainer?.disconnect());
 ergBtn.addEventListener('click', async () => {
   if (ergActive) {
     setErgActive(false);
+    if (runner) {
+      woErgOptOut = true;
+      log('ERG désengagé : la séance continue sans imposer de consigne');
+    }
     if (ride) {
       log("ERG désengagé : pente du parcours reprise");
     } else {
@@ -218,12 +228,19 @@ ergBtn.addEventListener('click', async () => {
     }
     return;
   }
+  // Pendant une séance, réengager rend la main à la séance, qui renvoie aussitôt sa consigne du moment.
+  if (runner) {
+    woErgOptOut = false;
+    follower.reset();
+    log('ERG réengagé : la séance reprend sa consigne');
+    return tickWorkout();
+  }
   const w = Number(ergInput.value);
   if (await send(`ERG ${w} W`, () => hub.setTargetPower(w))) setErgActive(true);
 });
 // Changer la cible pendant que l'ERG est engagé l'applique aussitôt.
 ergInput.addEventListener('change', () => {
-  if (!ergActive) return;
+  if (!ergActive || runner) return; // en séance, c'est la séance qui fixe la consigne
   const w = Number(ergInput.value);
   void send(`ERG ${w} W`, () => hub.setTargetPower(w));
 });
@@ -234,6 +251,229 @@ simBtn.addEventListener('click', async () => {
 gradeInput.addEventListener('input', () => {
   $('grade-out').textContent = `${gradeInput.value} %`;
 });
+// --- Séance structurée ---
+
+const woFile = $<HTMLInputElement>('wo-file');
+const woFtp = $<HTMLInputElement>('wo-ftp');
+const woStart = $<HTMLButtonElement>('wo-start');
+const woPause = $<HTMLButtonElement>('wo-pause');
+const woSkip = $<HTMLButtonElement>('wo-skip');
+const woStop = $<HTMLButtonElement>('wo-stop');
+const woEasier = $<HTMLButtonElement>('wo-easier');
+const woHarder = $<HTMLButtonElement>('wo-harder');
+const woShapes = $('wo-shapes');
+const PROFILE_W = 1000;
+const PROFILE_H = 120;
+/** Écart toléré entre puissance mesurée et consigne avant de l'afficher comme hors cible. */
+const ON_TARGET_W = 10;
+const FTP_KEY = 'zwift2.ftp';
+
+const follower = new ErgFollower();
+let workout: Workout | undefined;
+let runner: WorkoutRunner | undefined;
+let woTimer: ReturnType<typeof setInterval> | undefined;
+let woPaused = false;
+let woLastTick = 0;
+/** L'ERG a été désengagé à la main pendant la séance : elle continue sans imposer de consigne jusqu'au réengagement. */
+let woErgOptOut = false;
+let woSending = false;
+/** Après un envoi raté, on attend avant de réessayer pour ne pas marteler le trainer. */
+let woHoldUntil = 0;
+
+try {
+  const saved = Number(localStorage.getItem(FTP_KEY));
+  if (saved >= 50) woFtp.value = String(saved);
+} catch {
+  // stockage indisponible (navigation privée) : on garde la valeur par défaut
+}
+const readFtp = () => (Number(woFtp.value) >= 50 ? Number(woFtp.value) : 200);
+
+function refreshWorkoutButtons() {
+  const canErg = currentState === 'connected' && !!trainer?.capabilities.targetPower;
+  woStart.disabled = !workout || !!runner || !canErg;
+  for (const b of [woPause, woSkip, woStop, woEasier, woHarder]) b.disabled = !runner;
+  woPause.textContent = woPaused ? 'Reprendre' : 'Pause';
+}
+
+function renderProfile() {
+  woShapes.replaceChildren();
+  if (!workout) return;
+  for (const s of profileShapes(workout, readFtp(), PROFILE_W, PROFILE_H)) {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', s.d);
+    path.setAttribute('class', s.zone);
+    woShapes.append(path);
+  }
+}
+
+function loadWorkout(fileName: string, text: string) {
+  if (runner) return log("séance en cours : l'arrêter avant d'en charger une autre");
+  try {
+    workout = parseWorkout(fileName, text);
+  } catch (e) {
+    log(`séance illisible (${fileName}) : ${e instanceof Error ? e.message : e}`);
+    return;
+  }
+  for (const w of workout.warnings) log(`séance : ${w}`);
+  const total = workout.steps.reduce((t, s) => t + s.durationS, 0);
+  $('wo-name').textContent = `${workout.name} · ${fmtTime(total)}${workout.description ? ` · ${workout.description}` : ''}`;
+  renderProfile();
+  renderWorkout(undefined);
+  refreshWorkoutButtons();
+  log(`séance chargée : ${workout.name} (${workout.steps.length} paliers, ${fmtTime(total)})`);
+}
+
+function renderWorkout(s: WorkoutState | undefined) {
+  const cursor = $('wo-cursor');
+  const x = s ? (s.elapsedS / (s.totalS || 1)) * PROFILE_W : 0;
+  cursor.setAttribute('x1', String(x));
+  cursor.setAttribute('x2', String(x));
+  woShapes.querySelectorAll('path').forEach((p, i) => p.classList.toggle('past', !!s && i < s.stepIndex));
+
+  const delta = $('wo-delta');
+  delta.className = '';
+  const msg = $('wo-message');
+  if (!s) {
+    for (const id of ['wo-target', 'wo-step-left', 'wo-left']) $(id).textContent = '–';
+    delta.textContent = '–';
+    $('wo-step-label').textContent = 'palier';
+    $('wo-next').textContent = '';
+    msg.hidden = true;
+    return;
+  }
+  $('wo-target').textContent = s.targetW === undefined ? 'libre' : String(s.targetW);
+  const powerFresh = performance.now() - lastPower.at <= POWER_STALE_MS;
+  if (s.targetW !== undefined && powerFresh) {
+    const d = Math.round(lastPower.w - s.targetW);
+    delta.textContent = `${d > 0 ? '+' : ''}${d} W`;
+    delta.className = Math.abs(d) <= ON_TARGET_W ? 'ok' : 'off';
+  } else {
+    delta.textContent = '–';
+  }
+  $('wo-step-left').textContent = fmtTime(s.stepRemainingS);
+  $('wo-step-label').textContent = `${STEP_LABEL[s.step.kind]}${s.step.cadenceRpm ? ` · ${s.step.cadenceRpm} rpm` : ''}`;
+  $('wo-left').textContent = fmtTime(s.totalS - s.elapsedS);
+  $('wo-next').textContent = s.next
+    ? `Ensuite : ${STEP_LABEL[s.next.kind]}, ${s.nextTargetW === undefined ? 'libre' : `${s.nextTargetW} W`}, ${fmtTime(s.next.durationS)}`
+    : 'Dernier palier';
+  msg.hidden = !s.message;
+  msg.textContent = s.message ?? '';
+}
+
+/** Relâche l'ERG pris par la séance : hors sortie virtuelle, le trainer ne le quitte qu'avec une consigne de pente. */
+function releaseErg(reason: string) {
+  if (!ergActive) return;
+  setErgActive(false);
+  if (ride || currentState !== 'connected') return log(reason);
+  const g = Number(gradeInput.value);
+  void send(`${reason}, SIM ${g} %`, () => hub.setSimulation({ gradePct: g }));
+}
+
+function tickWorkout() {
+  if (!runner) return;
+  const now = performance.now();
+  const dt = (now - woLastTick) / 1000;
+  woLastTick = now;
+  // Sans trainer connecté, le temps de séance s'arrête : on ne compte pas un palier que personne ne pédale.
+  const running = !woPaused && currentState === 'connected';
+  const s = running ? runner.advance(dt) : runner.state();
+  renderWorkout(s);
+  if (s.done) return finishWorkout('séance terminée');
+  if (!running || woErgOptOut || woSending || now < woHoldUntil) return;
+
+  if (s.targetW === undefined) {
+    follower.reset();
+    return releaseErg(`palier ${STEP_LABEL[s.step.kind].toLowerCase()} : ERG relâché`);
+  }
+  if (!ergActive) follower.reset(); // ERG relâché ailleurs (fin de sortie, reconnexion) : on le reprend aussitôt
+  const w = follower.next(s, now);
+  if (w === undefined) return;
+  woSending = true;
+  hub
+    .setTargetPower(w)
+    .then(() => {
+      if (!ergActive) {
+        setErgActive(true);
+        log(`séance : ERG engagé à ${w} W`);
+      }
+    })
+    .catch((e) => {
+      log(`séance : consigne ${w} W non envoyée (${e instanceof Error ? e.message : e})`);
+      follower.reset();
+      woHoldUntil = performance.now() + 2000;
+    })
+    .finally(() => (woSending = false));
+}
+
+function startWorkout() {
+  if (!workout) return;
+  runner = new WorkoutRunner(workout, readFtp());
+  woPaused = false;
+  woErgOptOut = false;
+  woHoldUntil = 0;
+  follower.reset();
+  woLastTick = performance.now();
+  woTimer = setInterval(tickWorkout, 250);
+  $('wo-intensity').textContent = '100 %';
+  refreshWorkoutButtons();
+  log(`séance démarrée : ${workout.name}, FTP ${runner.ftpW} W`);
+  tickWorkout();
+}
+
+function finishWorkout(reason: string) {
+  if (!runner) return;
+  clearInterval(woTimer);
+  runner = undefined;
+  woPaused = false;
+  woErgOptOut = false;
+  if (ergActive) releaseErg(reason);
+  else log(reason);
+  renderWorkout(undefined);
+  refreshWorkoutButtons();
+}
+
+woFile.addEventListener('change', async () => {
+  const f = woFile.files?.[0];
+  if (f) loadWorkout(f.name, await f.text());
+  woFile.value = ''; // recharger le même fichier redéclenche l'évènement
+});
+$('wo-demo').addEventListener('click', () => loadWorkout('decouverte.zwo', demoWorkout));
+woFtp.addEventListener('change', () => {
+  try {
+    localStorage.setItem(FTP_KEY, String(readFtp()));
+  } catch {
+    // préférence non mémorisée, sans conséquence
+  }
+  if (runner) runner.ftpW = readFtp();
+  renderProfile();
+});
+woStart.addEventListener('click', startWorkout);
+woPause.addEventListener('click', () => {
+  woPaused = !woPaused;
+  follower.reset();
+  log(woPaused ? 'séance en pause' : 'séance reprise');
+  refreshWorkoutButtons();
+});
+woSkip.addEventListener('click', () => {
+  if (!runner) return;
+  const s = runner.skip();
+  follower.reset();
+  log(`séance : palier suivant (${STEP_LABEL[s.step.kind]})`);
+  tickWorkout();
+});
+woStop.addEventListener('click', () => finishWorkout('séance arrêtée'));
+for (const [btn, delta] of [
+  [woEasier, -0.05],
+  [woHarder, 0.05],
+] as const) {
+  btn.addEventListener('click', () => {
+    if (!runner) return;
+    runner.intensity = Math.min(1.5, Math.max(0.5, Math.round((runner.intensity + delta) * 100) / 100));
+    $('wo-intensity').textContent = `${Math.round(runner.intensity * 100)} %`;
+    follower.reset();
+  });
+}
+
 $('copy-log').addEventListener('click', () => void navigator.clipboard.writeText(logEl.textContent ?? ''));
 
 const exporter = setupExport({

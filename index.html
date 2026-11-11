@@ -60,6 +60,41 @@
         <p class="note">La puissance mesurée fait avancer le modèle physique ; la pente du parcours est envoyée au trainer en mode SIM.</p>
       </section>
 
+      <section class="workout">
+        <h2>Séance structurée</h2>
+        <div class="row">
+          <label class="file-btn secondary" for="wo-file">Charger .zwo, .erg ou .mrc</label>
+          <input id="wo-file" type="file" accept=".zwo,.erg,.mrc" hidden />
+          <button id="wo-demo" class="secondary">Séance d'exemple</button>
+          <label for="wo-ftp">FTP</label>
+          <input id="wo-ftp" type="number" min="50" max="600" step="5" value="200" />
+          <span>W</span>
+        </div>
+        <p id="wo-name" class="note">Aucune séance chargée.</p>
+        <svg id="wo-profile" class="wo-profile" viewBox="0 0 1000 120" preserveAspectRatio="none" aria-label="Profil de la séance">
+          <g id="wo-shapes"></g>
+          <line id="wo-cursor" x1="0" y1="0" x2="0" y2="120" />
+        </svg>
+        <div class="row">
+          <button id="wo-start" disabled>Démarrer la séance</button>
+          <button id="wo-pause" class="secondary" disabled>Pause</button>
+          <button id="wo-skip" class="secondary" disabled>Palier suivant</button>
+          <button id="wo-stop" class="secondary" disabled>Arrêter</button>
+          <span class="spacer"></span>
+          <button id="wo-easier" class="secondary" disabled aria-label="Intensité moins 5 %">−5 %</button>
+          <span id="wo-intensity">100 %</span>
+          <button id="wo-harder" class="secondary" disabled aria-label="Intensité plus 5 %">+5 %</button>
+        </div>
+        <div class="metrics">
+          <div><span id="wo-target">–</span><label>W visés</label></div>
+          <div><span id="wo-delta">–</span><label>écart mesuré</label></div>
+          <div><span id="wo-step-left">–</span><label id="wo-step-label">palier</label></div>
+          <div><span id="wo-left">–</span><label>reste de la séance</label></div>
+        </div>
+        <p id="wo-next" class="note"></p>
+        <p id="wo-message" class="wo-message" hidden></p>
+      </section>
+
       <section class="controls">
         <h2>Pilotage manuel</h2>
         <div class="row">

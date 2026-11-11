@@ -64,3 +64,12 @@ Strava exige le `client_secret` pour l'échange et le rafraîchissement des jeto
 Depuis le 1er juin 2026, un compte Strava avec abonnement payant est exigé pour créer une nouvelle application (niveau Standard ; les anciennes applications dès le 30 juin). Plusieurs médias le rapportent, avec un prix de 11,99 $ par mois aux États-Unis ; nous ne l'avons pas relu dans la documentation officielle. Une application Standard sert un athlète par défaut, et jusqu'à dix selon les sources : le palier réel de l'application s'affiche sur https://www.strava.com/settings/api.
 
 Validé : l'export FIT dans la vraie page (fichier relu avec le décodeur de Garmin : intégrité, 0 erreur, puissance, cadence, cardio, vitesse, distance, altitude, sport `cycling` et sous-sport `virtualActivity`). Non validé : l'envoi lui-même, jamais lancé avec de vrais identifiants.
+
+### Séances structurées
+
+`src/workout/` : lecture des fichiers `.zwo` (Zwift), `.erg` (watts) et `.mrc` (% de FTP), en TypeScript pur et sans DOM ; déroulement minuté de la séance ; consigne envoyée au trainer en ERG (immédiatement à chaque palier, au plus une fois par seconde pendant une rampe). Fichiers de référence dans `samples/workouts/`, également proposés dans la page (« Séance d'exemple »).
+
+Sur la page : charger un fichier ou l'exemple, régler la FTP (mémorisée dans le navigateur), puis « Démarrer la séance ». Pause, palier suivant, arrêt et intensité ±5 % sont disponibles en cours de route. Un palier libre (`FreeRide`, `MaxEffort`) relâche l'ERG, qui est repris au palier suivant. Désengager l'ERG à la main laisse la séance continuer sans consigne ; le réengager lui rend la main. Le temps de séance s'arrête quand le trainer est déconnecté.
+
+Vérifié dans la vraie page avec le trainer simulé ; pas encore sur le KICKR.
+

@@ -21,7 +21,7 @@ Mise à jour du 27 octobre 2026. Référence : [analyse technique](analyse-techn
 | Tapis, capteur de foulée (seconde vague) | Non commencé | — |
 | Multijoueur, backend, comptes | Non commencé | — |
 | Coquille iOS (Capacitor) | Non commencée | — |
-| Séances structurées (.zwo, .erg, .mrc) | Non commencé | — |
+| Séances structurées (.zwo, .erg, .mrc) | Fait : lecture des trois formats, déroulement minuté, ERG piloté par la séance, profil coloré par zone, intensité réglable | Vérifié dans la page avec le trainer simulé ; **pas encore sur le KICKR** |
 
 ## Prochaines étapes
 
@@ -34,7 +34,7 @@ L'ordre suit le risque : on lève d'abord ce qui peut invalider l'architecture, 
 3. **Couvrir plus de matériel.** Un trainer qui expose FTMS (une autre marque que Wahoo). Sans cela, le chemin FTMS, le socle de l'analyse, n'est jamais passé sur un vrai appareil (EF-01, EF-02, PoC 1).
 4. **Affiner le ressenti** : freinage à l'arrêt, pente de départ de la boucle, vitesse virtuelle comparée à celle du trainer.
 
-### Étape 2. Séances structurées (moyen, valeur directe)
+### Étape 2. Séances structurées (fait le 10 novembre 2026, reste l'essai sur le KICKR)
 
 Importer et exécuter des fichiers `.zwo`, `.erg` et `.mrc` (EF-05) : paliers, rampes, échauffements, avec la consigne envoyée en ERG. Le pilotage ERG existe déjà, il manque l'analyse des fichiers, l'exécution minutée et un HUD de séance. Les parseurs sont du TypeScript pur, testables sans matériel, avec un jeu de fichiers de référence.
 
