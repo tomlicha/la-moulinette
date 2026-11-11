@@ -188,10 +188,10 @@ export const smax = (a: number, b: number, k: number) => -smin(-a, -b, k);
  */
 export class Body {
   readonly shapes: Shape[];
-  /** Combine les distances des formes (dans l'ordre de `shapes`) en une seule : fusions et unions. */
-  readonly combine: (d: number[]) => number;
+  /** Combine les distances des formes (dans l'ordre de `shapes`) en une seule : fusions et unions. Reçoit aussi le point. */
+  readonly combine: (d: number[], x: number, y: number, z: number) => number;
 
-  constructor(shapes: Shape[], combine: (d: number[]) => number) {
+  constructor(shapes: Shape[], combine: (d: number[], x: number, y: number, z: number) => number) {
     this.shapes = shapes;
     this.combine = combine;
   }
@@ -200,7 +200,7 @@ export class Body {
 
   sdf(x: number, y: number, z: number): number {
     for (let i = 0; i < this.shapes.length; i++) this.d[i] = this.shapes[i]!.sdf(x, y, z);
-    return this.combine(this.d);
+    return this.combine(this.d, x, y, z);
   }
 
   gradient(p: Vector3, out: Vector3, h = 0.0005): Vector3 {

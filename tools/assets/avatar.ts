@@ -10,8 +10,8 @@ import { REGION } from '../../src/render/asset-contract.ts';
 import { BIND_CRANK, DEFAULT_BODY, footPitch, SKELETON, solvePose, solveTorsoAngle, type Pose, type V3 } from '../../src/render/rider-pose.ts';
 import { BIKE_FIT } from './bike.ts';
 import { GlbWriter } from './gltf.ts';
-import { angleDiff, bumps, curve, inflate, keys, MeshBuilder, oval, polyline, roundEnds, smooth, type Bump, type SectionPoint, type Skin } from './mesh.ts';
-import { buildHead, headFrame } from './head.ts';
+import { angleDiff, bumps, curve, inflate, keys, loop, MeshBuilder, oval, polyline, roundEnds, smooth, type Bump, type SectionPoint, type Skin } from './mesh.ts';
+import { buildHead, headFrame, type HeadOptions } from './head.ts';
 import { Body, Ellipsoid, ovalRadius, polygonize, simplify, smax, smin, splitRegions, Tube, type Shape, type TubeSpec } from './sdf.ts';
 
 const vec = (p: V3) => new Vector3(p.x, p.y, p.z);
@@ -242,6 +242,15 @@ function armTube(pose: Pose, s: 'l' | 'r', mirror: 1 | -1): TubeSpec {
   };
 }
 
+/** Reliefs du cou, en abscisse depuis la base du cou `sn`. */
+const NECK_RELIEF = (sn: number): Bump[] => {
+  const list: Bump[] = [{ s: sn + 0.045, theta: 0, h: 0.0035, ws: 0.012, wt: 0.16 }]; // pomme d'Adam
+  for (const side of [1, -1])
+    for (const [ds, th] of [[0.0, 0.42], [0.025, 0.75], [0.05, 1.1]] as const)
+      list.push({ s: sn + ds, theta: side * th, h: 0.0032, ws: 0.022, wt: 0.24 }); // sterno-cléido-mastoïdiens
+  return list;
+};
+
 /**
  * Cou. Le corps n'en garde que le bas, sous le col du maillot (`collar`) ; la tête en reprend la totalité, sans
  * col, fondue dans la mâchoire : le seul raccord entre les deux maillages passe à l'intérieur du col.
@@ -261,13 +270,74 @@ function neckTube(pose: Pose, collar: boolean): TubeSpec {
     front: vec(pose.bases.neck.z),
     radius: (s, th) => {
       const t = (s - sn) / DEFAULT_BODY.neck;
-      const bare = ovalRadius(th, lerp(0.058, 0.052, t), lerp(0.072, 0.062, t), 0.059, 0.059) + bumps([{ s: sn + 0.02, theta: 0, h: 0.006, ws: 0.02, wt: 0.25 }], s, th);
+      // Cou de sportif sec : 11 cm de large, plus profond vers la nuque ; pomme d'Adam devant, et les deux
+      // sterno-cléido-mastoïdiens qui montent en biais du creux du sternum vers l'arrière des oreilles.
+      const side = lerp(0.054, 0.05, t);
+      const bare = ovalRadius(th, lerp(0.05, 0.045, t), lerp(0.062, 0.055, t), side, side) + bumps(NECK_RELIEF(sn), s, th);
       if (!collar) return bare;
       return bare + (s < collarTop ? 0.004 * smooth(collarTop, collarTop - 0.004, s) : 0) + ridge(s, collarTop - 0.002, 0.0015);
     },
     region: (s) => (collar && s < collarTop ? REGION.jerseyAlt : REGION.skin),
     skin,
   };
+}
+
+/**
+ * Col du maillot : un bourrelet posé sur la ligne où le maillot rencontre le cou. Le corps et le cou de la tête
+ * sont deux maillages qui se croisent ; sans lui, leur intersection dessinerait une ligne en dents de scie.
+ */
+function collarRim(b: MeshBuilder, body: Body, head: Body, neck: Tube) {
+  const pts = neck.spec.points;
+  const sn = pts[0]!.distanceTo(pts[1]!);
+  const pos = new Vector3();
+  const tan = new Vector3();
+  const surface = (s: number, th: number) => {
+    neck.path.at(s, pos, tan);
+    const front = neck.spec.front.clone().addScaledVector(tan, -neck.spec.front.dot(tan)).normalize();
+    const side = new Vector3().crossVectors(front, tan);
+    const dir = front.multiplyScalar(Math.cos(th)).addScaledVector(side, Math.sin(th));
+    // Surface réelle du cou de la tête (élargi par la fusion avec la mâchoire), depuis l'axe.
+    let r = neck.spec.radius(s, th) * 0.8;
+    const p = pos.clone().addScaledVector(dir, r);
+    for (let k = 0; k < 40 && head.sdf(p.x, p.y, p.z) < 0; k++) {
+      r += 0.001;
+      p.copy(pos).addScaledVector(dir, r);
+    }
+    return { p, dir };
+  };
+  const ring: Vector3[] = [];
+  const N = 72;
+  for (let i = 0; i < N; i++) {
+    const th = (2 * Math.PI * i) / N;
+    // Du haut du cou vers le bas, jusqu'à entrer dans le maillot, puis dichotomie.
+    let hi = sn + 0.09;
+    let lo = hi;
+    while (lo > sn - 0.04) {
+      lo -= 0.002;
+      const { p } = surface(lo, th);
+      if (body.sdf(p.x, p.y, p.z) < 0) break;
+      hi = lo;
+    }
+    for (let it = 0; it < 14; it++) {
+      const m = (lo + hi) / 2;
+      const { p } = surface(m, th);
+      if (body.sdf(p.x, p.y, p.z) < 0) lo = m;
+      else hi = m;
+    }
+    const { p, dir } = surface(hi, th);
+    ring.push(p.addScaledVector(dir, 0.0008));
+  }
+  const path = loop(ring, 0.004);
+  neck.path.at(sn, pos, tan);
+  b.sweep({
+    path,
+    ds: path.length / 120,
+    radial: 10,
+    front: ring[0]!.clone().sub(pos).normalize(),
+    section: (_s, th) => oval(th, 0.0034, 0.0034, 0.0034, 0.0034),
+    region: REGION.jerseyAlt,
+    skin: (_s, p) => neck.skinAt(p),
+  });
 }
 
 /**
@@ -347,10 +417,11 @@ async function body(b: MeshBuilder, pose: Pose) {
   const collared = new Tube(neckTube(pose, true));
   const neckBase = vec(pose.joints.neckBase);
   const neckDir = vec(pose.joints.headBase).sub(neckBase).normalize();
-  const cut = neckBase.clone().addScaledVector(neckDir, 0.02);
+  const cut = neckBase.clone().addScaledVector(neckDir, 0.014);
   const neckStub: Shape = {
     sdf: (x, y, z) => smax(collared.sdf(x, y, z), (x - cut.x) * neckDir.x + (y - cut.y) * neckDir.y + (z - cut.z) * neckDir.z, 0.004),
-    regionAt: (p) => collared.regionAt(p),
+    // Tout ce que le corps garde du cou est du maillot : la peau du cou appartient à la tête.
+    regionAt: () => REGION.jerseyAlt,
     skinAt: (p) => collared.skinAt(p),
   };
   const neck = new Tube(neckTube(pose, false));
@@ -391,7 +462,7 @@ async function body(b: MeshBuilder, pose: Pose) {
     simple.points.map(({ p, r }) => ({ p, n: implicit.gradient(p, g).clone(), region: r, skin: implicit.skin(p, 0.045) })),
     simple.indices,
   );
-  return { dense: dense.indices.length / 3, simplified: simple.indices.length / 3, neck };
+  return { dense: dense.indices.length / 3, simplified: simple.indices.length / 3, neck, implicit };
 }
 
 
@@ -523,7 +594,7 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 /* ---------- Squelette et écriture ---------- */
 
-export async function buildAvatar(out: string) {
+export async function buildAvatar(out: string, opts: HeadOptions = {}) {
   const torsoAngle = solveTorsoAngle(BIKE_FIT);
   const pose = solvePose(BIKE_FIT, BIND_CRANK, torsoAngle);
   const b = new MeshBuilder();
@@ -532,7 +603,8 @@ export async function buildAvatar(out: string) {
     shoe(b, pose, s, mirror);
     hand(b, pose, s, mirror);
   }
-  const headStats = await buildHead(b, pose, implicit.neck, bone('head'));
+  const headStats = await buildHead(b, pose, implicit.neck, bone('head'), opts);
+  collarRim(b, implicit.implicit, headStats.head, implicit.neck);
 
   const w = new GlbWriter();
   const doc = w.doc;
