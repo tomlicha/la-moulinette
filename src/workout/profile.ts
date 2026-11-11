@@ -22,12 +22,17 @@ export interface ProfileShape {
  * Profil de la séance : un polygone par palier, hauteur proportionnelle à la consigne (rampes en trapèze).
  * Un palier libre est dessiné bas et neutre, faute de consigne.
  */
-export function profileShapes(w: Workout, ftpW: number, width: number, height: number): ProfileShape[] {
-  const total = totalDurationS(w) || 1;
-  const peak = Math.max(
+/** Haut de l'échelle verticale du profil, en W : 130 % de la FTP, ou plus si un palier dépasse. Les axes s'y alignent. */
+export function profilePeakW(w: Workout, ftpW: number): number {
+  return Math.max(
     1.3 * ftpW,
     ...w.steps.map((s) => Math.max(targetWatts(s, 0, ftpW) ?? 0, targetWatts(s, s.durationS, ftpW) ?? 0) * 1.08),
   );
+}
+
+export function profileShapes(w: Workout, ftpW: number, width: number, height: number): ProfileShape[] {
+  const total = totalDurationS(w) || 1;
+  const peak = profilePeakW(w, ftpW);
   const y = (watts: number) => +(height - (watts / peak) * height).toFixed(2);
   const out: ProfileShape[] = [];
   let t = 0;

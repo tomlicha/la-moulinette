@@ -167,33 +167,87 @@
           <input id="lib-import" type="file" accept=".zwo,.erg,.mrc" hidden />
         </div>
 
-        <section id="editor" class="editor" hidden>
-          <h2 id="ed-title">Nouvelle séance</h2>
-          <div class="ed-meta">
-            <label class="ed-field"><span>Nom</span><input id="ed-name" type="text" maxlength="80" /></label>
-            <label class="ed-field ed-desc"><span>Description</span><textarea id="ed-desc" rows="2" maxlength="500"></textarea></label>
+        <section id="editor" class="editor" hidden aria-labelledby="ed-title">
+          <h2 id="ed-title" class="visually-hidden">Nouvelle séance</h2>
+          <header class="ed-header">
+            <label class="ed-name"><span>Séance</span><input id="ed-name" type="text" maxlength="80" /></label>
+            <span id="ed-dirty" class="ed-dirty" hidden>● Modifiée, non enregistrée</span>
+            <div class="row">
+              <button id="ed-save">Enregistrer</button>
+              <button id="ed-use" class="secondary">Utiliser</button>
+              <button id="ed-export" class="secondary">Exporter .zwo</button>
+              <button id="ed-close" class="secondary">Fermer</button>
+            </div>
+          </header>
+          <details class="ed-desc">
+            <summary>Description</summary>
+            <textarea id="ed-desc" rows="2" maxlength="500" aria-label="Description de la séance"></textarea>
+          </details>
+
+          <section id="ed-summary" class="ed-summary" aria-label="Résumé"></section>
+
+          <section class="ed-card">
+            <div class="ed-toolbar" role="toolbar" aria-label="Outils d'édition">
+              <button id="ed-undo" type="button" class="secondary">↶ Annuler</button>
+              <button id="ed-redo" type="button" class="secondary">↷ Rétablir</button>
+              <span class="spacer"></span>
+              <span id="ed-linked" class="note"></span>
+            </div>
+            <div class="ed-chart">
+              <div id="ed-yaxis" class="ed-yaxis" aria-hidden="true"></div>
+              <div class="ed-plot-col">
+                <div id="ed-plot" class="ed-plot" tabindex="0" aria-label="Profil de la séance. Flèches gauche et droite : bloc précédent ou suivant ; haut et bas : puissance.">
+                  <svg id="ed-svg" viewBox="0 0 1000 120" preserveAspectRatio="none" role="img"></svg>
+                  <div id="ed-zone-labels" class="ed-zone-labels" aria-hidden="true"></div>
+                  <div id="ed-tip" class="ed-tip" role="tooltip" hidden></div>
+                </div>
+                <div id="ed-strip" class="ed-strip" aria-label="Structure de la séance"></div>
+                <div id="ed-xaxis" class="ed-xaxis" aria-hidden="true"></div>
+              </div>
+            </div>
+          </section>
+
+          <div class="ed-bottom">
+            <form id="ed-inspector" class="ed-inspector" aria-label="Bloc sélectionné"></form>
+            <section id="ed-zones" class="ed-zones" aria-label="Temps par zone"></section>
           </div>
-          <svg class="wo-profile" viewBox="0 0 1000 120" preserveAspectRatio="none" aria-label="Aperçu du profil">
-            <g id="ed-shapes"></g>
-          </svg>
-          <p id="ed-stats" class="note"></p>
-          <ol id="ed-blocks" class="ed-blocks"></ol>
-          <div class="row">
-            <span class="note">Ajouter :</span>
-            <button class="secondary" data-add="warmup">Échauffement</button>
-            <button class="secondary" data-add="steady">Palier</button>
-            <button class="secondary" data-add="intervals">Intervalles</button>
-            <button class="secondary" data-add="ramp">Rampe</button>
-            <button class="secondary" data-add="free">Libre</button>
-            <button class="secondary" data-add="cooldown">Retour au calme</button>
+
+          <div class="ed-add-row">
+            <div class="row">
+              <span class="note">Ajouter</span>
+              <button type="button" class="chip" data-add="warmup">Échauffement</button>
+              <button type="button" class="chip" data-add="steady">Palier</button>
+              <button type="button" class="chip" data-add="intervals">Intervalles</button>
+              <button type="button" class="chip" data-add="ramp">Rampe</button>
+              <button type="button" class="chip" data-add="free">Libre</button>
+              <button type="button" class="chip" data-add="cooldown">Retour au calme</button>
+            </div>
+            <p class="ed-keys note">
+              <span><kbd>↑</kbd> <kbd>↓</kbd> ±5 %</span>
+              <span><kbd>⇧</kbd>+<kbd>←</kbd> <kbd>→</kbd> ±15 s</span>
+              <span><kbd>←</kbd> <kbd>→</kbd> autre bloc</span>
+              <span><kbd>Suppr</kbd> supprimer</span>
+              <span><kbd>Ctrl</kbd>+<kbd>Z</kbd> annuler</span>
+            </p>
           </div>
           <ul id="ed-errors" class="errors"></ul>
-          <div class="row">
-            <button id="ed-save">Enregistrer</button>
-            <button id="ed-use" class="secondary">Enregistrer et utiliser</button>
-            <button id="ed-export" class="secondary">Exporter .zwo</button>
-            <button id="ed-close" class="secondary">Fermer</button>
-          </div>
+
+          <dialog id="ed-insert" class="ed-dialog" aria-labelledby="ed-insert-title">
+            <h3 id="ed-insert-title">Insérer un bloc ici</h3>
+            <div class="row" id="ed-insert-types"></div>
+            <div class="row"><button type="button" class="secondary" data-close>Annuler</button></div>
+          </dialog>
+          <dialog id="ed-cadence" class="ed-dialog" aria-labelledby="ed-cadence-title">
+            <h3 id="ed-cadence-title">Cadence cible</h3>
+            <p class="note">Facultatif : laissée vide, la cadence est à ton choix.</p>
+            <label class="ed-field"><span id="ed-cad-on-label">Cadence</span><input id="ed-cad-on" type="number" min="30" max="200" step="1" placeholder="libre" /> rpm</label>
+            <label class="ed-field" id="ed-cad-off-row"><span>Récupération</span><input id="ed-cad-off" type="number" min="30" max="200" step="1" placeholder="libre" /> rpm</label>
+            <div class="row">
+              <button type="button" id="ed-cad-apply">Appliquer</button>
+              <button type="button" id="ed-cad-clear" class="secondary">Retirer</button>
+              <button type="button" class="secondary" data-close>Annuler</button>
+            </div>
+          </dialog>
         </section>
 
         <h2>Mes séances</h2>
