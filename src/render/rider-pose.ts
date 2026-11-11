@@ -110,7 +110,7 @@ export const DEFAULT_BODY: Body = {
   forearm: 0.27,
   hand: 0.095,
   hipHalfWidth: 0.088,
-  shoulderHalfWidth: 0.185,
+  shoulderHalfWidth: 0.165,
   shoulderDrop: 0.045,
   hipAboveSaddle: 0.09,
   hipAheadOfSaddle: 0.025,

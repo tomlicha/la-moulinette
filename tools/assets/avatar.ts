@@ -11,7 +11,8 @@ import { BIND_CRANK, DEFAULT_BODY, footPitch, SKELETON, solvePose, solveTorsoAng
 import { BIKE_FIT } from './bike.ts';
 import { GlbWriter } from './gltf.ts';
 import { angleDiff, bumps, curve, inflate, keys, MeshBuilder, oval, polyline, roundEnds, smooth, type Bump, type SectionPoint, type Skin } from './mesh.ts';
-import { Body, ovalRadius, polygonize, simplify, splitRegions, Tube, type TubeSpec } from './sdf.ts';
+import { buildHead, headFrame } from './head.ts';
+import { Body, Ellipsoid, ovalRadius, polygonize, simplify, smax, smin, splitRegions, Tube, type Shape, type TubeSpec } from './sdf.ts';
 
 const vec = (p: V3) => new Vector3(p.x, p.y, p.z);
 const BONE_INDEX = Object.fromEntries(SKELETON.map((b, i) => [b.bone, i])) as Record<string, number>;
@@ -82,18 +83,18 @@ function legTube(pose: Pose, s: 'l' | 'r', mirror: 1 | -1): TubeSpec {
   const ankle = vec(J[`ankle_${s}`]);
   const thighDir = knee.clone().sub(hip).normalize();
   const shinDir = ankle.clone().sub(knee).normalize();
-  // La jambe commence derrière et sous la hanche : son premier tronçon forme la fesse, posée sur la selle.
-  const start = hip.clone().addScaledVector(thighDir, -0.1).add(new Vector3(0, -0.085, 0));
+  // La jambe part de l'intérieur du bassin, juste derrière la hanche : la masse du bassin fait les fesses.
+  const start = hip.clone().addScaledVector(thighDir, -0.04);
   const end = ankle.clone().addScaledVector(shinDir, 0.03);
   const sh = start.distanceTo(hip); // hanche
   const sk = sh + DEFAULT_BODY.thigh; // genou
   const sa = sk + DEFAULT_BODY.shin; // cheville
   const u = (list: [number, number][]) => keys(list.map(([x, v]) => [x + sh, v] as [number, number]));
   const prof: Profile = {
-    front: u([[-0.11, 0.05], [-0.05, 0.066], [0, 0.074], [0.15, 0.072], [0.3, 0.06], [0.4, 0.05], [0.445, 0.05], [0.49, 0.041], [0.64, 0.038], [0.79, 0.029], [0.9, 0.03]]),
-    back: u([[-0.11, 0.075], [-0.06, 0.098], [-0.01, 0.092], [0.1, 0.075], [0.3, 0.057], [0.42, 0.045], [0.47, 0.046], [0.54, 0.058], [0.6, 0.06], [0.7, 0.044], [0.8, 0.03], [0.9, 0.03]]),
-    outer: u([[-0.11, 0.062], [-0.05, 0.08], [0, 0.081], [0.15, 0.07], [0.32, 0.056], [0.44, 0.047], [0.54, 0.049], [0.64, 0.044], [0.79, 0.031], [0.86, 0.033], [0.9, 0.031]]),
-    inner: u([[-0.11, 0.065], [-0.05, 0.088], [0, 0.078], [0.08, 0.063], [0.2, 0.058], [0.36, 0.05], [0.44, 0.046], [0.56, 0.051], [0.66, 0.042], [0.79, 0.03], [0.86, 0.032], [0.9, 0.03]]),
+    front: u([[-0.04, 0.066], [0, 0.072], [0.15, 0.072], [0.3, 0.06], [0.4, 0.05], [0.445, 0.05], [0.49, 0.041], [0.64, 0.038], [0.79, 0.029], [0.9, 0.03]]),
+    back: u([[-0.04, 0.075], [0, 0.08], [0.1, 0.074], [0.3, 0.057], [0.42, 0.045], [0.47, 0.046], [0.54, 0.058], [0.6, 0.06], [0.7, 0.044], [0.8, 0.03], [0.9, 0.03]]),
+    outer: u([[-0.04, 0.072], [0, 0.078], [0.15, 0.07], [0.32, 0.056], [0.44, 0.047], [0.54, 0.049], [0.64, 0.044], [0.79, 0.031], [0.86, 0.033], [0.9, 0.031]]),
+    inner: u([[-0.04, 0.06], [0, 0.066], [0.08, 0.062], [0.2, 0.058], [0.36, 0.05], [0.44, 0.046], [0.56, 0.051], [0.66, 0.042], [0.79, 0.03], [0.86, 0.032], [0.9, 0.03]]),
     bumps: [
       { s: sh + 0.34, theta: -0.75, h: 0.011, ws: 0.05, wt: 0.5 }, // vaste interne
       { s: sh + 0.2, theta: 1.0, h: 0.008, ws: 0.1, wt: 0.6 }, // vaste externe
@@ -124,7 +125,7 @@ function legTube(pose: Pose, s: 'l' | 'r', mirror: 1 | -1): TubeSpec {
     mirror,
     radius: (ss, th) =>
       (r(ss, th) + plateau(ss, band, shortsEnd, 0.0012) + ridge(ss, shortsEnd - 0.002) + ridge(ss, sockTop + 0.002, 0.0015)) *
-      roundEnds(ss, 0, total, 0.05, 0),
+      roundEnds(ss, 0, total, 0.035, 0),
     region: (ss) => {
       if (ss < band) return REGION.shorts;
       if (ss < shortsEnd) return REGION.shortsBand;
@@ -154,20 +155,16 @@ function torsoTube(pose: Pose): TubeSpec {
   const sT = sL + DEFAULT_BODY.spine;
   const sN = sT + DEFAULT_BODY.chest;
   const end = sN + 0.02;
-  const width = keys([[0, 0.095], [0.05, 0.135], [0.12, 0.15], [0.2, 0.143], [0.28, 0.133], [0.36, 0.142], [0.45, 0.16], [0.55, 0.168], [0.6, 0.152], [0.635, 0.11], [end, 0.06]]);
+  const width = keys([[0, 0.095], [0.05, 0.135], [0.12, 0.15], [0.2, 0.145], [0.28, 0.14], [0.36, 0.145], [0.45, 0.155], [0.55, 0.158], [0.6, 0.142], [0.635, 0.105], [end, 0.06]]);
   const prof: Profile = {
     front: keys([[0, 0.07], [0.06, 0.088], [0.12, 0.098], [0.23, 0.094], [0.32, 0.094], [0.45, 0.104], [0.55, 0.108], [0.615, 0.08], [end, 0.045]]),
-    back: keys([[0, 0.07], [0.06, 0.09], [0.14, 0.095], [0.23, 0.086], [0.32, 0.083], [0.45, 0.098], [0.55, 0.104], [0.625, 0.08], [end, 0.045]]),
+    back: keys([[0, 0.07], [0.06, 0.09], [0.14, 0.095], [0.23, 0.092], [0.32, 0.09], [0.45, 0.098], [0.55, 0.104], [0.625, 0.08], [end, 0.045]]),
     outer: width,
     inner: width,
     n: 2.5,
     bumps: [
       { s: 0.53, theta: 0.5, h: 0.01, ws: 0.05, wt: 0.42 }, // pectoraux
       { s: 0.53, theta: -0.5, h: 0.01, ws: 0.05, wt: 0.42 },
-      { s: 0.56, theta: Math.PI - 0.62, h: 0.009, ws: 0.06, wt: 0.4 }, // omoplates
-      { s: 0.56, theta: -Math.PI + 0.62, h: 0.009, ws: 0.06, wt: 0.4 },
-      { s: 0.47, theta: 1.45, h: 0.007, ws: 0.08, wt: 0.4 }, // dorsaux
-      { s: 0.47, theta: -1.45, h: 0.007, ws: 0.08, wt: 0.4 },
     ],
   };
   // Poches dorsales : trois bosses sous l'ourlet du maillot.
@@ -183,7 +180,7 @@ function torsoTube(pose: Pose): TubeSpec {
     blend: 0.06,
     front: vec(pose.bases.pelvis.z), // ventre
     // Le bas du buste s'arrondit sous les hanches : les fesses viennent des jambes, fondues dans le bassin.
-    radius: (s, th) => (r(s, th) + ridge(s, hem + 0.003, 0.0025)) * roundEnds(s, 0.05, end, 0.07, 0.025),
+    radius: (s, th) => (r(s, th) + ridge(s, hem + 0.003, 0.0012)) * roundEnds(s, 0.05, end, 0.07, 0.025),
     region: (s, th) => {
       if (s < hem) return REGION.shorts;
       if (s > yoke && s < yoke + 0.008) return REGION.jerseyAccent;
@@ -245,7 +242,11 @@ function armTube(pose: Pose, s: 'l' | 'r', mirror: 1 | -1): TubeSpec {
   };
 }
 
-function neckTube(pose: Pose): TubeSpec {
+/**
+ * Cou. Le corps n'en garde que le bas, sous le col du maillot (`collar`) ; la tête en reprend la totalité, sans
+ * col, fondue dans la mâchoire : le seul raccord entre les deux maillages passe à l'intérieur du col.
+ */
+function neckTube(pose: Pose, collar: boolean): TubeSpec {
   const F = headFrame(pose);
   const neckBase = vec(pose.joints.neckBase);
   const chestDir = neckBase.clone().sub(vec(pose.joints.thorax)).normalize();
@@ -260,39 +261,126 @@ function neckTube(pose: Pose): TubeSpec {
     front: vec(pose.bases.neck.z),
     radius: (s, th) => {
       const t = (s - sn) / DEFAULT_BODY.neck;
-      return ovalRadius(th, lerp(0.06, 0.05, t), lerp(0.066, 0.056, t), 0.054, 0.054) + bumps([{ s: sn + 0.02, theta: 0, h: 0.006, ws: 0.02, wt: 0.25 }], s, th) + (s < collarTop ? 0.004 * smooth(collarTop, collarTop - 0.004, s) : 0) + ridge(s, collarTop - 0.002, 0.0015);
+      const bare = ovalRadius(th, lerp(0.058, 0.052, t), lerp(0.072, 0.062, t), 0.059, 0.059) + bumps([{ s: sn + 0.02, theta: 0, h: 0.006, ws: 0.02, wt: 0.25 }], s, th);
+      if (!collar) return bare;
+      return bare + (s < collarTop ? 0.004 * smooth(collarTop, collarTop - 0.004, s) : 0) + ridge(s, collarTop - 0.002, 0.0015);
     },
-    region: (s) => (s < collarTop ? REGION.jerseyAlt : REGION.skin),
+    region: (s) => (collar && s < collarTop ? REGION.jerseyAlt : REGION.skin),
     skin,
   };
 }
 
 /**
- * Corps continu : buste, jambes, bras et cou fondus en une seule surface, extraite d'une grille de 5 mm puis
- * simplifiée. Les fusions sont limitées aux jonctions réelles (bassin et jambes, buste et bras, buste et cou).
+ * Bassin assis : une seule masse large, aplatie contre la selle, avec un sillon au milieu de l'arrière et un léger
+ * galbe de chaque fessier. Les cuisses en sortent par l'avant ; le buste s'y pose par le haut.
+ */
+function pelvisMass(pose: Pose): Shape {
+  const B = pose.bases.pelvis;
+  const x = vec(B.x);
+  const y = vec(B.y);
+  const z = vec(B.z); // vers le ventre
+  const center = vec(pose.joints.root).addScaledVector(y, -0.02);
+  return new Ellipsoid({
+    center,
+    axes: [x, y, z],
+    radii: [0.12, 0.1, 0.095],
+    shape: (lx, _ly, lz, d) => {
+      const back = smooth(-0.02, -0.09, lz); // 0 devant, 1 à l'arrière
+      const cleft = 0.0025 * Math.exp(-((lx / 0.02) ** 2)) * back;
+      return d + cleft;
+    },
+    region: () => REGION.shorts,
+    skin: { joints: [bone('pelvis')], weights: [1] },
+  });
+}
+
+/** Deltoïde : enveloppe le haut du bras ; le bras part sous cette masse au lieu de sortir du buste comme un tube. */
+function deltoid(pose: Pose, s: 'l' | 'r', mirror: 1 | -1): Shape {
+  const sh = vec(pose.joints[`shoulder_${s}`]);
+  const el = vec(pose.joints[`elbow_${s}`]);
+  const chestUp = vec(pose.bases.chest.y);
+  const ua = el.clone().sub(sh).normalize();
+  const out = new Vector3(mirror, 0, 0).addScaledVector(ua, -mirror * ua.x).normalize();
+  return new Ellipsoid({
+    center: sh.clone().addScaledVector(ua, 0.028).addScaledVector(chestUp, 0.004),
+    axes: [out, ua, out.clone().cross(ua).normalize()],
+    radii: [0.045, 0.068, 0.052],
+    region: () => REGION.jerseyAlt,
+    skin: { joints: [bone(`upperarm_${s}`), bone('chest')], weights: [0.65, 0.35] },
+  });
+}
+
+/**
+ * Trapèze : une seule masse d'une épaule à l'autre, posée sur le haut du buste autour de la base du cou. D'un seul
+ * tenant, elle ne creuse pas de gouttière le long de la colonne.
+ */
+function trapezius(pose: Pose): Shape {
+  const C = pose.bases.chest;
+  const x = vec(C.x);
+  const up = vec(C.y);
+  const front = vec(C.z);
+  return new Ellipsoid({
+    center: vec(pose.joints.neckBase).addScaledVector(up, -0.045).addScaledVector(front, -0.012),
+    axes: [x, up, front],
+    radii: [DEFAULT_BODY.shoulderHalfWidth * 0.92, 0.05, 0.068],
+    region: () => REGION.jerseyAlt,
+    skin: { joints: [bone('chest')], weights: [1] },
+  });
+}
+
+/**
+ * Corps continu : buste, bassin, jambes, épaules, bras et cou fondus en une seule surface, extraite d'une grille
+ * de 5 mm puis simplifiée.
+ *
+ * Les fusions se font par paliers : très larges entre buste, bassin, trapèze, cou et épaules (le tronc doit se lire
+ * d'un seul volume), plus serrées pour les cuisses et les bras (qui gardent leur forme). Jambes et bras restent dans
+ * des branches distinctes, réunies sans fusion.
  */
 async function body(b: MeshBuilder, pose: Pose) {
-  const tubes = [torsoTube(pose), legTube(pose, 'l', 1), legTube(pose, 'r', -1), armTube(pose, 'l', 1), armTube(pose, 'r', -1), neckTube(pose)].map((t) => new Tube(t));
-  const implicit = new Body(tubes, [
-    { members: [0, 1, 2], k: 0.05 },
-    { members: [0, 3], k: 0.04 },
-    { members: [0, 4], k: 0.04 },
-    { members: [0, 5], k: 0.03 },
-  ]);
+  const torso = new Tube(torsoTube(pose));
+  const pelvis = pelvisMass(pose);
+  const legL = new Tube(legTube(pose, 'l', 1));
+  const legR = new Tube(legTube(pose, 'r', -1));
+  const armL = new Tube(armTube(pose, 'l', 1));
+  const armR = new Tube(armTube(pose, 'r', -1));
+  // Bas du cou avec le col, coupé juste sous le haut du col ; le reste du cou appartient à la tête.
+  const collared = new Tube(neckTube(pose, true));
+  const neckBase = vec(pose.joints.neckBase);
+  const neckDir = vec(pose.joints.headBase).sub(neckBase).normalize();
+  const cut = neckBase.clone().addScaledVector(neckDir, 0.02);
+  const neckStub: Shape = {
+    sdf: (x, y, z) => smax(collared.sdf(x, y, z), (x - cut.x) * neckDir.x + (y - cut.y) * neckDir.y + (z - cut.z) * neckDir.z, 0.004),
+    regionAt: (p) => collared.regionAt(p),
+    skinAt: (p) => collared.skinAt(p),
+  };
+  const neck = new Tube(neckTube(pose, false));
+  const trap = trapezius(pose);
+  const deltL = deltoid(pose, 'l', 1);
+  const deltR = deltoid(pose, 'r', -1);
+  const shapes: Shape[] = [torso, pelvis, legL, legR, armL, armR, neckStub, trap, deltL, deltR];
+  const implicit = new Body(shapes, (d) => {
+    const [dT, dP, dLL, dLR, dAL, dAR, dN, dTr, dDL, dDR] = d as [number, number, number, number, number, number, number, number, number, number];
+    let trunk = smin(dT, dP, 0.11);
+    trunk = smin(trunk, dTr, 0.09);
+    trunk = smin(trunk, dN, 0.06);
+    trunk = smin(trunk, dDL, 0.08);
+    trunk = smin(trunk, dDR, 0.08);
+    const lower = smin(smin(trunk, dLL, 0.07), dLR, 0.07);
+    return Math.min(lower, smin(trunk, dAL, 0.05), smin(trunk, dAR, 0.05));
+  });
   const min = new Vector3(Infinity, Infinity, Infinity);
   const max = new Vector3(-Infinity, -Infinity, -Infinity);
-  for (const t of tubes) for (const p of t.spec.points) (min.min(p), max.max(p));
-  min.subScalar(0.13);
-  max.addScalar(0.13);
-  // Au-dessus de l'ourlet du maillot, c'est le maillot qui décide, même là où la fesse (tube de jambe) domine.
-  const [torso, legL, legR] = tubes;
+  for (const t of [torso, legL, legR, armL, armR, neck]) for (const p of t.spec.points) (min.min(p), max.max(p));
+  min.subScalar(0.15);
+  max.addScalar(0.15);
+  // Au-dessus de l'ourlet du maillot, c'est le maillot qui décide, même là où bassin ou cuisse dominent.
   implicit.resolveRegion = (p, d) => {
-    if (d.tube === legL || d.tube === legR) {
-      const t = torso!.locate(p.x, p.y, p.z);
+    if (d === legL || d === legR || d === pelvis) {
+      const t = torso.locate(p.x, p.y, p.z);
       // Seulement contre le buste : la cuisse levée passe devant le ventre sans être couverte par le maillot.
-      if (t.s > TORSO_HEM && torso!.sdf(p.x, p.y, p.z) < 0.015) return torso!.spec.region(t.s, t.theta);
+      if (t.s > TORSO_HEM && torso.sdf(p.x, p.y, p.z) < 0.015) return torso.spec.region(t.s, t.theta);
     }
-    return d.tube.spec.region(d.s, d.theta);
+    return d.regionAt(p);
   };
   const dense = polygonize(implicit, min, max, 0.005);
   // Couleurs découpées sur le maillage dense (liserés fins compris), puis simplification à limites figées.
@@ -300,10 +388,10 @@ async function body(b: MeshBuilder, pose: Pose) {
   const simple = await simplify(split.points, split.indices, 30000, 0.0008);
   const g = new Vector3();
   b.addMesh(
-    simple.points.map(({ p, r }) => ({ p, n: implicit.gradient(p, g).clone(), region: r, skin: implicit.skin(p, 0.04) })),
+    simple.points.map(({ p, r }) => ({ p, n: implicit.gradient(p, g).clone(), region: r, skin: implicit.skin(p, 0.045) })),
     simple.indices,
   );
-  return { dense: dense.indices.length / 3, simplified: simple.indices.length / 3 };
+  return { dense: dense.indices.length / 3, simplified: simple.indices.length / 3, neck };
 }
 
 
@@ -432,227 +520,6 @@ function hand(b: MeshBuilder, pose: Pose, s: 'l' | 'r', mirror: 1 | -1) {
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-/** Repère de la tête : origine sous le menton, axe le long de l'os de la tête, avant vers le visage. */
-function headFrame(pose: Pose) {
-  const base = vec(pose.joints.headBase);
-  const axis = vec(pose.joints.headTop).sub(base).normalize();
-  const face = new Vector3(0, 0, 1).addScaledVector(axis, -axis.z).normalize();
-  const origin = base.clone().addScaledVector(axis, -0.06);
-  return { origin, axis, face, side: face.clone().cross(axis) };
-}
-
-const HEAD_LEN = 0.24;
-const headWidth = keys([[0, 0.032], [0.02, 0.047], [0.05, 0.06], [0.09, 0.069], [0.12, 0.073], [0.16, 0.074], [0.2, 0.066], [0.225, 0.045], [HEAD_LEN, 0.004]]);
-const HEAD: Profile = {
-  front: keys([[0, 0.03], [0.02, 0.05], [0.05, 0.072], [0.08, 0.082], [0.12, 0.086], [0.16, 0.083], [0.2, 0.068], [0.225, 0.044], [HEAD_LEN, 0.004]]),
-  back: keys([[0, 0.03], [0.02, 0.044], [0.05, 0.058], [0.09, 0.084], [0.13, 0.097], [0.17, 0.094], [0.2, 0.08], [0.225, 0.05], [HEAD_LEN, 0.004]]),
-  outer: headWidth,
-  inner: headWidth,
-  n: 2.2,
-  bumps: [
-    { s: 0.104, theta: 0, h: 0.02, ws: 0.017, wt: 0.15 }, // nez
-    { s: 0.092, theta: 0, h: 0.006, ws: 0.008, wt: 0.12 }, // bout du nez
-    { s: 0.136, theta: 0.36, h: 0.007, ws: 0.011, wt: 0.3 }, // arcades
-    { s: 0.136, theta: -0.36, h: 0.007, ws: 0.011, wt: 0.3 },
-    { s: 0.12, theta: 0.4, h: -0.008, ws: 0.011, wt: 0.17 }, // orbites
-    { s: 0.12, theta: -0.4, h: -0.008, ws: 0.011, wt: 0.17 },
-    { s: 0.103, theta: 0.85, h: 0.006, ws: 0.015, wt: 0.3 }, // pommettes
-    { s: 0.103, theta: -0.85, h: 0.006, ws: 0.015, wt: 0.3 },
-    { s: 0.068, theta: 0, h: -0.0035, ws: 0.0028, wt: 0.3 }, // bouche
-    { s: 0.074, theta: 0, h: 0.003, ws: 0.005, wt: 0.27 }, // lèvres
-    { s: 0.061, theta: 0, h: 0.003, ws: 0.005, wt: 0.24 },
-    { s: 0.033, theta: 0, h: 0.008, ws: 0.014, wt: 0.38 }, // menton
-    { s: 0.045, theta: 1.3, h: 0.006, ws: 0.02, wt: 0.3 }, // angle de la mâchoire
-    { s: 0.045, theta: -1.3, h: 0.006, ws: 0.02, wt: 0.3 },
-    { s: 0.12, theta: Math.PI, h: 0.006, ws: 0.03, wt: 0.6 }, // occiput
-  ],
-};
-const headSection = sectionOf(HEAD);
-/** La tête est décalée vers l'avant de l'axe du cou, surtout au menton. */
-const headCenter = keys([[0, 0.034], [0.05, 0.025], [0.1, 0.01], [0.2, 0]]);
-
-function head(b: MeshBuilder, pose: Pose) {
-  const F = headFrame(pose);
-  const headBone = bone('head');
-  const path = polyline([F.origin, F.origin.clone().addScaledVector(F.axis, HEAD_LEN)]);
-  const centered = (s: number, th: number): SectionPoint => {
-    const [a, bb] = headSection(s, th);
-    return [a + headCenter(s), bb];
-  };
-  // Cheveux sous le casque : nuque et tempes ; la peau partout ailleurs.
-  const hairline = (th: number) => lerp(0.16, 0.085, Math.abs(angleDiff(th, 0)) / Math.PI);
-  b.sweep({
-    path,
-    ds: 0.006,
-    radial: 48,
-    front: F.face,
-    section: centered,
-    region: (s, th) => (s > hairline(th) && Math.abs(th) > 1.05 ? REGION.hair : REGION.skin),
-    skin: rigid(headBone),
-    capStart: 'pole',
-    capEnd: 'pole',
-  });
-  // Oreilles.
-  for (const side of [1, -1]) {
-    const c = F.origin.clone().addScaledVector(F.axis, 0.115).addScaledVector(F.side, side * 0.07).addScaledVector(F.face, -0.006);
-    const ear = polyline([c.clone().addScaledVector(F.axis, -0.028), c.clone().addScaledVector(F.axis, 0.03)]);
-    b.sweep({
-      path: ear,
-      ds: 0.007,
-      radial: 14,
-      front: F.face,
-      section: (s, th) => {
-        const k = roundEnds(s, 0, ear.length, 0.02, 0.025);
-        return oval(th, 0.016 * k, 0.012 * k, 0.007 * k, 0.003 * k, 2.4);
-      },
-      region: REGION.skin,
-      skin: rigid(headBone),
-      capStart: 'pole',
-      capEnd: 'pole',
-    });
-  }
-  helmet(b, F, headBone);
-  glasses(b, F, headBone);
-}
-
-function helmet(b: MeshBuilder, F: ReturnType<typeof headFrame>, headBone: number) {
-  const S0 = 0.075;
-  const S1 = HEAD_LEN + 0.022;
-  // Bord du casque : haut sur le front, bas sur la nuque.
-  const rim = (th: number) => {
-    const back = Math.abs(angleDiff(th, 0)) / Math.PI;
-    return lerp(0.148, 0.082, smooth(0.15, 1, back));
-  };
-  const clearance = (th: number, t: number) => {
-    const back = Math.abs(angleDiff(th, 0)) / Math.PI;
-    return lerp(0.015, 0.032, smooth(0.55, 1, back) * (1 - t) ** 0.6) + 0.004;
-  };
-  const vents: { t0: number; t1: number; th: number; w: number }[] = [
-    { t0: 0.2, t1: 0.62, th: 0.24, w: 0.1 },
-    { t0: 0.2, t1: 0.62, th: -0.24, w: 0.1 },
-    { t0: 0.18, t1: 0.55, th: 0.72, w: 0.13 },
-    { t0: 0.18, t1: 0.55, th: -0.72, w: 0.13 },
-    { t0: 0.22, t1: 0.6, th: Math.PI - 0.32, w: 0.14 },
-    { t0: 0.22, t1: 0.6, th: -Math.PI + 0.32, w: 0.14 },
-  ];
-  const inVent = (t: number, th: number) => vents.some((v) => t > v.t0 && t < v.t1 && Math.abs(angleDiff(th, v.th)) < v.w);
-  const LIP = 0.006;
-  const path = polyline([F.origin.clone().addScaledVector(F.axis, S0 - LIP), F.origin.clone().addScaledVector(F.axis, S1)]);
-  const sToT = (s: number) => (s - S0) / (S1 - S0);
-  b.sweep({
-    path,
-    ds: 0.007,
-    radial: 52,
-    front: F.face,
-    sCuts: [LIP, ...vents.flatMap((v) => [v.t0, v.t1]).map((t) => LIP + t * (S1 - S0))],
-    thetaCuts: vents.flatMap((v) => [v.th - v.w, v.th + v.w]),
-    section: (s, th) => {
-      const t = sToT(s + S0 - LIP);
-      const lip = t < 0;
-      const tt = Math.max(0, t);
-      // Coque = surface de la tête décalée : vers l'extérieur sur les flancs, vers le haut au sommet.
-      const axial = lerp(rim(th), HEAD_LEN, tt ** 1.1);
-      const [a, bb] = headSection(axial, th);
-      const off = (lip ? 0.003 : clearance(th, tt) - (inVent(tt, th) ? 0.005 : 0)) * (1 - tt ** 6);
-      const lift = 0.022 * tt ** 2;
-      return [a + headCenter(axial) + Math.cos(th) * off, bb + Math.sin(th) * off, axial + lift - (s + S0 - LIP)];
-    },
-    region: (s, th) => {
-      const t = sToT(s + S0 - LIP);
-      if (t < 0 || inVent(t, th)) return REGION.liner;
-      if (Math.abs(th) < 0.11 && t > 0.05) return REGION.helmetAlt;
-      return REGION.helmet;
-    },
-    skin: rigid(headBone),
-    capEnd: 'pole',
-  });
-  // Sangles : du bord du casque, devant l'oreille, jusque sous le menton.
-  for (const side of [1, -1]) {
-    const p = (s: number, th: number, extra: number) => {
-      const [a, bb] = headSection(s, th);
-      return F.origin.clone().addScaledVector(F.face, a + headCenter(s) + Math.cos(th) * extra).addScaledVector(F.side, bb + Math.sin(th) * extra).addScaledVector(F.axis, s);
-    };
-    // Sangle en Y : une branche devant l'oreille, une derrière, réunies sous l'oreille, puis le long de la mâchoire.
-    const junction = p(0.068, side * 1.5, 0.007);
-    const branches = [
-      [p(0.132, side * 1.22, 0.014), p(0.1, side * 1.32, 0.008), junction],
-      [p(0.1, side * 1.95, 0.016), p(0.085, side * 1.75, 0.009), junction],
-      [junction, p(0.035, side * 1.15, 0.007), p(0.008, side * 0.5, 0.006), p(0.002, 0, 0.006)],
-    ];
-    for (const pts of branches) {
-      b.sweep({
-        path: polyline(pts, 0.01),
-        ds: 0.012,
-        radial: 6,
-        front: F.face,
-        section: (_s, th) => oval(th, 0.0015, 0.0015, 0.0055, 0.0055, 6),
-        region: REGION.liner,
-        skin: rigid(headBone),
-      });
-    }
-  }
-}
-
-function glasses(b: MeshBuilder, F: ReturnType<typeof headFrame>, headBone: number) {
-  const S = 0.123;
-  const span = 1.3;
-  const at = (th: number, extra: number) => {
-    const [a, bb] = headSection(S, th);
-    return F.origin.clone().addScaledVector(F.face, a + headCenter(S) + Math.cos(th) * extra).addScaledVector(F.side, bb + Math.sin(th) * extra).addScaledVector(F.axis, S);
-  };
-  const standoff = (th: number) => 0.009 + 0.008 * Math.exp(-((th / 0.12) ** 2)); // plus loin devant le nez
-  const lens = curve((t) => {
-    const th = -span + 2 * span * t;
-    return at(th, standoff(th));
-  }, 60);
-  const L = lens.length;
-  const start = at(-span, standoff(-span));
-  const radial = start.clone().sub(F.origin.clone().addScaledVector(F.axis, S)).normalize();
-  // Le long d'un arc autour de la tête, le côté de la section (avant × tangente) pointe vers le bas de la tête :
-  // `upSign` remet la hauteur dans le bon sens.
-  const upSign = -1;
-  const height = (t: number) => {
-    const th = -span + 2 * span * t;
-    const nose = Math.exp(-((th / 0.16) ** 2));
-    return { top: 0.018 + 0.003 * Math.cos(th), bottom: -0.021 + 0.012 * nose + 0.006 * smooth(0.9, 1.3, Math.abs(th)) };
-  };
-  b.sweep({
-    path: lens,
-    ds: L / 56,
-    radial: 12,
-    front: radial,
-    thetaCuts: [Math.asin(0.82), Math.PI - Math.asin(0.82)],
-    section: (s, th) => {
-      const t = s / L;
-      const h = height(t);
-      const k = roundEnds(s, 0, L, 0.006);
-      const mid = (h.top + h.bottom) / 2;
-      const half = ((h.top - h.bottom) / 2) * Math.max(k, 0.3);
-      const [a, bb] = oval(th, 0.0016, 0.0016, half, half, 6);
-      return [a, upSign * (mid + bb)];
-    },
-    region: (_s, th) => (Math.sin(th) > 0.82 ? REGION.eyewear : REGION.lens),
-    skin: rigid(headBone),
-    capStart: 'pole',
-    capEnd: 'pole',
-  });
-  // Branches vers les oreilles.
-  for (const side of [1, -1]) {
-    const th0 = side * span;
-    const a = at(th0, standoff(th0) - 0.002).addScaledVector(F.axis, 0.012);
-    const z = at(side * 1.95, 0.004).addScaledVector(F.axis, 0.008);
-    b.sweep({
-      path: polyline([a, z]),
-      ds: 0.03,
-      radial: 6,
-      front: F.axis,
-      section: (_s, th) => oval(th, 0.004, 0.004, 0.0016, 0.0016, 4),
-      region: REGION.eyewear,
-      skin: rigid(headBone),
-      capEnd: 'pole',
-    });
-  }
-}
 
 /* ---------- Squelette et écriture ---------- */
 
@@ -665,7 +532,7 @@ export async function buildAvatar(out: string) {
     shoe(b, pose, s, mirror);
     hand(b, pose, s, mirror);
   }
-  head(b, pose);
+  const headStats = await buildHead(b, pose, implicit.neck, bone('head'));
 
   const w = new GlbWriter();
   const doc = w.doc;

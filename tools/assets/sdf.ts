@@ -33,7 +33,7 @@ export function ovalRadius(th: number, front: number, back: number, outer: numbe
 const FRAME_STEP = 0.002;
 
 /** Un tube prêt à être interrogé : repères échantillonnés le long de l'axe, projection sur la ligne brisée. */
-export class Tube {
+export class Tube implements Shape {
   readonly path: Path;
   private readonly cum: number[] = [0];
   private readonly frames: Float64Array; // avant (3) puis côté (3), tous les FRAME_STEP mètres
@@ -112,6 +112,15 @@ export class Tube {
     const l = this.locate(x, y, z);
     return l.dist - this.spec.radius(l.s, l.theta);
   }
+
+  regionAt(p: Vector3): number {
+    const l = this.locate(p.x, p.y, p.z);
+    return this.spec.region(l.s, l.theta);
+  }
+
+  skinAt(p: Vector3): Skin {
+    return this.spec.skin(this.locate(p.x, p.y, p.z).s);
+  }
 }
 
 /** Union lissée polynomiale : les deux formes se fondent sur une largeur `k`. */
@@ -120,30 +129,78 @@ export function smin(a: number, b: number, k: number): number {
   return Math.min(a, b) - h * h * k * 0.25;
 }
 
+/** Toute forme du corps : distance signée, zone de couleur et poids du squelette en un point. */
+export interface Shape {
+  sdf(x: number, y: number, z: number): number;
+  regionAt(p: Vector3): number;
+  skinAt(p: Vector3): Skin;
+}
+
+export interface EllipsoidSpec {
+  center: Vector3;
+  /** Axes orthonormés du volume, et ses demi-axes le long de chacun. */
+  axes: [Vector3, Vector3, Vector3];
+  radii: [number, number, number];
+  /** Retouche de la distance en coordonnées locales (sillon, méplat…). */
+  shape?: (lx: number, ly: number, lz: number, d: number) => number;
+  region: (p: Vector3) => number;
+  skin: Skin;
+}
+
+/** Masse sculptée : ellipsoïde orienté (distance approchée d'Inigo Quilez), retouchable. */
+export class Ellipsoid implements Shape {
+  readonly spec: EllipsoidSpec;
+
+  constructor(spec: EllipsoidSpec) {
+    this.spec = spec;
+  }
+
+  sdf(x: number, y: number, z: number): number {
+    const { center: c, axes, radii, shape } = this.spec;
+    const dx = x - c.x;
+    const dy = y - c.y;
+    const dz = z - c.z;
+    const lx = dx * axes[0].x + dy * axes[0].y + dz * axes[0].z;
+    const ly = dx * axes[1].x + dy * axes[1].y + dz * axes[1].z;
+    const lz = dx * axes[2].x + dy * axes[2].y + dz * axes[2].z;
+    const k0 = Math.hypot(lx / radii[0], ly / radii[1], lz / radii[2]);
+    const k1 = Math.hypot(lx / radii[0] ** 2, ly / radii[1] ** 2, lz / radii[2] ** 2);
+    const d = k1 > 1e-9 ? (k0 * (k0 - 1)) / k1 : -Math.min(...radii);
+    return shape ? shape(lx, ly, lz, d) : d;
+  }
+
+  regionAt(p: Vector3) {
+    return this.spec.region(p);
+  }
+
+  skinAt() {
+    return this.spec.skin;
+  }
+}
+
+/** Union lissée inverse : intersection adoucie (méplat contre la selle). */
+export const smax = (a: number, b: number, k: number) => -smin(-a, -b, k);
+
 /**
- * Corps : des tubes et des groupes de fusion. Chaque groupe fond ses tubes entre eux ; les groupes sont ensuite
- * réunis sans fusion, pour qu'un coude ne se soude pas à un genou qui passe près de lui.
+ * Corps : des formes et une règle de combinaison. Les fusions se font par paliers (largeur propre à chaque
+ * jonction) ; les membres qui ne doivent jamais se souder (un coude et un genou) restent dans des branches réunies
+ * sans fusion.
  */
 export class Body {
-  readonly tubes: Tube[];
-  readonly groups: { members: number[]; k: number }[];
+  readonly shapes: Shape[];
+  /** Combine les distances des formes (dans l'ordre de `shapes`) en une seule : fusions et unions. */
+  readonly combine: (d: number[]) => number;
 
-  constructor(tubes: Tube[], groups: { members: number[]; k: number }[]) {
-    this.tubes = tubes;
-    this.groups = groups;
+  constructor(shapes: Shape[], combine: (d: number[]) => number) {
+    this.shapes = shapes;
+    this.combine = combine;
   }
 
   private readonly d: number[] = [];
 
   sdf(x: number, y: number, z: number): number {
-    for (let i = 0; i < this.tubes.length; i++) this.d[i] = this.tubes[i]!.sdf(x, y, z);
-    let out = Infinity;
-    for (const g of this.groups) {
-      let v = this.d[g.members[0]!]!;
-      for (let m = 1; m < g.members.length; m++) v = smin(v, this.d[g.members[m]!]!, g.k);
-      out = Math.min(out, v);
-    }
-    return out;
+    for (let i = 0; i < this.shapes.length; i++) this.d[i] = this.shapes[i]!.sdf(x, y, z);
+    return this.combine(this.d);
   }
 
   gradient(p: Vector3, out: Vector3, h = 0.0005): Vector3 {
@@ -157,31 +214,29 @@ export class Body {
       .normalize();
   }
 
-  /** Tube dominant en un point de la surface : celui dont la surface propre est la plus proche. */
-  dominant(p: Vector3): { tube: Tube; s: number; theta: number } {
+  /** Forme dominante en un point de la surface : celle dont la surface propre est la plus proche. */
+  dominant(p: Vector3): Shape {
     let best = Infinity;
     let bi = 0;
-    for (let i = 0; i < this.tubes.length; i++) {
-      const d = Math.abs(this.tubes[i]!.sdf(p.x, p.y, p.z));
+    for (let i = 0; i < this.shapes.length; i++) {
+      const d = Math.abs(this.shapes[i]!.sdf(p.x, p.y, p.z));
       if (d < best) {
         best = d;
         bi = i;
       }
     }
-    const tube = this.tubes[bi]!;
-    const l = tube.locate(p.x, p.y, p.z);
-    return { tube, s: l.s, theta: l.theta };
+    return this.shapes[bi]!;
   }
 
   /**
-   * Arbitrage facultatif de la zone de couleur, quand le tube dominant n'est pas le bon juge (un vêtement qui
-   * couvre plusieurs tubes, comme le maillot qui descend sur le haut des fesses).
+   * Arbitrage facultatif de la zone de couleur, quand la forme dominante n'est pas le bon juge (un vêtement qui
+   * couvre plusieurs formes, comme le maillot qui descend sur le haut du bassin).
    */
-  resolveRegion?: (p: Vector3, dominant: { tube: Tube; s: number; theta: number }) => number;
+  resolveRegion?: (p: Vector3, dominant: Shape) => number;
 
   region(p: Vector3): number {
     const d = this.dominant(p);
-    return this.resolveRegion ? this.resolveRegion(p, d) : d.tube.spec.region(d.s, d.theta);
+    return this.resolveRegion ? this.resolveRegion(p, d) : d.regionAt(p);
   }
 
   /** Ramène un point sur la surface par pas de Newton bornés (la distance approchée peut surestimer). */
@@ -197,18 +252,17 @@ export class Body {
   }
 
   /**
-   * Poids du squelette : chaque tube proche de la surface contribue selon sa proximité (sur la largeur de fusion),
-   * avec les poids de sa propre chaîne d'os à cet endroit.
+   * Poids du squelette : chaque forme proche de la surface contribue selon sa proximité (sur la largeur de
+   * fusion), avec ses propres poids à cet endroit.
    */
   skin(p: Vector3, k: number): Skin {
     const acc = new Map<number, number>();
-    const ds = this.tubes.map((t) => t.sdf(p.x, p.y, p.z));
+    const ds = this.shapes.map((t) => t.sdf(p.x, p.y, p.z));
     const dmin = Math.min(...ds);
-    this.tubes.forEach((t, i) => {
+    this.shapes.forEach((t, i) => {
       const w = Math.max(0, 1 - (ds[i]! - dmin) / k) ** 2;
       if (w <= 0) return;
-      const l = t.locate(p.x, p.y, p.z);
-      const sk = t.spec.skin(l.s);
+      const sk = t.skinAt(p);
       sk.joints.forEach((j, m) => acc.set(j, (acc.get(j) ?? 0) + w * sk.weights[m]!));
     });
     const top = [...acc.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);

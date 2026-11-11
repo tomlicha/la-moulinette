@@ -90,6 +90,18 @@ if (shot === 'lineup') {
   camera.lookAt(0, num('looky', 0.8), 0);
 }
 
+// `focus=<os>` (par exemple `head`) : cadre la caméra sur cet os, à `dist` mètres, vu de face après `yaw`.
+if (params.has('focus')) {
+  scene.updateMatrixWorld(true);
+  const bone = riders[0]!.group.getObjectByName(params.get('focus')!);
+  if (bone) {
+    const target = bone.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, num('dy', 0.05), 0));
+    camera.fov = 30;
+    camera.position.copy(target).add(new THREE.Vector3(0, num('up', 0.03), num('dist', 0.7)));
+    camera.lookAt(target);
+  }
+}
+
 const resize = () => {
   const w = canvas.clientWidth;
   const h = canvas.clientHeight;
