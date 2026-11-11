@@ -1,7 +1,7 @@
 /**
  * Tête, cheveux, casque, sangles et lunettes.
  *
- * La tête est une surface implicite, comme le corps, mais extraite finement (1,2 mm) : crâne, masses du visage,
+ * La tête est une surface implicite, comme le corps, mais extraite finement (0,9 mm) : crâne, masses du visage,
  * mâchoire, menton, pommettes, arcades, nez, lèvres et oreilles sont des volumes fondus. Les proportions sont
  * celles d'un adulte : 23 cm du menton au sommet, les yeux à mi-hauteur, les oreilles entre la ligne des yeux et
  * le bas du nez.
@@ -70,6 +70,15 @@ const plane = (x: number, y: number, z: number, p: V3, n: V3) => (x - p[0]) * n[
 /** Valeur absolue adoucie : nulle en 0, arête arrondie sur environ `r`. */
 const sabs = (v: number, r: number) => Math.sqrt(v * v + r * r) - r;
 
+/**
+ * |x| arrondi sur l'axe du visage : les volumes symétriques se rejoignent au milieu sans cassure de pente (une
+ * valeur absolue franche y dessinerait une couture verticale, du front au menton).
+ */
+const mid = (x: number, r = 0.004) => {
+  const a = Math.abs(x);
+  return a < r ? (a * a) / (2 * r) + r / 2 : a;
+};
+
 /** Soustraction adoucie : creuse `b` dans `a`. */
 const carve = (a: number, b: number, k: number) => smax(a, -b, k);
 
@@ -98,87 +107,85 @@ const COLUMELLA_OUT = unit([0, SUBNASALE[2] - TIP[2], -(SUBNASALE[1] - TIP[1])])
 /**
  * Nez : un coin dont l'arête (le dos) va de la racine à la pointe. Ses flancs s'écartent avec la profondeur,
  * plus raides en haut (os propres du nez) qu'en bas ; l'arête s'arrondit vers la pointe. Coupé dessous par le
- * plan de la columelle.
+ * plan de la columelle, et arrêté à la racine.
  */
 function noseWedge(x: number, y: number, z: number) {
   const py = y - RADIX[1];
   const pz = z - RADIX[2];
-  const t = clamp((py * DORSUM[1] + pz * DORSUM[2]) / DORSUM_LEN, 0, 1.2);
+  const along = py * DORSUM[1] + pz * DORSUM[2];
+  const t = clamp(along / DORSUM_LEN, 0, 1.2);
   // Profondeur sous le dos (négative dans le nez), avec une très légère bosse osseuse au tiers supérieur.
   const w = py * DORSUM_OUT[1] + pz * DORSUM_OUT[2] - 0.0012 * Math.sin(Math.PI * clamp(t / 0.75, 0, 1)) ** 2;
-  const slope = 2.3 - 0.9 * smooth(0.35, 1, t); // pente des flancs : |x| par mètre de profondeur
-  const ridge = 0.0028 + 0.0045 * smooth(0.5, 1, t); // arrondi de l'arête
+  const slope = 2.9 - 1.1 * smooth(0.35, 1, t); // pente des flancs : |x| par mètre de profondeur
+  const ridge = 0.0022 + 0.005 * smooth(0.55, 1.05, t); // arrondi de l'arête, plus large à la pointe
   const sides = (w + slope * sabs(x, ridge)) / Math.sqrt(1 + slope * slope);
   const under = plane(x, y, z, TIP, COLUMELLA_OUT);
-  const width = Math.abs(x) - (0.0085 + 0.0075 * smooth(0.2, 1, t));
-  return smax(smax(smax(sides, under, 0.0045), 0.079 - z, 0.006), width, 0.005);
+  const width = Math.abs(x) - (0.0068 + 0.0055 * smooth(0.2, 1, t) + 0.0012 * smooth(0.75, 1, t));
+  // Arrêté juste au-dessus de la racine : sinon l'arête filerait droit dans le front.
+  const top = -along - 0.003;
+  return smax(smax(smax(smax(sides, under, 0.0065), 0.079 - z, 0.006), width, 0.005), top, 0.006);
 }
 
 function nose(x: number, y: number, z: number) {
-  const ax = Math.abs(x);
-  let d = noseWedge(x, y, z);
-  // Lobule de la pointe, légèrement bilobé (les deux dômes des cartilages).
-  d = smin(d, ellipsoid(ax, y, z, [0.0035, -0.0272, 0.1128], [0.0085, 0.0088, 0.0085]), 0.006);
-  return d;
+  // Pointe : un volume allongé dans l'axe du nez, largement fondu : elle donne du relief sans faire de boule.
+  return smin(noseWedge(x, y, z), ellipsoid(x, y, z, [0, -0.0278, 0.1122], [0.0078, 0.0076, 0.0082]), 0.009);
 }
 
 /** Ailes du nez : posées sur la joue, avec un sillon net autour. */
-const alae = (ax: number, y: number, z: number) => ellipsoid(ax, y, z, [0.0132, -0.0355, 0.0985], [0.0068, 0.0072, 0.0108]);
+const alae = (ax: number, y: number, z: number) => ellipsoid(ax, y, z, [0.0116, -0.0362, 0.0972], [0.0059, 0.0066, 0.0096]);
 
 /* ---------- Lèvres ---------- */
 
 const MOUTH_HALF = 0.0245;
-/** Les lèvres ont une section ovale, plus haute que profonde. */
-const LIP_SY = 1.5;
 
-interface Chain {
-  pts: V3[];
-  r: number[];
-}
-
-/** Chapelet de cônes arrondis le long de l'arcade dentaire, `u` de -1 (coin gauche) à 1 (coin droit). */
-function lipChain(n: number, at: (u: number) => { y: number; z: number; r: number }): Chain {
-  const pts: V3[] = [];
-  const r: number[] = [];
-  for (let i = 0; i <= n; i++) {
-    const u = -1 + (2 * i) / n;
-    const p = at(u);
-    pts.push([u * MOUTH_HALF, p.y / LIP_SY, p.z]);
-    r.push(p.r);
-  }
-  return { pts, r };
-}
-
-/** Lèvre supérieure : arc de Cupidon (deux pointes de part et d'autre du philtrum), coins plus bas. */
-const UPPER_LIP = lipChain(16, (u) => {
-  const a = Math.abs(u);
-  const bow = 0.0011 * Math.exp(-(((a - 0.24) / 0.14) ** 2)) - 0.0006 * Math.exp(-((u / 0.1) ** 2));
-  return { y: -0.0612 - 0.0035 * a * a + bow, z: 0.0938 - 0.0145 * a * a, r: 0.0008 + 0.003 * Math.pow(1 - a * a, 0.5) };
-});
-/** Lèvre inférieure : plus charnue, un peu en retrait. */
-const LOWER_LIP = lipChain(16, (u) => {
-  const a = Math.abs(u);
-  return { y: -0.0695 + 0.0048 * a * a, z: 0.0912 - 0.0132 * a * a, r: 0.0009 + 0.0034 * Math.pow(1 - a * a, 0.5) };
-});
-
-function chainDist(x: number, y: number, z: number, c: Chain) {
-  let d = Infinity;
-  for (let i = 1; i < c.pts.length; i++) d = Math.min(d, capsule(x, y, z, c.pts[i - 1]!, c.pts[i]!, c.r[i - 1]!, c.r[i]!));
-  return d;
-}
-
+/**
+ * Lèvres : comme l'oreille, quelques volumes lisses fondus entre eux. La lèvre supérieure a un tubercule au centre
+ * et deux ailes qui suivent l'arcade vers les coins ; l'inférieure, deux lobes charnus et deux coins plus fins.
+ */
 function lips(x: number, y: number, z: number) {
   if (Math.abs(x) > MOUTH_HALF + 0.01 || y > -0.045 || y < -0.09 || z < 0.06) return 1;
-  const ys = y / LIP_SY;
-  return Math.min(chainDist(x, ys, z, UPPER_LIP), chainDist(x, ys, z, LOWER_LIP));
+  const ax = mid(x);
+  let up = ellipsoid(x, y, z, [0, -0.0612, 0.0918], [0.0095, 0.0055, 0.0055]);
+  up = smin(up, ellipsoid(ax, y, z, [0.0125, -0.0628, 0.0874], [0.0108, 0.0045, 0.0048]), 0.004);
+  let low = ellipsoid(ax, y, z, [0.0065, -0.0698, 0.0888], [0.0105, 0.0058, 0.006]);
+  low = smin(low, ellipsoid(ax, y, z, [0.016, -0.0674, 0.0845], [0.0092, 0.0042, 0.0045]), 0.004);
+  return smin(up, low, 0.0015);
 }
 
-/** Ligne de la bouche : un sillon peu profond entre les lèvres, qui suit l'arcade. */
-function mouthLine(ax: number, y: number, z: number) {
-  const u = Math.min(1, ax / MOUTH_HALF);
-  const ym = -0.0656 + 0.0009 * u * u;
-  const front = 0.0928 - 0.0135 * u * u;
-  return Math.max(Math.abs(y - ym) - 0.0004 * (1 - 0.6 * u * u), ax - MOUTH_HALF, front - z);
+/** Ligne de contact des lèvres (milieu du sillon), `u` de 0 (centre) à 1 (coin). */
+const mouthY = (u: number) => -0.0655 + 0.0008 * u * u;
+const gauss = (v: number, w: number) => Math.exp(-((v / w) ** 2));
+
+/**
+ * Narines : deux fentes en goutte sous le nez, de part et d'autre de la columelle, inclinées comme le dessous du
+ * nez, peu profondes.
+ */
+function nostrils(ax: number, y: number, z: number) {
+  // Aplaties en hauteur : des fentes, étroites près de la pointe, plus larges vers l'aile.
+  const ys = -0.0405 + (y + 0.0405) * 1.6;
+  return capsule(ax, ys, z, [0.0034, -0.0398, 0.1056], [0.0074, -0.0413, 0.0996], 0.0007, 0.0016);
+}
+
+/**
+ * Reliefs doux de la bouche, ajoutés à la distance (positif : creux). Ce sont des déplacements doux de
+ * la surface, pas des entailles : ils se dessinent sans arête, quelle que soit la finesse du maillage.
+ */
+function relief(ax: number, y: number, z: number) {
+  let r = 0;
+  const u = ax / MOUTH_HALF;
+  if (y < -0.04 && y > -0.095) {
+    const inMouth = smooth(1.12, 0.92, u);
+    // Sillon entre les lèvres, plus marqué au centre, qui se perd dans les commissures.
+    r += 0.0008 * gauss(y - mouthY(Math.min(u, 1)), 0.0018) * inMouth * (1 - 0.35 * u * u);
+    // Commissures : un petit creux au coin, prolongé vers le bas.
+    r += 0.0008 * gauss(ax - MOUTH_HALF * 1.02, 0.003) * gauss(y - mouthY(1) + 0.0008, 0.003);
+    // Philtrum : gouttière centrale, du nez à la lèvre.
+    const ph = smooth(-0.0605, -0.0575, y) * smooth(-0.0425, -0.0465, y);
+    r += 0.0004 * gauss(ax, 0.0035) * ph;
+    // Ombre sous la lèvre inférieure.
+    r += 0.0006 * gauss(y + 0.0775, 0.0035) * smooth(0.75, 0.4, u);
+  }
+  return r;
 }
 
 /* ---------- Sourcils ---------- */
@@ -193,13 +200,52 @@ function brow(ax: number, y: number) {
   return Math.max(Math.abs(y - yc) - half, beyond);
 }
 
+/* ---------- Yeux ---------- */
+
+/** Globe oculaire, au ras du plan de l'arcade et de la pommette (pas plus saillant). */
+const EYE_C: V3 = [0.0315, 0.0112, 0.0845];
+const EYE_R = 0.012;
+/** Paupières : une coque à peine plus grande que le globe. */
+const LID_R = 0.0133;
+/** Direction du regard (repère de la tête), fixée selon la pose : vers la route, devant le vélo. */
+let GAZE: V3 = [0, 0, 1];
+
+/** Ouverture des paupières, vue de face : une amande, coin extérieur un peu plus haut (négatif dedans). */
+function eyeAperture(ax: number, y: number) {
+  const half = 0.0118;
+  const t = (ax - EYE_C[0]) / half;
+  const tc = clamp(t, -1, 1);
+  const tilt = 0.0008 * tc;
+  const up = EYE_C[1] + tilt + 0.0052 * Math.pow(1 - tc * tc, 0.75) * (1 - 0.15 * tc);
+  const lo = EYE_C[1] + tilt - 0.0033 * Math.pow(1 - tc * tc, 0.9);
+  return Math.max(y - up, lo - y, Math.abs(ax - EYE_C[0]) - half);
+}
+
+/** Zone de l'œil en un point du globe : blanc, iris ou pupille, selon l'écart au regard. */
+function eyeRegion(ax: number, y: number, z: number) {
+  const dx = ax - EYE_C[0];
+  const dy = y - EYE_C[1];
+  const dz = z - EYE_C[2];
+  const c = (dx * GAZE[0] + dy * GAZE[1] + dz * GAZE[2]) / len3(dx, dy, dz);
+  if (c > Math.cos(0.2)) return REGION.pupil;
+  if (c > Math.cos(0.45)) return REGION.iris;
+  return REGION.eyeWhite;
+}
+
 /* ---------- Visage ---------- */
+
+/**
+ * Crâne : 14,8 cm de large au niveau des oreilles, resserré vers l'avant jusqu'à 13,8 cm aux tempes et aux yeux.
+ */
+function cranium(x: number, y: number, z: number) {
+  return ellipsoid(x * (1 + 0.072 * smooth(0, 0.05, z)), y, z, [0, 0.032, -0.008], [0.074, 0.094, 0.101]);
+}
 
 /** Crâne et visage, sans lèvres ni nez : peu de volumes, de larges fusions, des plans calmes. */
 function faceBase(x: number, y: number, z: number): number {
-  const ax = Math.abs(x);
-  let d = ellipsoid(x, y, z, [0, 0.032, -0.008], [0.074, 0.094, 0.101]); // crâne
-  d = smin(d, ellipsoid(x, y, z, [0, -0.026, 0.034], [0.054, 0.064, 0.062]), 0.035); // masse du visage
+  const ax = mid(x, 0.012); // grandes masses : axe arrondi large
+  let d = cranium(x, y, z); // crâne
+  d = smin(d, ellipsoid(x, y, z, [0, -0.026, 0.034], [0.051, 0.064, 0.062]), 0.045); // masse du visage
   // Mâchoire : une masse coupée le long du bord de la mandibule, de l'angle au menton.
   let jaw = ellipsoid(x, y, z, [0, -0.062, 0.027], [0.052, 0.05, 0.062]);
   jaw = smin(jaw, ellipsoid(ax, y, z, [0.048, -0.06, -0.004], [0.013, 0.024, 0.022]), 0.016); // angles
@@ -207,23 +253,25 @@ function faceBase(x: number, y: number, z: number): number {
   d = smin(d, jaw, 0.028);
   d = smin(d, ellipsoid(x, y, z, [0, -0.0952, 0.0735], [0.0195, 0.0135, 0.015]), 0.018); // menton
   d = smin(d, ellipsoid(x, y, z, [0, -0.06, 0.052], [0.033, 0.036, 0.0375]), 0.026); // museau (arcade dentaire)
-  d = smin(d, ellipsoid(ax, y, z, [0.038, -0.036, 0.042], [0.022, 0.03, 0.034]), 0.03); // joues pleines, sans creux sous la pommette
-  d = smin(d, ellipsoid(ax, y, z, [0.048, -0.002, 0.056], [0.02, 0.014, 0.026]), 0.03); // pommettes
-  d = smin(d, capsule(ax, y, z, [0.004, 0.026, 0.0885], [0.044, 0.024, 0.076], 0.007, 0.0055), 0.028); // arcades sourcilières
-  // Yeux : pas d'orbites creusées, juste des paupières en amande au ras du visage, sous une arcade douce.
-  d = carve(d, ellipsoid(ax, y, z, [0.031, 0.0135, 0.1], [0.017, 0.009, 0.012]), 0.012); // léger méplat sous l'arcade
-  d = smin(d, ellipsoid(ax, y, z, [0.031, 0.0115, 0.0835], [0.0135, 0.0062, 0.0085]), 0.007); // paupières
-  return d;
+  d = smin(d, ellipsoid(ax, y, z, [0.035, -0.036, 0.042], [0.021, 0.03, 0.034]), 0.03); // joues pleines, sans creux sous la pommette
+  d = smin(d, ellipsoid(ax, y, z, [0.043, -0.002, 0.056], [0.017, 0.014, 0.025]), 0.04); // pommettes
+  d = smin(d, capsule(ax, y, z, [0, 0.026, 0.0882], [0.044, 0.024, 0.0755], 0.0065, 0.005), 0.036); // arcades sourcilières, d'un seul tenant
+  // Yeux : les paupières sont une coque autour du globe, fondue dans le visage, ouverte en amande ; le globe
+  // affleure dans l'ouverture, juste en retrait du bord des paupières.
+  d = smin(d, sphere(ax, y, z, EYE_C, LID_R), 0.008);
+  d = carve(d, Math.max(eyeAperture(ax, y), EYE_C[2] - z), 0.0014);
+  return Math.min(d, sphere(ax, y, z, EYE_C, EYE_R));
 }
 
 /** Visage complet. */
 function face(x: number, y: number, z: number): number {
-  const ax = Math.abs(x);
+  const ax = mid(x);
   let d = faceBase(x, y, z);
-  d = smin(d, lips(x, y, z), 0.004);
-  d = carve(d, mouthLine(ax, y, z), 0.0032);
+  d = smin(d, lips(x, y, z), 0.0065);
   d = smin(d, nose(x, y, z), 0.012);
-  d = smin(d, alae(ax, y, z), 0.006);
+  d = smin(d, alae(ax, y, z), 0.0045); // pli de l'aile : la fusion, plus serrée que celle du nez
+  d = carve(d, nostrils(ax, y, z), 0.002);
+  if (z > 0.07) d += relief(ax, y, z);
   return smin(d, ear(ax, y, z), 0.008);
 }
 
@@ -278,7 +326,7 @@ function hairline(x: number, z: number) {
 function hair(x: number, y: number, z: number): number {
   const above = y - hairline(x, z);
   const thickness = 0.004 * smooth(0, 0.022, above);
-  return ellipsoid(x, y, z, [0, 0.032, -0.008], [0.074, 0.094, 0.101]) - thickness;
+  return cranium(x, y, z) - thickness;
 }
 
 /* ---------- Casque ---------- */
@@ -354,7 +402,8 @@ async function extract(body: Body, F: Frame, lo: V3, hi: V3, h: number, target: 
   const simple = await simplify(split.points, split.indices, target, maxError);
   const g = new Vector3();
   b.addMesh(
-    simple.points.map(({ p, r }) => ({ p, n: body.gradient(p, g, h * 0.25).clone(), region: r, skin: skin(p) })),
+    // Normales prises sur le pas de la grille : un pli plus fin que le maillage ne fait pas de stries.
+    simple.points.map(({ p, r }) => ({ p, n: body.gradient(p, g, h).clone(), region: r, skin: skin(p) })),
     simple.indices,
   );
   return simple.indices.length / 3;
@@ -365,6 +414,8 @@ function headRegion(x: number, y: number, z: number) {
   if (y > hairline(x, z) && z < 0.085) return REGION.hair;
   const ax = Math.abs(x);
   if (z > 0.06 && brow(ax, y) < 0) return REGION.hair;
+  if (z > 0.06 && sphere(ax, y, z, EYE_C, EYE_R) < 0.0004 && eyeAperture(ax, y) < 0.0008) return eyeRegion(ax, y, z);
+  if (z > 0.095 && y < -0.036 && y > -0.046 && ax < 0.011 && Math.abs(nostrils(ax, y, z)) < 0.0004) return REGION.hair; // fond des narines, dans l'ombre
   return REGION.skin;
 }
 
@@ -379,6 +430,9 @@ export interface HeadOptions {
  */
 export async function buildHead(b: MeshBuilder, pose: Pose, neck: Tube, headBone: number, opts: HeadOptions = {}) {
   const F = headFrame(pose);
+  // Regard : droit devant, un peu vers le bas (la route à quelques mètres), exprimé dans le repère de la tête.
+  const look = new Vector3(0, -0.12, 1).normalize();
+  GAZE = [0, look.dot(F.axis), look.dot(F.face)];
   const headSkin: Skin = { joints: [headBone], weights: [1] };
   const headShape = localShape(F, (x, y, z) => smin(face(x, y, z), hair(x, y, z), 0.003), headRegion, headSkin);
 
@@ -404,7 +458,7 @@ export async function buildHead(b: MeshBuilder, pose: Pose, neck: Tube, headBone
     const dn = neckShape.sdf(p.x, p.y, p.z);
     return dh <= dn ? headSkin : neck.skinAt(p);
   };
-  const headTris = await extract(head, F, [-0.11, -0.19, -0.15], [0.11, 0.15, 0.15], 0.0012, 28000, 0.00018, b, skinOf);
+  const headTris = await extract(head, F, [-0.11, -0.19, -0.15], [0.11, 0.15, 0.15], 0.0009, 28000, 0.00015, b, skinOf);
 
   if (opts.bare) return { headTris, helmetTris: 0, head };
 

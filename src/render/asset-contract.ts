@@ -76,10 +76,13 @@ export const REGION = {
   decal: 23,
   steel: 24,
   chain: 25,
+  eyeWhite: 26,
+  iris: 27,
+  pupil: 28,
 } as const;
 
 export type RegionName = keyof typeof REGION;
-export const REGION_COUNT = 26;
+export const REGION_COUNT = 29;
 
 /** Couleur sRGB et réponse à la lumière d'une zone. */
 export interface Finish {
@@ -118,6 +121,9 @@ export const DEFAULT_FINISH: Record<RegionName, Finish> = {
   decal: f(0xf4f4f0, 0.35),
   steel: f(0xd4d7dc, 0.22, 1),
   chain: f(0x6d7178, 0.4, 0.9),
+  eyeWhite: f(0xece7df, 0.25),
+  iris: f(0x5a4030, 0.2),
+  pupil: f(0x0c0c0d, 0.15),
 };
 
 export const REGION_NAMES = Object.keys(REGION) as RegionName[];

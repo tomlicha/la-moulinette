@@ -5,7 +5,7 @@
  * - `shot=lineup` (défaut) : trois coureurs, trois quarts avant, profil, trois quarts arrière ;
  *   `shot=close` : un coureur en gros plan ; `shot=chase` : vue de poursuite comme en jeu.
  * - `yaw` (degrés) et `zoom` pour `shot=close`, `crank` (degrés) pour figer le pédalier, `spin=1` pour animer.
- * - `webgl` pour forcer le repli WebGL2.
+ * - `webgl` pour forcer le repli WebGL2 ; `shadows=0` pour couper les ombres (juger le modelé sans auto-ombrage).
  */
 import * as THREE from 'three/webgpu';
 import { loadRiderAssets } from '../../src/render/assets';
@@ -44,7 +44,7 @@ scene.add(ground);
 scene.add(new THREE.HemisphereLight(0xeef4ff, 0x9a9488, 1.6));
 const sun = new THREE.DirectionalLight(0xfff3e2, 2.6);
 sun.position.set(3, 6, 4);
-sun.castShadow = true;
+sun.castShadow = params.get('shadows') !== '0';
 sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.camera.left = -4;
 sun.shadow.camera.right = 4;
