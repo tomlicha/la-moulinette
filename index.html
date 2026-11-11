@@ -3,123 +3,210 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>zwift-2 · PoC connexion home trainer</title>
+    <title>zwift-2</title>
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
+    <header class="topbar">
+      <strong class="brand">zwift-2</strong>
+      <nav aria-label="Écrans">
+        <a href="#appareils" data-nav="appareils">Appareils</a>
+        <a href="#sortie" data-nav="sortie">Sortie</a>
+        <a href="#seances" data-nav="seances">Séances</a>
+      </nav>
+      <span id="status-trainer" class="pill">trainer : déconnecté</span>
+      <span id="status-hr" class="pill">cardio : déconnecté</span>
+    </header>
+
     <main>
-      <h1>PoC · connexion home trainer</h1>
-      <p id="support" class="note"></p>
+      <!-- Écran 1 : premier écran au lancement -->
+      <section data-view="appareils">
+        <h1>Connexion des appareils</h1>
+        <p id="support" class="note"></p>
+        <p id="recall-note" class="note"></p>
 
-      <section class="view">
-        <canvas id="view"></canvas>
-        <div id="view-stats" class="view-stats">rendu : initialisation…</div>
-        <p class="note">
-          Rendu : <a href="?renderer=webgl2">forcer WebGL2</a> · <a href="?">WebGPU si disponible</a> ·
-          <a href="?quality=low">qualité réduite</a>
-        </p>
-      </section>
+        <div class="device-cards">
+          <article class="device-card">
+            <h2>Home trainer</h2>
+            <p id="trainer-known" class="note">Aucun trainer connu.</p>
+            <span id="state" class="pill">trainer : déconnecté</span>
+            <p id="caps" class="note"></p>
+            <div class="row">
+              <button id="connect-ble">Rechercher un trainer</button>
+              <button id="connect-ble-other" class="secondary" hidden>Autre trainer</button>
+              <button id="connect-sim" class="secondary">Trainer simulé</button>
+              <button id="disconnect" class="secondary" disabled>Déconnecter</button>
+              <button id="forget-trainer" class="secondary" hidden>Oublier</button>
+            </div>
+          </article>
 
-      <section class="row">
-        <button id="connect-ble">Connecter (Bluetooth)</button>
-        <button id="connect-sim" class="secondary">Trainer simulé</button>
-        <button id="disconnect" class="secondary" disabled>Déconnecter</button>
-        <span id="state" class="pill">trainer : déconnecté</span>
-      </section>
+          <article class="device-card">
+            <h2>Ceinture cardio</h2>
+            <p id="hr-known" class="note">Aucune ceinture connue. Facultatif.</p>
+            <span id="state-hr" class="pill">cardio : déconnecté</span>
+            <div class="row">
+              <button id="connect-hr" class="secondary">Rechercher une ceinture</button>
+              <button id="connect-hr-other" class="secondary" hidden>Autre ceinture</button>
+              <button id="disconnect-hr" class="secondary" disabled>Déconnecter</button>
+              <button id="forget-hr" class="secondary" hidden>Oublier</button>
+            </div>
+          </article>
+        </div>
 
-      <section class="row">
-        <button id="connect-hr" class="secondary">Ceinture cardio</button>
-        <button id="disconnect-hr" class="secondary" disabled>Déconnecter</button>
-        <span id="state-hr" class="pill">cardio : déconnecté</span>
-      </section>
-
-      <section class="metrics">
-        <div><span id="m-power">–</span><label>W</label></div>
-        <div><span id="m-cadence">–</span><label>rpm</label></div>
-        <div><span id="m-speed">–</span><label>km/h</label></div>
-        <div><span id="m-hr">–</span><label>bpm</label></div>
-        <div><span id="m-distance">–</span><label>m</label></div>
-        <div><span id="m-rate">–</span><label>trames/s</label></div>
-      </section>
-
-      <section>
-        <h2>Sortie virtuelle · parcours « Colline », 6 km en boucle</h2>
         <div class="row">
-          <label for="mass">Masse cycliste + vélo</label>
-          <input id="mass" type="number" min="30" max="200" step="1" value="80" />
-          <span>kg</span>
-          <button id="ride-toggle" disabled>Démarrer la sortie</button>
+          <button id="go-ride" disabled>Continuer vers la sortie</button>
+          <a href="#sortie" class="note">Continuer sans trainer</a>
         </div>
-        <div class="metrics">
-          <div><span id="r-speed">–</span><label>km/h virtuels</label></div>
-          <div><span id="r-dist">–</span><label>km</label></div>
-          <div><span id="r-grade">–</span><label>% pente</label></div>
-          <div><span id="r-alt">–</span><label>m altitude</label></div>
-          <div><span id="r-time">–</span><label>temps</label></div>
-        </div>
-        <p class="note">La puissance mesurée fait avancer le modèle physique ; la pente du parcours est envoyée au trainer en mode SIM.</p>
       </section>
 
-      <section class="workout">
-        <h2>Séance structurée</h2>
-        <div class="row">
-          <label class="file-btn secondary" for="wo-file">Charger .zwo, .erg ou .mrc</label>
-          <input id="wo-file" type="file" accept=".zwo,.erg,.mrc" hidden />
-          <button id="wo-demo" class="secondary">Séance d'exemple</button>
-          <label for="wo-ftp">FTP</label>
-          <input id="wo-ftp" type="number" min="50" max="600" step="5" value="200" />
-          <span>W</span>
-        </div>
-        <p id="wo-name" class="note">Aucune séance chargée.</p>
-        <svg id="wo-profile" class="wo-profile" viewBox="0 0 1000 120" preserveAspectRatio="none" aria-label="Profil de la séance">
-          <g id="wo-shapes"></g>
-          <line id="wo-cursor" x1="0" y1="0" x2="0" y2="120" />
-        </svg>
-        <div class="row">
-          <button id="wo-start" disabled>Démarrer la séance</button>
-          <button id="wo-pause" class="secondary" disabled>Pause</button>
-          <button id="wo-skip" class="secondary" disabled>Palier suivant</button>
-          <button id="wo-stop" class="secondary" disabled>Arrêter</button>
-          <span class="spacer"></span>
-          <button id="wo-easier" class="secondary" disabled aria-label="Intensité moins 5 %">−5 %</button>
-          <span id="wo-intensity">100 %</span>
-          <button id="wo-harder" class="secondary" disabled aria-label="Intensité plus 5 %">+5 %</button>
-        </div>
-        <div class="metrics">
-          <div><span id="wo-target">–</span><label>W visés</label></div>
-          <div><span id="wo-delta">–</span><label>écart mesuré</label></div>
-          <div><span id="wo-step-left">–</span><label id="wo-step-label">palier</label></div>
-          <div><span id="wo-left">–</span><label>reste de la séance</label></div>
-        </div>
-        <p id="wo-next" class="note"></p>
-        <p id="wo-message" class="wo-message" hidden></p>
+      <!-- Écran 2 : la sortie -->
+      <section data-view="sortie" hidden>
+        <section class="view">
+          <canvas id="view"></canvas>
+          <div id="view-stats" class="view-stats">rendu : initialisation…</div>
+          <p class="note">
+            Rendu : <a href="?renderer=webgl2">forcer WebGL2</a> · <a href="?">WebGPU si disponible</a> ·
+            <a href="?quality=low">qualité réduite</a> (recharge la page et repasse par les appareils)
+          </p>
+        </section>
+
+        <section class="metrics">
+          <div><span id="m-power">–</span><label>W</label></div>
+          <div><span id="m-cadence">–</span><label>rpm</label></div>
+          <div><span id="m-speed">–</span><label>km/h</label></div>
+          <div><span id="m-hr">–</span><label>bpm</label></div>
+          <div><span id="m-distance">–</span><label>m</label></div>
+          <div><span id="m-rate">–</span><label>trames/s</label></div>
+        </section>
+
+        <section>
+          <h2>Sortie virtuelle · parcours « Colline », 6 km en boucle</h2>
+          <div class="row">
+            <label for="mass">Masse cycliste + vélo</label>
+            <input id="mass" type="number" min="30" max="200" step="1" value="80" />
+            <span>kg</span>
+            <button id="ride-toggle" disabled>Démarrer la sortie</button>
+          </div>
+          <div class="metrics">
+            <div><span id="r-speed">–</span><label>km/h virtuels</label></div>
+            <div><span id="r-dist">–</span><label>km</label></div>
+            <div><span id="r-grade">–</span><label>% pente</label></div>
+            <div><span id="r-alt">–</span><label>m altitude</label></div>
+            <div><span id="r-time">–</span><label>temps</label></div>
+          </div>
+          <p class="note">La puissance mesurée fait avancer le modèle physique ; la pente du parcours est envoyée au trainer en mode SIM.</p>
+        </section>
+
+        <section class="workout">
+          <h2>Séance structurée</h2>
+          <div class="row">
+            <label for="wo-select">Séance</label>
+            <select id="wo-select"></select>
+            <a href="#seances" class="note">Créer ou modifier</a>
+            <label for="wo-ftp">FTP</label>
+            <input id="wo-ftp" type="number" min="50" max="600" step="5" value="200" />
+            <span>W</span>
+          </div>
+          <p id="wo-name" class="note">Aucune séance choisie.</p>
+          <svg id="wo-profile" class="wo-profile" viewBox="0 0 1000 120" preserveAspectRatio="none" aria-label="Profil de la séance">
+            <g id="wo-shapes"></g>
+            <line id="wo-cursor" x1="0" y1="0" x2="0" y2="120" />
+          </svg>
+          <div class="row">
+            <button id="wo-start" disabled>Démarrer la séance</button>
+            <button id="wo-pause" class="secondary" disabled>Pause</button>
+            <button id="wo-skip" class="secondary" disabled>Palier suivant</button>
+            <button id="wo-stop" class="secondary" disabled>Arrêter</button>
+            <span class="spacer"></span>
+            <button id="wo-easier" class="secondary" disabled aria-label="Intensité moins 5 %">−5 %</button>
+            <span id="wo-intensity">100 %</span>
+            <button id="wo-harder" class="secondary" disabled aria-label="Intensité plus 5 %">+5 %</button>
+          </div>
+          <div class="metrics">
+            <div><span id="wo-target">–</span><label>W visés</label></div>
+            <div><span id="wo-delta">–</span><label>écart mesuré</label></div>
+            <div><span id="wo-step-left">–</span><label id="wo-step-label">palier</label></div>
+            <div><span id="wo-left">–</span><label>reste de la séance</label></div>
+          </div>
+          <p id="wo-next" class="note"></p>
+          <p id="wo-message" class="wo-message" hidden></p>
+        </section>
+
+        <section class="controls">
+          <h2>Pilotage manuel</h2>
+          <div class="row">
+            <label for="erg">ERG, puissance cible</label>
+            <input id="erg" type="number" min="0" max="1000" step="5" value="150" />
+            <span>W</span>
+            <button id="erg-send" disabled>Engager l'ERG</button>
+          </div>
+          <div class="row">
+            <label for="grade">SIM, pente</label>
+            <input id="grade" type="range" min="-10" max="20" step="0.5" value="0" />
+            <output id="grade-out">0 %</output>
+            <button id="sim-send" disabled>Envoyer</button>
+          </div>
+        </section>
+
+        <section>
+          <h2>Enregistrement</h2>
+          <div class="row">
+            <button id="export-fit" class="secondary" disabled>Exporter FIT</button>
+            <button id="export-strava" class="secondary" hidden>Envoyer à Strava</button>
+            <button id="export-intervals" class="secondary" hidden>Envoyer à intervals.icu</button>
+          </div>
+        </section>
       </section>
 
-      <section class="controls">
-        <h2>Pilotage manuel</h2>
+      <!-- Écran 3 : bibliothèque et éditeur de séances -->
+      <section data-view="seances" hidden>
+        <h1>Séances</h1>
         <div class="row">
-          <label for="erg">ERG, puissance cible</label>
-          <input id="erg" type="number" min="0" max="1000" step="5" value="150" />
-          <span>W</span>
-          <button id="erg-send" disabled>Engager l'ERG</button>
+          <button id="lib-new">Nouvelle séance</button>
+          <label class="file-btn" for="lib-import">Importer .zwo, .erg ou .mrc</label>
+          <input id="lib-import" type="file" accept=".zwo,.erg,.mrc" hidden />
         </div>
-        <div class="row">
-          <label for="grade">SIM, pente</label>
-          <input id="grade" type="range" min="-10" max="20" step="0.5" value="0" />
-          <output id="grade-out">0 %</output>
-          <button id="sim-send" disabled>Envoyer</button>
-        </div>
-        <p id="caps" class="note"></p>
+
+        <section id="editor" class="editor" hidden>
+          <h2 id="ed-title">Nouvelle séance</h2>
+          <div class="ed-meta">
+            <label class="ed-field"><span>Nom</span><input id="ed-name" type="text" maxlength="80" /></label>
+            <label class="ed-field ed-desc"><span>Description</span><textarea id="ed-desc" rows="2" maxlength="500"></textarea></label>
+          </div>
+          <svg class="wo-profile" viewBox="0 0 1000 120" preserveAspectRatio="none" aria-label="Aperçu du profil">
+            <g id="ed-shapes"></g>
+          </svg>
+          <p id="ed-stats" class="note"></p>
+          <ol id="ed-blocks" class="ed-blocks"></ol>
+          <div class="row">
+            <span class="note">Ajouter :</span>
+            <button class="secondary" data-add="warmup">Échauffement</button>
+            <button class="secondary" data-add="steady">Palier</button>
+            <button class="secondary" data-add="intervals">Intervalles</button>
+            <button class="secondary" data-add="ramp">Rampe</button>
+            <button class="secondary" data-add="free">Libre</button>
+            <button class="secondary" data-add="cooldown">Retour au calme</button>
+          </div>
+          <ul id="ed-errors" class="errors"></ul>
+          <div class="row">
+            <button id="ed-save">Enregistrer</button>
+            <button id="ed-use" class="secondary">Enregistrer et utiliser</button>
+            <button id="ed-export" class="secondary">Exporter .zwo</button>
+            <button id="ed-close" class="secondary">Fermer</button>
+          </div>
+        </section>
+
+        <h2>Mes séances</h2>
+        <ul id="lib-list" class="lib-list"></ul>
+        <h2>Modèles</h2>
+        <ul id="lib-samples" class="lib-list"></ul>
       </section>
 
-      <section>
-        <h2>Journal</h2>
+      <details class="log-panel">
+        <summary>Journal</summary>
         <pre id="log"></pre>
         <button id="copy-log" class="secondary">Copier le journal</button>
-        <button id="export-fit" class="secondary" disabled>Exporter FIT</button>
-        <button id="export-strava" class="secondary" hidden>Envoyer à Strava</button>
-        <button id="export-intervals" class="secondary" hidden>Envoyer à intervals.icu</button>
-      </section>
+      </details>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

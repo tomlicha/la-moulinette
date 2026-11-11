@@ -73,3 +73,11 @@ Sur la page : charger un fichier ou l'exemple, régler la FTP (mémorisée dans 
 
 Vérifié dans la vraie page avec le trainer simulé ; pas encore sur le KICKR.
 
+### Écrans et connexion au lancement
+
+L'application a trois écrans : **Appareils** (toujours le premier au lancement), **Sortie** et **Séances**.
+
+- Chaque appareil connecté (trainer, ceinture cardio) est mémorisé dans le navigateur. Au lancement, l'application tente de les retrouver et de s'y reconnecter seule, puis passe à la sortie quand le trainer et les autres appareils connus ont répondu.
+- Cette reconnexion sans clic repose sur `navigator.bluetooth.getDevices()`, détecté à l'exécution. Le Chrome de test (novembre 2026) ne l'expose pas par défaut : l'écran propose alors « Reconnecter KICKR 81B5 », un clic par appareil, avec un sélecteur limité à cet appareil. La coquille Capacitor (BLE natif) permettra la reconnexion vraiment automatique.
+- **Séances** : bibliothèque (mes séances, modèles, import `.zwo`/`.erg`/`.mrc`) et éditeur par blocs (échauffement, palier, intervalles, rampe, libre, retour au calme) avec aperçu du profil, durée, puissance moyenne, intensité et charge estimées, validation, export `.zwo`. Les séances sont gardées dans le navigateur (`localStorage`), pas encore synchronisées entre appareils.
+

@@ -41,7 +41,10 @@ export class FakeService {
   }
 }
 
+let nextId = 1;
+
 export class FakeDevice {
+  readonly id = `fake-${nextId++}`;
   name = 'Faux trainer';
   connected = false;
   private listeners: (() => void)[] = [];
@@ -70,8 +73,11 @@ export class FakeDevice {
 }
 
 
-export function install(device: FakeDevice) {
-  vi.stubGlobal('navigator', { bluetooth: { requestDevice: async () => device } });
+/** `authorized` simule `getDevices()` (appareils déjà autorisés) ; absent, l'API n'existe pas, comme dans un Chrome qui ne l'expose pas. */
+export function install(device: FakeDevice, opts: { authorized?: FakeDevice[] } = {}) {
+  const bluetooth: Record<string, unknown> = { requestDevice: async () => device };
+  if (opts.authorized) bluetooth.getDevices = async () => opts.authorized;
+  vi.stubGlobal('navigator', { bluetooth });
   vi.stubGlobal('BluetoothUUID', { getService: uuid });
 }
 

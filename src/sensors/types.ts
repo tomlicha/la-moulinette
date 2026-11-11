@@ -45,7 +45,8 @@ export interface TrainerAdapter {
   readonly name: string;
   readonly capabilities: TrainerCapabilities;
   on<K extends keyof SensorEvents>(ev: K, fn: SensorEvents[K]): void;
-  connect(): Promise<void>;
+  /** `nameHint` limite le sélecteur Bluetooth aux appareils portant ce nom (reconnexion à un appareil connu). */
+  connect(nameHint?: string): Promise<void>;
   disconnect(): Promise<void>;
   setTargetPower(watts: number): Promise<void>;
   setSimulation(p: SimulationParams): Promise<void>;

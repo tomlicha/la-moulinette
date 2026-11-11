@@ -48,6 +48,7 @@ export class RideView {
   private lastFrame = 0;
   private lastStats = 0;
   private raf = 0;
+  private active = true;
   private cameraReady = false;
 
   private constructor(
@@ -131,7 +132,20 @@ export class RideView {
     this.sky.position.copy(this.camera.position);
   }
 
+  /** Hors de l'écran de sortie, la vue ne dessine plus : inutile de faire chauffer le GPU pour un canevas caché. */
+  setActive(on: boolean) {
+    this.active = on;
+    if (on && !this.raf) {
+      this.lastFrame = 0;
+      this.raf = requestAnimationFrame((t) => this.frame(t));
+    }
+  }
+
   private frame(now: number) {
+    if (!this.active) {
+      this.raf = 0;
+      return;
+    }
     this.raf = requestAnimationFrame((t) => this.frame(t));
     const dtMs = this.lastFrame ? now - this.lastFrame : 16.7;
     this.lastFrame = now;

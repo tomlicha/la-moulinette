@@ -22,6 +22,8 @@ Mise à jour du 27 octobre 2026. Référence : [analyse technique](analyse-techn
 | Multijoueur, backend, comptes | Non commencé | — |
 | Coquille iOS (Capacitor) | Non commencée | — |
 | Séances structurées (.zwo, .erg, .mrc) | Fait : lecture des trois formats, déroulement minuté, ERG piloté par la séance, profil coloré par zone, intensité réglable | Vérifié dans la page avec le trainer simulé ; **pas encore sur le KICKR** |
+| Éditeur de séances | Fait : blocs, aperçu, statistiques estimées, validation, bibliothèque locale, export `.zwo` | Vérifié dans la vraie page |
+| Reconnexion au lancement | Fait : appareils mémorisés, écran Appareils en premier, reconnexion sans clic si `getDevices()` existe, sinon un clic par appareil | `getDevices()` absent du Chrome de test : **reconnexion sans clic non vérifiée sur matériel** |
 
 ## Prochaines étapes
 

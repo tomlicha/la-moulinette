@@ -60,27 +60,58 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
   reconnectDelaysMs = [0, 500, 1000, 2000, 3000];
   reconnectTimeoutMs = 60_000;
 
-  async connect(): Promise<void> {
+  async connect(nameHint?: string): Promise<void> {
     if (!webBluetoothAvailable()) {
       const msg = 'Web Bluetooth indisponible (Chrome ou Edge requis, en HTTPS ou sur localhost)';
       this.emit('state', 'error', msg);
       throw new Error(msg);
     }
-    this.userDisconnect = false;
     this.emit('state', 'connecting');
+    let device: BluetoothDevice;
     try {
-      this.device = await navigator.bluetooth.requestDevice({
-        filters: [{ services: [SERVICE.fitnessMachine] }, { services: [SERVICE.cyclingPower] }],
+      device = await navigator.bluetooth.requestDevice({
+        filters: nameHint ? [{ name: nameHint }] : [{ services: [SERVICE.fitnessMachine] }, { services: [SERVICE.cyclingPower] }],
         optionalServices: [SERVICE.fitnessMachine, SERVICE.cyclingPower, SERVICE.heartRate, WAHOO_SERVICE],
       });
-      this.name = this.device.name ?? 'Trainer inconnu';
-      this.device.addEventListener('gattserverdisconnected', () => this.onDisconnected());
-      await this.setup();
-      this.emit('state', 'connected', this.name);
     } catch (e) {
       this.emit('state', 'error', e instanceof Error ? e.message : String(e));
       throw e;
     }
+    await this.open(device);
+  }
+
+  /**
+   * Connexion à un appareil déjà choisi, par exemple retrouvé au lancement par `getDevices()` : pas de sélecteur,
+   * donc pas de clic nécessaire. Avec `keepTrying`, un appareil éteint ou hors de portée est attendu pendant
+   * `reconnectTimeoutMs` au lieu d'échouer aussitôt.
+   */
+  async connectDevice(device: BluetoothDevice, keepTrying = false): Promise<void> {
+    this.emit('state', 'connecting', device.name ?? 'Trainer inconnu');
+    return this.open(device, keepTrying);
+  }
+
+  private async open(device: BluetoothDevice, keepTrying = false): Promise<void> {
+    this.userDisconnect = false;
+    if (this.device !== device) device.addEventListener('gattserverdisconnected', () => this.onDisconnected());
+    this.device = device;
+    this.name = device.name ?? 'Trainer inconnu';
+    try {
+      await this.setup();
+      this.emit('state', 'connected', this.name);
+    } catch (e) {
+      if (keepTrying) {
+        this.emit('log', `${this.name} pas encore joignable (${e instanceof Error ? e.message : e}) : nouvel essai`);
+        void this.reconnect();
+        return;
+      }
+      this.emit('state', 'error', e instanceof Error ? e.message : String(e));
+      throw e;
+    }
+  }
+
+  /** Identifiant de l'appareil pour cette origine, stable d'une session à l'autre : sert à le retrouver au lancement. */
+  get deviceId(): string | undefined {
+    return this.device?.id;
   }
 
   async disconnect(): Promise<void> {

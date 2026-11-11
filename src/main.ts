@@ -13,7 +13,13 @@ import { ErgFollower } from './workout/erg-follower';
 import { STEP_LABEL, type Workout } from './workout/model';
 import { profileShapes } from './workout/profile';
 import { parseWorkout, WorkoutRunner, type WorkoutState } from './workout/runner';
-import demoWorkout from '../samples/workouts/decouverte.zwo?raw';
+import { canRecallDevices, DeviceRegistry, recallDevices, type DeviceRole } from './sensors/device-registry';
+import { formatDuration } from './ui/duration';
+import { setupRouter } from './ui/router';
+import { setupWorkoutEditor } from './ui/workout-editor';
+import { blocksToWorkout } from './workout/blocks';
+import { WorkoutLibrary } from './workout/library';
+import { SAMPLE_WORKOUTS } from './workout/samples';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -85,14 +91,22 @@ function setState(s: ConnectionState, detail?: string) {
     const range = c.powerRange ? `, plage ${c.powerRange.min}–${c.powerRange.max} W` : '';
     $('caps').textContent = `ERG : ${c.targetPower ? 'oui' : 'non'} · SIM : ${c.simulation ? 'oui' : 'non'}${range}`;
   }
+  roleState.trainer = s;
+  renderDevices();
 }
 
 function attach(t: TrainerAdapter) {
   trainer = t;
   hub.attachTrainer(t);
   t.on('state', (s, d) => {
+    if (trainer !== t) return; // ancien adaptateur remplacé par un nouveau choix d'appareil
     setState(s, d);
     log(`trainer : ${s}${d ? ` (${d})` : ''}`);
+    if (s === 'connected' && t instanceof WebBluetoothTrainer && t.deviceId) {
+      registry.remember('trainer', { id: t.deviceId, name: t.name });
+      renderDevices();
+    }
+    maybeLeaveDevices();
   });
 }
 
@@ -113,7 +127,7 @@ hub.on('measurement', (m) => {
   show('m-distance', m.distanceM);
 });
 
-const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const fmtTime = (s: number) => formatDuration(Math.floor(s));
 
 function tickRide() {
   if (!ride) return;
@@ -176,10 +190,10 @@ function stopRide(resetTrainer = true) {
 
 rideBtn.addEventListener('click', () => (ride ? stopRide() : startRide()));
 
-async function start(t: TrainerAdapter) {
+async function start(t: TrainerAdapter, nameHint?: string) {
   attach(t);
   try {
-    await t.connect();
+    await t.connect(nameHint);
   } catch (e) {
     log(`échec de connexion : ${e instanceof Error ? e.message : e}`);
   }
@@ -196,21 +210,43 @@ async function send(label: string, fn: () => Promise<void>): Promise<boolean> {
   }
 }
 
-connectHr.addEventListener('click', async () => {
-  hrMonitor = new HeartRateMonitor();
-  hub.attachHeartRate(hrMonitor);
-  hrMonitor.on('state', (s, d) => {
+function newHeartRateMonitor(): HeartRateMonitor {
+  const m = new HeartRateMonitor();
+  hrMonitor = m;
+  hub.attachHeartRate(m);
+  m.on('state', (s, d) => {
+    if (hrMonitor !== m) return;
+    roleState.hr = s;
     stateHrEl.dataset.s = s;
     stateHrEl.textContent = `cardio : ${d ? `${s} · ${d}` : s}`;
-    connectHr.disabled = s === 'connecting' || s === 'connected';
-    disconnectHr.disabled = s !== 'connected';
     log(`cardio : ${s}${d ? ` (${d})` : ''}`);
+    if (s === 'connected' && m.deviceId) registry.remember('hr', { id: m.deviceId, name: m.name });
+    renderDevices();
+    maybeLeaveDevices();
   });
-  await hrMonitor.connect().catch((e) => log(`échec cardio : ${e instanceof Error ? e.message : e}`));
-});
+  return m;
+}
+
+const connectHrWith = (hint?: string) =>
+  void newHeartRateMonitor()
+    .connect(hint)
+    .catch((e) => log(`échec cardio : ${e instanceof Error ? e.message : e}`));
+
+connectHr.addEventListener('click', () => connectHrWith(registry.get('hr')?.name));
+$('connect-hr-other').addEventListener('click', () => connectHrWith());
 disconnectHr.addEventListener('click', () => void hrMonitor?.disconnect());
-connectBle.addEventListener('click', () => void start(new WebBluetoothTrainer()));
+connectBle.addEventListener('click', () => void start(new WebBluetoothTrainer(), registry.get('trainer')?.name));
+$('connect-ble-other').addEventListener('click', () => void start(new WebBluetoothTrainer()));
 connectSim.addEventListener('click', () => void start(new SimulatedTrainer()));
+for (const role of ['trainer', 'hr'] as const) {
+  $(`forget-${role}`).addEventListener('click', () => {
+    const known = registry.get(role);
+    if (!known || !confirm(`Oublier « ${known.name} » ? Il ne sera plus reconnecté au lancement.`)) return;
+    registry.forget(role);
+    log(`appareil oublié : ${known.name}`);
+    renderDevices();
+  });
+}
 disconnectBtn.addEventListener('click', () => void trainer?.disconnect());
 ergBtn.addEventListener('click', async () => {
   if (ergActive) {
@@ -253,7 +289,7 @@ gradeInput.addEventListener('input', () => {
 });
 // --- Séance structurée ---
 
-const woFile = $<HTMLInputElement>('wo-file');
+const woSelect = $<HTMLSelectElement>('wo-select');
 const woFtp = $<HTMLInputElement>('wo-ftp');
 const woStart = $<HTMLButtonElement>('wo-start');
 const woPause = $<HTMLButtonElement>('wo-pause');
@@ -306,21 +342,59 @@ function renderProfile() {
   }
 }
 
-function loadWorkout(fileName: string, text: string) {
-  if (runner) return log("séance en cours : l'arrêter avant d'en charger une autre");
+/** Valeur du sélecteur : `lib:<id>` pour une séance de l'utilisateur, `sample:<id>` pour un modèle. */
+function workoutFromChoice(value: string): Workout | undefined {
+  const [kind, id] = value.split(':');
+  if (kind === 'lib') {
+    const saved = library.get(id ?? '');
+    return saved && blocksToWorkout(saved.name, saved.description, saved.blocks);
+  }
+  const sample = SAMPLE_WORKOUTS.find((s) => s.id === id);
+  if (!sample) return undefined;
   try {
-    workout = parseWorkout(fileName, text);
+    return parseWorkout(sample.fileName, sample.text);
   } catch (e) {
-    log(`séance illisible (${fileName}) : ${e instanceof Error ? e.message : e}`);
+    log(`séance illisible (${sample.fileName}) : ${e instanceof Error ? e.message : e}`);
+    return undefined;
+  }
+}
+
+function refreshWorkoutChoices() {
+  const keep = woSelect.value;
+  const opt = (value: string, label: string) => Object.assign(document.createElement('option'), { value, textContent: label });
+  const mine = document.createElement('optgroup');
+  mine.label = 'Mes séances';
+  mine.append(...library.list().map((w) => opt(`lib:${w.id}`, w.name)));
+  const samples = document.createElement('optgroup');
+  samples.label = 'Modèles';
+  samples.append(...SAMPLE_WORKOUTS.map((s) => opt(`sample:${s.id}`, parseWorkout(s.fileName, s.text).name)));
+  woSelect.replaceChildren(opt('', '— choisir une séance —'), ...(mine.children.length ? [mine] : []), samples);
+  woSelect.value = [...woSelect.options].some((o) => o.value === keep) ? keep : '';
+}
+
+function chooseWorkout(value: string) {
+  if (runner) {
+    log("séance en cours : l'arrêter avant d'en choisir une autre");
     return;
   }
-  for (const w of workout.warnings) log(`séance : ${w}`);
+  woSelect.value = value;
+  const w = value ? workoutFromChoice(value) : undefined;
+  if (!w) {
+    workout = undefined;
+    $('wo-name').textContent = 'Aucune séance choisie.';
+    renderProfile();
+    renderWorkout(undefined);
+    refreshWorkoutButtons();
+    return;
+  }
+  workout = w;
+  for (const x of workout.warnings) log(`séance : ${x}`);
   const total = workout.steps.reduce((t, s) => t + s.durationS, 0);
   $('wo-name').textContent = `${workout.name} · ${fmtTime(total)}${workout.description ? ` · ${workout.description}` : ''}`;
   renderProfile();
   renderWorkout(undefined);
   refreshWorkoutButtons();
-  log(`séance chargée : ${workout.name} (${workout.steps.length} paliers, ${fmtTime(total)})`);
+  log(`séance choisie : ${workout.name} (${workout.steps.length} paliers, ${fmtTime(total)})`);
 }
 
 function renderWorkout(s: WorkoutState | undefined) {
@@ -432,12 +506,7 @@ function finishWorkout(reason: string) {
   refreshWorkoutButtons();
 }
 
-woFile.addEventListener('change', async () => {
-  const f = woFile.files?.[0];
-  if (f) loadWorkout(f.name, await f.text());
-  woFile.value = ''; // recharger le même fichier redéclenche l'évènement
-});
-$('wo-demo').addEventListener('click', () => loadWorkout('decouverte.zwo', demoWorkout));
+woSelect.addEventListener('change', () => chooseWorkout(woSelect.value));
 woFtp.addEventListener('change', () => {
   try {
     localStorage.setItem(FTP_KEY, String(readFtp()));
@@ -446,6 +515,7 @@ woFtp.addEventListener('change', () => {
   }
   if (runner) runner.ftpW = readFtp();
   renderProfile();
+  editor.refresh();
 });
 woStart.addEventListener('click', startWorkout);
 woPause.addEventListener('click', () => {
@@ -473,6 +543,118 @@ for (const [btn, delta] of [
     follower.reset();
   });
 }
+
+// --- Écrans, appareils connus et reconnexion au lancement ---
+
+const library = new WorkoutLibrary();
+const editor = setupWorkoutEditor({
+  library,
+  readFtp,
+  log,
+  onLibraryChange: refreshWorkoutChoices,
+  onUse: (id) => {
+    router.go('sortie');
+    chooseWorkout(`lib:${id}`);
+  },
+  onUseSample: (id) => {
+    router.go('sortie');
+    chooseWorkout(`sample:${id}`);
+  },
+});
+refreshWorkoutChoices();
+
+const router = setupRouter((v) => view?.setActive(v === 'sortie'));
+
+const registry = new DeviceRegistry();
+const roleState: Record<DeviceRole, ConnectionState> = { trainer: 'disconnected', hr: 'disconnected' };
+/** Appareils que l'application tente de retrouver seule au lancement ; vide une fois cette phase terminée. */
+const launchPending = new Set<DeviceRole>();
+
+function renderDevices() {
+  const t = registry.get('trainer');
+  const h = registry.get('hr');
+  const busyT = roleState.trainer === 'connecting' || roleState.trainer === 'connected';
+  const busyH = roleState.hr === 'connecting' || roleState.hr === 'connected';
+  $('trainer-known').textContent = t ? `Connu : ${t.name}` : 'Aucun trainer connu.';
+  $('hr-known').textContent = h ? `Connue : ${h.name}` : 'Aucune ceinture connue. Facultatif.';
+  connectBle.textContent = t ? `Reconnecter ${t.name}` : 'Rechercher un trainer';
+  connectHr.textContent = h ? `Reconnecter ${h.name}` : 'Rechercher une ceinture';
+  const bt = webBluetoothAvailable();
+  connectBle.disabled = busyT || !bt;
+  connectHr.disabled = busyH || !bt;
+  connectSim.disabled = busyT;
+  $<HTMLButtonElement>('connect-ble-other').hidden = !t;
+  $<HTMLButtonElement>('connect-ble-other').disabled = busyT || !bt;
+  $<HTMLButtonElement>('connect-hr-other').hidden = !h;
+  $<HTMLButtonElement>('connect-hr-other').disabled = busyH || !bt;
+  $<HTMLButtonElement>('forget-trainer').hidden = !t;
+  $<HTMLButtonElement>('forget-hr').hidden = !h;
+  disconnectHr.disabled = roleState.hr !== 'connected';
+  $<HTMLButtonElement>('go-ride').disabled = roleState.trainer !== 'connected';
+  for (const [role, label] of [['trainer', 'trainer'], ['hr', 'cardio']] as const) {
+    const pill = $(`status-${role}`);
+    pill.dataset.s = roleState[role];
+    pill.textContent = `${label} : ${roleState[role] === 'connected' ? 'connecté' : roleState[role] === 'connecting' ? 'connexion…' : roleState[role] === 'error' ? 'erreur' : 'déconnecté'}`;
+  }
+}
+
+/**
+ * Pendant la reconnexion du lancement : dès que le trainer est connecté et que les autres appareils connus
+ * ont abouti (connectés ou en échec), on passe à la sortie sans attendre de clic.
+ */
+function maybeLeaveDevices() {
+  if (!launchPending.size || roleState.trainer !== 'connected') return;
+  const settled = [...launchPending].every((r) => roleState[r] === 'connected' || roleState[r] === 'error');
+  if (!settled) return;
+  launchPending.clear();
+  if (router.current() !== 'appareils') return;
+  log('appareils connus reconnectés : passage à la sortie');
+  setTimeout(() => router.current() === 'appareils' && router.go('sortie'), 800);
+}
+
+async function reconnectKnownDevices() {
+  const known = registry.list();
+  const note = $('recall-note');
+  renderDevices();
+  if (!webBluetoothAvailable()) return;
+  if (!known.length) {
+    note.textContent = 'Première utilisation : connecte ton home trainer pour commencer. Il sera reconnu aux prochains lancements.';
+    return;
+  }
+  if (!canRecallDevices()) {
+    note.textContent = 'Ce navigateur ne permet pas de retrouver les appareils sans clic : un clic sur « Reconnecter » par appareil suffit.';
+    log('reconnexion automatique indisponible : navigator.bluetooth.getDevices() absent');
+    return;
+  }
+  note.textContent = 'Reconnexion automatique aux appareils connus…';
+  let found: Map<DeviceRole, BluetoothDevice>;
+  try {
+    found = await recallDevices(known);
+  } catch (e) {
+    note.textContent = 'Reconnexion automatique impossible : un clic sur « Reconnecter » par appareil suffit.';
+    log(`getDevices() a échoué : ${e instanceof Error ? e.message : e}`);
+    return;
+  }
+  for (const k of known) {
+    if (!found.has(k.role)) log(`${k.name} : autorisation du site perdue, à reconnecter d'un clic`);
+  }
+  if (!found.size) {
+    note.textContent = 'Les autorisations Bluetooth de ce site ont été effacées : un clic sur « Reconnecter » par appareil suffit.';
+    return;
+  }
+  for (const role of found.keys()) launchPending.add(role);
+  const td = found.get('trainer');
+  if (td) {
+    const t = new WebBluetoothTrainer();
+    attach(t);
+    void t.connectDevice(td, true);
+  }
+  const hd = found.get('hr');
+  if (hd) void newHeartRateMonitor().connectDevice(hd, true);
+  note.textContent = `Reconnexion automatique : ${[...found.values()].map((d) => d.name ?? 'appareil').join(', ')}. Allume-les si ce n'est pas déjà fait.`;
+}
+
+$('go-ride').addEventListener('click', () => router.go('sortie'));
 
 $('copy-log').addEventListener('click', () => void navigator.clipboard.writeText(logEl.textContent ?? ''));
 
@@ -509,6 +691,7 @@ RideView.create($<HTMLCanvasElement>('view'), DEMO_ROUTE, {
 })
   .then((v) => {
     view = v;
+    v.setActive(router.current() === 'sortie');
     v.onStats = (s) => {
       $('view-stats').textContent =
         `${s.backend === 'webgpu' ? 'WebGPU' : 'WebGL2'} · ${s.fps.toFixed(0)} i/s · ` +
@@ -521,3 +704,6 @@ RideView.create($<HTMLCanvasElement>('view'), DEMO_ROUTE, {
     $('view-stats').textContent = 'rendu 3D indisponible';
     log(`rendu 3D indisponible : ${e instanceof Error ? e.message : e}`);
   });
+
+// En dernier : tout l'état de la page est initialisé avant la première connexion.
+void reconnectKnownDevices();

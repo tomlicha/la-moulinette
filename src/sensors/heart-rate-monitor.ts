@@ -15,24 +15,54 @@ export class HeartRateMonitor extends Emitter {
   private userDisconnect = false;
   private reconnecting = false;
 
-  async connect(): Promise<void> {
+  async connect(nameHint?: string): Promise<void> {
     if (!webBluetoothAvailable()) {
       const msg = 'Web Bluetooth indisponible';
       this.emit('state', 'error', msg);
       throw new Error(msg);
     }
-    this.userDisconnect = false;
     this.emit('state', 'connecting');
+    let device: BluetoothDevice;
     try {
-      this.device = await navigator.bluetooth.requestDevice({ filters: [{ services: [SERVICE.heartRate] }] });
-      this.name = this.device.name ?? 'Cardio';
-      this.device.addEventListener('gattserverdisconnected', () => this.onDisconnected());
-      await this.subscribe();
-      this.emit('state', 'connected', this.name);
+      device = await navigator.bluetooth.requestDevice({
+        filters: nameHint ? [{ name: nameHint }] : [{ services: [SERVICE.heartRate] }],
+        optionalServices: [SERVICE.heartRate],
+      });
     } catch (e) {
       this.emit('state', 'error', e instanceof Error ? e.message : String(e));
       throw e;
     }
+    await this.open(device);
+  }
+
+  /** Connexion sans sélecteur à un appareil déjà autorisé ; voir `WebBluetoothTrainer.connectDevice`. */
+  async connectDevice(device: BluetoothDevice, keepTrying = false): Promise<void> {
+    this.emit('state', 'connecting', device.name ?? 'Cardio');
+    return this.open(device, keepTrying);
+  }
+
+  private async open(device: BluetoothDevice, keepTrying = false): Promise<void> {
+    this.userDisconnect = false;
+    if (this.device !== device) device.addEventListener('gattserverdisconnected', () => this.onDisconnected());
+    this.device = device;
+    this.name = device.name ?? 'Cardio';
+    try {
+      await this.subscribe();
+      this.emit('state', 'connected', this.name);
+    } catch (e) {
+      if (keepTrying) {
+        this.emit('log', `${this.name} pas encore joignable (${e instanceof Error ? e.message : e}) : nouvel essai`);
+        void this.reconnect();
+        return;
+      }
+      this.emit('state', 'error', e instanceof Error ? e.message : String(e));
+      throw e;
+    }
+  }
+
+  /** Identifiant de l'appareil pour cette origine, stable d'une session à l'autre : sert à le retrouver au lancement. */
+  get deviceId(): string | undefined {
+    return this.device?.id;
   }
 
   async disconnect(): Promise<void> {
