@@ -1,4 +1,5 @@
 import { RideRecorder } from './recorder';
+import { setBlocked } from '../ui/blocked';
 import { getStatus as getIntervalsStatus, sendToIntervals } from './intervals/client';
 import { getStatus, sendToStrava, waitForLogin, type StravaStatus } from './strava/client';
 import type { SensorHub } from '../sensors/hub';
@@ -61,13 +62,14 @@ export function setupExport(opts: {
 
   function refreshButtons() {
     const n = recorder.sampleCount;
-    button.disabled = n === 0 || busy;
+    const nothing = 'Rien à exporter pour l’instant : l’enregistrement démarre dès qu’un trainer connecté envoie des mesures.';
+    setBlocked(button, busy ? 'Export en cours…' : n === 0 ? nothing : undefined);
     button.textContent = n ? `Exporter FIT (${n} s${recorder.state === 'paused' ? ', en pause' : ''})` : 'Exporter FIT';
     stravaButton.hidden = !strava?.configured;
-    stravaButton.disabled = busy || (n === 0 && !exported);
+    setBlocked(stravaButton, busy ? 'Envoi en cours…' : n === 0 && !exported ? nothing : undefined);
     stravaButton.textContent = n === 0 && exported ? 'Réessayer l’envoi à Strava' : 'Envoyer à Strava';
     intervalsButton.hidden = !intervalsConfigured;
-    intervalsButton.disabled = busy || (n === 0 && !exported);
+    setBlocked(intervalsButton, busy ? 'Envoi en cours…' : n === 0 && !exported ? nothing : undefined);
   }
 
   setInterval(() => {

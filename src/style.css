@@ -24,6 +24,8 @@
   }
 }
 * { box-sizing: border-box; }
+/* `hidden` doit toujours cacher, même un élément dont la classe fixe un `display` (sinon l'éditeur vide s'affiche). */
+[hidden] { display: none !important; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.4 system-ui, sans-serif; }
 main { max-width: 720px; margin: 0 auto; padding: 16px; }
 h1 { font-size: 1.3rem; }
@@ -166,3 +168,10 @@ kbd { font: inherit; font-size: .75rem; border: 1px solid rgb(127 127 127 / .5);
 .log-panel { margin-top: 24px; }
 .log-panel summary { cursor: pointer; color: var(--muted); }
 select { padding: 8px; font: inherit; max-width: 100%; }
+
+/* Boutons indisponibles qui expliquent pourquoi (voir ui/blocked.ts). */
+button[aria-disabled='true'] { opacity: .45; cursor: help; }
+.blocked-tip { position: fixed; z-index: 50; max-width: 320px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; background: #14171a; color: #fff; border-radius: 10px; padding: 10px 12px; font-size: .88rem; line-height: 1.4; box-shadow: 0 8px 24px rgb(0 0 0 / .25); }
+.blocked-tip button { padding: 6px 12px; font-size: .85rem; }
+.hint-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 8px 0 12px; padding: 10px 14px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 12%, var(--card)); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); }
+.hint-banner a { font-weight: 600; }

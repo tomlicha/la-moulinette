@@ -15,6 +15,7 @@ import { profileShapes } from './workout/profile';
 import { parseWorkout, WorkoutRunner, type WorkoutState } from './workout/runner';
 import { canRecallDevices, DeviceRegistry, recallDevices, type DeviceRole } from './sensors/device-registry';
 import { formatDuration } from './ui/duration';
+import { setBlocked, setupBlockedHints, type BlockReason } from './ui/blocked';
 import { setupRouter } from './ui/router';
 import { setupWorkoutEditor } from './ui/workout-editor';
 import { blocksToWorkout } from './workout/blocks';
@@ -22,6 +23,17 @@ import { WorkoutLibrary } from './workout/library';
 import { SAMPLE_WORKOUTS } from './workout/samples';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+setupBlockedHints();
+
+/** Raison « pas de trainer », avec le raccourci qui mène à l'écran des appareils. */
+const needTrainer = (text: string): BlockReason => ({
+  text,
+  action: { label: 'Connecter le trainer', run: () => router.go('appareils') },
+});
+const noControl = (what: string): BlockReason => ({
+  text: `${trainer?.name ?? 'Cet appareil'} mesure ta puissance mais ne pilote pas la résistance (pas de ${what}). Il faut un home trainer connecté pour ça.`,
+  action: { label: 'Changer d’appareil', run: () => router.go('appareils') },
+});
 
 const stateEl = $('state');
 const stateHrEl = $('state-hr');
@@ -75,12 +87,28 @@ function setState(s: ConnectionState, detail?: string) {
   stateEl.textContent = `trainer : ${detail ? `${s} · ${detail}` : s}`;
   const connected = s === 'connected';
   const busy = s === 'connecting' || connected;
-  connectBle.disabled = busy;
-  connectSim.disabled = busy;
-  disconnectBtn.disabled = !connected;
-  ergBtn.disabled = !connected || !trainer?.capabilities.targetPower;
-  simBtn.disabled = !connected || !!ride || !trainer?.capabilities.simulation;
-  rideBtn.disabled = !connected; // la puissance seule suffit : la pente n'est envoyée que si le trainer sait la simuler
+  // Les boutons de connexion sont réglés par renderDevices, plus bas.
+  setBlocked(disconnectBtn, connected ? undefined : 'Aucun trainer connecté.');
+  setBlocked(
+    ergBtn,
+    !connected
+      ? needTrainer('Connecte d’abord ton home trainer pour lui imposer une puissance.')
+      : !trainer?.capabilities.targetPower
+        ? noControl('mode ERG')
+        : undefined,
+  );
+  setBlocked(
+    simBtn,
+    !connected
+      ? needTrainer('Connecte d’abord ton home trainer pour lui imposer une pente.')
+      : !trainer?.capabilities.simulation
+        ? noControl('mode SIM')
+        : ride
+          ? 'Pendant la sortie virtuelle, la pente vient du parcours. Arrête la sortie pour régler la pente à la main.'
+          : undefined,
+  );
+  // La puissance seule suffit à rouler : la pente n'est envoyée que si le trainer sait la simuler.
+  setBlocked(rideBtn, connected ? undefined : needTrainer('La sortie avance avec la puissance de ton home trainer : connecte-le d’abord.'));
   refreshWorkoutButtons();
   if (s === 'disconnected') {
     stopRide(false);
@@ -170,7 +198,8 @@ function startRide() {
   lastTick = performance.now();
   rideTimer = setInterval(tickRide, 100);
   rideBtn.textContent = 'Arrêter la sortie';
-  massInput.disabled = true;
+  massInput.readOnly = true;
+  massInput.title = 'La masse se règle avant de démarrer la sortie.';
   setState(currentState, trainer?.name);
   log(`sortie virtuelle démarrée (${massKg} kg)`);
 }
@@ -182,7 +211,8 @@ function stopRide(resetTrainer = true) {
   view?.setState({ distanceM: ride.snapshot().distanceM, speedKmh: 0, cadenceRpm: 0 });
   ride = undefined;
   rideBtn.textContent = 'Démarrer la sortie';
-  massInput.disabled = false;
+  massInput.readOnly = false;
+  massInput.title = '';
   log('sortie virtuelle arrêtée');
   if (resetTrainer && currentState === 'connected') void hub.setSimulation({ gradePct: 0 }).catch(() => {});
   setState(currentState, trainer?.name);
@@ -326,8 +356,19 @@ const readFtp = () => (Number(woFtp.value) >= 50 ? Number(woFtp.value) : 200);
 
 function refreshWorkoutButtons() {
   const canErg = currentState === 'connected' && !!trainer?.capabilities.targetPower;
-  woStart.disabled = !workout || !!runner || !canErg;
-  for (const b of [woPause, woSkip, woStop, woEasier, woHarder]) b.disabled = !runner;
+  setBlocked(
+    woStart,
+    runner
+      ? 'La séance est déjà en cours.'
+      : !workout
+        ? 'Choisis d’abord une séance dans la liste ci-dessus.'
+        : currentState !== 'connected'
+          ? needTrainer('La séance pilote la résistance de ton home trainer : connecte-le d’abord.')
+          : !canErg
+            ? noControl('mode ERG')
+            : undefined,
+  );
+  for (const b of [woPause, woSkip, woStop, woEasier, woHarder]) setBlocked(b, runner ? undefined : 'Démarre d’abord la séance.');
   woPause.textContent = woPaused ? 'Reprendre' : 'Pause';
 }
 
@@ -580,17 +621,26 @@ function renderDevices() {
   connectBle.textContent = t ? `Reconnecter ${t.name}` : 'Rechercher un trainer';
   connectHr.textContent = h ? `Reconnecter ${h.name}` : 'Rechercher une ceinture';
   const bt = webBluetoothAvailable();
-  connectBle.disabled = busyT || !bt;
-  connectHr.disabled = busyH || !bt;
-  connectSim.disabled = busyT;
+  const noBt = 'Le Bluetooth web n’existe que dans Chrome ou Edge, sur ordinateur ou Android. Ici, seul le trainer simulé est disponible.';
+  const trainerBusy =
+    roleState.trainer === 'connected' ? 'Un trainer est déjà connecté : déconnecte-le d’abord pour en changer.' : 'Connexion du trainer en cours…';
+  const hrBusy =
+    roleState.hr === 'connected' ? 'Une ceinture est déjà connectée : déconnecte-la d’abord pour en changer.' : 'Connexion de la ceinture en cours…';
+  setBlocked(connectBle, !bt ? noBt : busyT ? trainerBusy : undefined);
+  setBlocked(connectHr, !bt ? noBt : busyH ? hrBusy : undefined);
+  setBlocked(connectSim, busyT ? trainerBusy : undefined);
   $<HTMLButtonElement>('connect-ble-other').hidden = !t;
-  $<HTMLButtonElement>('connect-ble-other').disabled = busyT || !bt;
+  setBlocked($<HTMLButtonElement>('connect-ble-other'), !bt ? noBt : busyT ? trainerBusy : undefined);
   $<HTMLButtonElement>('connect-hr-other').hidden = !h;
-  $<HTMLButtonElement>('connect-hr-other').disabled = busyH || !bt;
+  setBlocked($<HTMLButtonElement>('connect-hr-other'), !bt ? noBt : busyH ? hrBusy : undefined);
   $<HTMLButtonElement>('forget-trainer').hidden = !t;
   $<HTMLButtonElement>('forget-hr').hidden = !h;
-  disconnectHr.disabled = roleState.hr !== 'connected';
-  $<HTMLButtonElement>('go-ride').disabled = roleState.trainer !== 'connected';
+  setBlocked(disconnectHr, roleState.hr === 'connected' ? undefined : 'Aucune ceinture connectée.');
+  setBlocked(
+    $<HTMLButtonElement>('go-ride'),
+    roleState.trainer === 'connected' ? undefined : 'Connecte d’abord ton home trainer, ou choisis « Continuer sans trainer » juste à côté.',
+  );
+  $('sortie-hint').hidden = roleState.trainer === 'connected';
   for (const [role, label] of [['trainer', 'trainer'], ['hr', 'cardio']] as const) {
     const pill = $(`status-${role}`);
     pill.dataset.s = roleState[role];
@@ -678,8 +728,6 @@ setInterval(() => {
 if (webBluetoothAvailable()) {
   $('support').textContent = 'Web Bluetooth disponible.';
 } else {
-  connectBle.disabled = true;
-  connectHr.disabled = true;
   $('support').textContent =
     'Web Bluetooth indisponible ici (Chrome ou Edge, en HTTPS ou sur localhost). Le trainer simulé reste utilisable.';
 }
@@ -706,4 +754,5 @@ RideView.create($<HTMLCanvasElement>('view'), DEMO_ROUTE, {
   });
 
 // En dernier : tout l'état de la page est initialisé avant la première connexion.
+setState(currentState); // chaque bouton reçoit dès le départ sa raison d'être indisponible
 void reconnectKnownDevices();

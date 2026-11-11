@@ -19,6 +19,7 @@ import { profilePeakW, profileShapes, zoneOf, type Zone } from '../workout/profi
 import { parseWorkout } from '../workout/runner';
 import { SAMPLE_WORKOUTS } from '../workout/samples';
 import { effortSeconds, intensityWord, timeInZones, ZONES, zoneName, zoneReading, type ZoneTimes } from '../workout/zones';
+import { setBlocked } from './blocked';
 import { formatDuration, parseDuration } from './duration';
 
 const SVG = 'http://www.w3.org/2000/svg';
@@ -290,8 +291,8 @@ export function setupWorkoutEditor(o: EditorOptions) {
     const stats = workoutStats(w, f);
     const zones = timeInZones(w, f);
     $('ed-dirty').hidden = !isDirty();
-    $<HTMLButtonElement>('ed-undo').disabled = !history.canUndo;
-    $<HTMLButtonElement>('ed-redo').disabled = !history.canRedo;
+    setBlocked($<HTMLButtonElement>('ed-undo'), history.canUndo ? undefined : 'Rien à annuler pour l’instant.');
+    setBlocked($<HTMLButtonElement>('ed-redo'), history.canRedo ? undefined : 'Rien à rétablir : tu n’as rien annulé.');
     const sel = draft.blocks[selected];
     $('ed-linked').textContent = sel?.type === 'intervals' ? `Les ${sel.repeat} répétitions sont modifiées ensemble` : '';
     renderSummary(stats, zones);
@@ -302,7 +303,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
     renderZones(zones);
     const errors = validateBlocks(draft.blocks);
     $('ed-errors').replaceChildren(...errors.map((e) => el('li', { textContent: e })));
-    for (const id of ['ed-save', 'ed-use', 'ed-export']) $<HTMLButtonElement>(id).disabled = errors.length > 0;
+    for (const id of ['ed-save', 'ed-use', 'ed-export']) setBlocked($<HTMLButtonElement>(id), errors.length ? `À corriger d’abord : ${errors[0]}` : undefined);
   }
 
   function delta(now: number, before: number | undefined, digits = 0, unit = '') {
@@ -540,6 +541,9 @@ export function setupWorkoutEditor(o: EditorOptions) {
     }
     actions.append(button('Supprimer', deleteSelected, 'secondary danger'));
     actions.querySelectorAll('button').forEach((x, i) => (x.dataset.key = `act-${i}`));
+    const [before, after] = [...actions.querySelectorAll('button')].filter((x) => /Avant|Après/.test(x.textContent ?? ''));
+    if (before) setBlocked(before, selected === 0 ? 'C’est déjà le premier bloc.' : undefined);
+    if (after) setBlocked(after, selected === draft!.blocks.length - 1 ? 'C’est déjà le dernier bloc.' : undefined);
 
     const line = el('div', { className: 'ed-line' });
     switch (b.type) {
