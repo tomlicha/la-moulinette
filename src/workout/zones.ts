@@ -18,6 +18,28 @@ export const ZONES: ZoneInfo[] = [
   { id: 'z6', name: 'Anaérobie', from: 1.21 },
 ];
 
+export interface ZoneRange {
+  id: ZoneInfo['id'];
+  name: string;
+  /** Borne basse en watts ; absente pour la première zone. */
+  fromW?: number;
+  /** Borne haute en watts, comprise ; absente pour la dernière zone. */
+  toW?: number;
+}
+
+/** Les zones de puissance en watts pour une FTP donnée, avec les mêmes bornes que `zoneOf` (la borne haute est la basse suivante moins 1 W). */
+export function zoneRangesW(ftpW: number): ZoneRange[] {
+  return ZONES.map((z, i) => {
+    const next = ZONES[i + 1];
+    return {
+      id: z.id,
+      name: z.name,
+      ...(i > 0 ? { fromW: Math.round(z.from * ftpW) } : {}),
+      ...(next ? { toW: Math.round(next.from * ftpW) - 1 } : {}),
+    };
+  });
+}
+
 export const zoneName = (z: Zone) => (z === 'free' ? 'Libre' : ZONES.find((x) => x.id === z)!.name);
 
 export type ZoneTimes = Record<Zone, number>;

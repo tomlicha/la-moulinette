@@ -6,25 +6,24 @@ import '@fontsource/barlow-condensed/700.css';
 import './home.css';
 import { radarTag, type RadarDevice, type RadarRole, type RadarTone } from './radar-model';
 
-export type RadarVariant = 'full' | 'mini';
+/** `mini` : tuile de l'accueil (rôle et nom). `large` : tuile de l'écran Appareils, avec l'état en plus. */
+export type RadarVariant = 'mini' | 'large';
 
 export interface Radar {
   update(devices: Record<RadarRole, RadarDevice>): void;
 }
 
+export interface RadarOptions {
+  /** Si fourni, le médaillon du coureur devient un bouton qui appelle cette fonction. */
+  onRider?: () => void;
+}
+
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-/** Géométrie de chaque variante, dans le repère du dessin (la même que la maquette B1, voir docs/design/accueil-appareils.md). */
+/** Géométrie commune, dans le repère du dessin : médaillon centré, pastilles sur l'anneau de 68, étiquettes dans les coins (jamais sur le médaillon). */
 const GEOMETRY = {
-  full: {
-    w: 520, h: 592, rings: [130, 180, 230],
-    links: { trainer: [347, 235, 399, 198], hr: [169, 349, 113, 381] },
-  },
-  // Tuile carrée de l'accueil : médaillon centré, pastilles sur l'anneau de 68, étiquettes dans les coins (jamais sur le médaillon).
-  mini: {
-    w: 200, h: 200, rings: [46, 68, 92],
-    links: { trainer: [128, 78, 141, 68], hr: [72, 122, 59, 132] },
-  },
+  w: 200, h: 200, rings: [46, 68, 92],
+  links: { trainer: [128, 78, 141, 68], hr: [72, 122, 59, 132] },
 } as const;
 
 const LINK_STYLE: Record<RadarTone, { stroke: string; dash: string }> = {
@@ -46,8 +45,8 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?:
  * Chaque bulle donne le rôle (Trainer, Cardio) et, en plus petit, le nom réel de l'appareil.
  * Le navigateur ne donne pas la liste des appareils proches : le radar montre l'état des appareils connus.
  */
-export function createRadar(root: HTMLElement, variant: RadarVariant): Radar {
-  const g = GEOMETRY[variant];
+export function createRadar(root: HTMLElement, variant: RadarVariant, opts: RadarOptions = {}): Radar {
+  const g = GEOMETRY;
   root.replaceChildren();
   const box = el('div', `radar radar--${variant}`, root);
 
@@ -77,7 +76,13 @@ export function createRadar(root: HTMLElement, variant: RadarVariant): Radar {
 
   el('div', 'radar-sweep', box);
   el('div', 'radar-ping', box);
-  const core = el('div', 'radar-core', box);
+  const core = el(opts.onRider ? 'button' : 'div', 'radar-core', box);
+  if (core instanceof HTMLButtonElement) {
+    core.type = 'button';
+    core.setAttribute('aria-label', 'Régler mon coureur : masse et FTP');
+    core.title = 'Régler mon coureur';
+    core.addEventListener('click', opts.onRider!);
+  }
   const img = el('img', '', core);
   // Image de repli le temps du rendu (ou si WebGL/WebGPU est indisponible) ; remplacée par le rendu du vrai avatar.
   img.src = `${import.meta.env.BASE_URL}assets/rider-portrait.jpg`;

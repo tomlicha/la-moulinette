@@ -19,6 +19,7 @@ import { ALL_PROTOCOLS, PROTOCOL_LABEL, type ControlProtocol } from './sensors/t
 import { formatDuration } from './ui/duration';
 import { setBlocked, setupBlockedHints, type BlockReason } from './ui/blocked';
 import { setupRouter } from './ui/router';
+import { MASS_LIMITS, setupRiderProfile } from './ui/rider-profile';
 import { setupAppShell } from './ui/app-shell';
 import { setupWorkoutEditor } from './ui/workout-editor';
 import { RideHud } from './ui/hud';
@@ -45,6 +46,9 @@ const noControl = (what: string): BlockReason => ({
   action: { label: 'Changer d’appareil', run: () => router.go('appareils') },
 });
 
+/** État affiché sur les cartes de l'écran Appareils ; l'accord suit l'appareil (le trainer, la ceinture). */
+const stateLabel = (s: ConnectionState, feminine: boolean) =>
+  s === 'connected' ? `Connecté${feminine ? 'e' : ''}` : s === 'connecting' ? 'Connexion…' : s === 'error' ? 'Erreur de connexion' : `Non connecté${feminine ? 'e' : ''}`;
 const stateEl = $('state');
 const stateHrEl = $('state-hr');
 const connectHr = $<HTMLButtonElement>('connect-hr');
@@ -133,7 +137,8 @@ function setState(s: ConnectionState, detail?: string) {
   currentState = s;
   exporter.onTrainerState(s);
   stateEl.dataset.s = s;
-  stateEl.textContent = `trainer : ${detail ? `${s} · ${detail}` : s}`;
+  stateEl.textContent = stateLabel(s, false);
+  stateEl.title = detail ?? '';
   const connected = s === 'connected';
   const busy = s === 'connecting' || connected;
   // Les boutons de connexion sont réglés par renderDevices, plus bas.
@@ -296,7 +301,8 @@ function newHeartRateMonitor(): HeartRateMonitor {
     if (hrMonitor !== m) return;
     roleState.hr = s;
     stateHrEl.dataset.s = s;
-    stateHrEl.textContent = `cardio : ${d ? `${s} · ${d}` : s}`;
+    stateHrEl.textContent = stateLabel(s, true);
+    stateHrEl.title = d ?? '';
     log(`cardio : ${s}${d ? ` (${d})` : ''}`);
     if (s === 'connected' && m.deviceId) registry.remember('hr', { id: m.deviceId, name: m.name });
     renderDevices();
@@ -385,9 +391,12 @@ const homeRideBtn = $<HTMLButtonElement>('home-ride');
 setupHomeBackground($('home-scenes'), $('home-title'), $('home-desc'));
 // L'écran Séances a le même fond, sans titre ni description.
 setupHomeBackground($('sea-scenes'));
+// Et l'écran Appareils.
+setupHomeBackground($('dev-scenes'));
 const PROFILE_W = 1000;
 const PROFILE_H = 120;
 const FTP_KEY = 'zwift2.ftp';
+const MASS_KEY = 'zwift2.mass';
 
 const follower = new ErgFollower();
 let workout: Workout | undefined;
@@ -404,10 +413,13 @@ let woHoldUntil = 0;
 try {
   const saved = Number(localStorage.getItem(FTP_KEY));
   if (saved >= 50) woFtp.value = String(saved);
+  const savedMass = Number(localStorage.getItem(MASS_KEY));
+  if (savedMass >= MASS_LIMITS.min && savedMass <= MASS_LIMITS.max) massInput.value = String(savedMass);
 } catch {
   // stockage indisponible (navigation privée) : on garde la valeur par défaut
 }
 const readFtp = () => (Number(woFtp.value) >= 50 ? Number(woFtp.value) : 200);
+const readMass = () => (Number(massInput.value) >= MASS_LIMITS.min ? Number(massInput.value) : DEFAULT_RIDER.massKg);
 
 /** Appelé par l'écran Séances quand « Rouler » doit se remettre à jour (affecté une fois l'éditeur créé). */
 let refreshEditorRide: (() => void) | undefined;
@@ -616,6 +628,13 @@ homeRideBtn.addEventListener('click', () => {
   router.go('sortie');
   if (!ride) startRide();
 });
+massInput.addEventListener('change', () => {
+  try {
+    localStorage.setItem(MASS_KEY, String(readMass()));
+  } catch {
+    // préférence non mémorisée, sans conséquence
+  }
+});
 woFtp.addEventListener('change', () => {
   try {
     localStorage.setItem(FTP_KEY, String(readFtp()));
@@ -688,15 +707,37 @@ const roleState: Record<DeviceRole, ConnectionState> = { trainer: 'disconnected'
 /** Appareils que l'application tente de retrouver seule au lancement ; vide une fois cette phase terminée. */
 const launchPending = new Set<DeviceRole>();
 /** Même radar sur l'écran Appareils (grand) et sur l'accueil (réduit) : rôle de l'appareil et nom réel dans chaque bulle. */
-const radars = [createRadar($('radar-devices'), 'full'), createRadar($('radar-home'), 'mini')];
+const riderProfile = setupRiderProfile({
+  massSource: massInput,
+  ftpSource: woFtp,
+  readFtp,
+  readMass,
+  summary: $('rider-summary'),
+  dialog: $<HTMLDialogElement>('rider-dialog'),
+  openers: [$('rider-open')],
+});
+// Le médaillon du radar ouvre la fiche du coureur ; sur l'accueil, la tuile reste un simple lien vers les appareils.
+const radars = [
+  createRadar($('radar-devices'), 'large', { onRider: riderProfile.open }),
+  createRadar($('radar-home'), 'mini'),
+];
+const riderAvatar = $<HTMLImageElement>('rider-avatar');
+riderAvatar.src = `${import.meta.env.BASE_URL}assets/rider-portrait.jpg`;
+void import('./render/rider-portrait')
+  .then((m) => m.riderPortrait())
+  .then((url) => { riderAvatar.src = url; })
+  .catch(() => {}); // l'image de repli reste affichée
 
 function renderDevices() {
   const t = registry.get('trainer');
   const h = registry.get('hr');
   const busyT = roleState.trainer === 'connecting' || roleState.trainer === 'connected';
   const busyH = roleState.hr === 'connecting' || roleState.hr === 'connected';
-  $('trainer-known').textContent = t ? `Connu : ${t.name}` : 'Aucun trainer connu.';
-  $('hr-known').textContent = h ? `Connue : ${h.name}` : 'Aucune ceinture connue. Facultatif.';
+  // Le nom de l'appareil branché prime (le trainer simulé n'est pas mémorisé) ; sinon le dernier appareil connu.
+  $('trainer-known').textContent =
+    roleState.trainer === 'connected' && trainer?.name ? trainer.name : t ? `Connu : ${t.name}` : 'Aucun trainer connu.';
+  $('hr-known').textContent =
+    roleState.hr === 'connected' && hrMonitor?.name ? hrMonitor.name : h ? `Connue : ${h.name}` : 'Aucune ceinture connue. Facultatif.';
   connectBle.textContent = t ? `Reconnecter ${t.name}` : 'Rechercher un trainer';
   connectHr.textContent = h ? `Reconnecter ${h.name}` : 'Rechercher une ceinture';
   const bt = webBluetoothAvailable();

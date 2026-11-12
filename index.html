@@ -45,21 +45,55 @@
     </header>
 
     <main>
-      <!-- Écran 1 : premier écran au lancement. Radar des appareils (maquette B1, docs/design/accueil-appareils.md) -->
+      <!-- Écran 1 : premier écran au lancement (docs/design/accueil-appareils.md, « Appareils : grille de l'accueil »).
+           Plein écran comme l'accueil : une carte titre et la tuile radar, puis une seule carte « Capteurs » (trainer et ceinture).
+           Le coureur (masse, FTP, zones) se règle en touchant le médaillon du radar ou le résumé. -->
       <section data-view="appareils">
-        <div class="dev-layout">
-          <div id="radar-devices" class="dev-radar"></div>
-          <div class="dev-side">
-            <h1>Équipe ton coureur</h1>
-            <p class="dev-lede">Chaque appareil apparaît sur le radar, relié à ton coureur. Un trainer suffit pour rouler.</p>
-            <p id="support" class="note"></p>
-            <p id="recall-note" class="note"></p>
+        <div class="dev">
+          <div id="dev-scenes" class="home-scenes" aria-hidden="true"></div>
+          <div class="home-shade"></div>
 
-            <div class="device-cards">
-              <article id="card-trainer" class="device-card">
-                <h2>Home trainer</h2>
-                <p id="trainer-known" class="note">Aucun trainer connu.</p>
-                <span id="state" class="pill">trainer : déconnecté</span>
+          <header class="home-top">
+            <strong class="home-brand"><span class="logo" role="img" aria-label="La Moulinette"><span class="logo-la" aria-hidden="true">LA</span><span class="logo-word" aria-hidden="true">M<svg class="logo-o" viewBox="0 0 24 24" fill="none"><circle class="logo-teeth" cx="12" cy="12" r="11" /><circle class="logo-ring" cx="12" cy="12" r="8" /><path class="logo-spokes" d="M12 12V5.4M12 12l6.3-2M12 12l3.9 5.3M12 12l-3.9 5.3M12 12l-6.3-2" /><circle cx="12" cy="12" r="2.1" fill="currentColor" stroke="none" /></svg>ULINETTE</span></span></strong>
+            <nav class="home-nav" aria-label="Écrans">
+              <a href="#accueil" data-nav="accueil"><svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Accueil</span></a>
+              <a href="#sortie" data-nav="sortie"><svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M10 8v8l6-4z"/></svg><span>Sortie</span></a>
+              <a href="#seances" data-nav="seances"><svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V13M9 20V6M14 20V10M19 20V4"/></svg><span>Séances</span></a>
+              <a href="#appareils" data-nav="appareils"><svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2.6"/><path d="M6 6a8.5 8.5 0 0 0 0 12M18 6a8.5 8.5 0 0 1 0 12M9 9a4.5 4.5 0 0 0 0 6M15 9a4.5 4.5 0 0 1 0 6"/></svg><span>Appareils</span></a>
+            </nav>
+          </header>
+
+          <section class="dev-hero" aria-labelledby="dev-title">
+            <div class="dev-hero-txt">
+              <span class="home-kicker">Appareils</span>
+              <h1 id="dev-title">Équipe ton coureur</h1>
+              <p class="dev-lede">Chaque appareil apparaît sur le radar, relié à ton coureur. Un trainer suffit pour rouler.</p>
+              <button id="rider-open" class="rider-chip" type="button" aria-haspopup="dialog">
+                <svg class="rider-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7.5" r="3.4"/><path d="M5 20c0-4 3-6.5 7-6.5s7 2.5 7 6.5"/></svg>
+                <span><b>Mon coureur</b> <span id="rider-summary"></span></span>
+                <svg class="rider-edit" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>
+              </button>
+            </div>
+            <div class="row dev-go">
+              <button id="go-ride" class="dev-go-btn" disabled>Continuer vers l'accueil</button>
+              <a href="#accueil" class="note">Continuer sans trainer</a>
+            </div>
+          </section>
+
+          <div class="dev-radar"><div id="radar-devices"></div></div>
+
+          <section class="dev-sensors" aria-labelledby="dev-sensors-title">
+            <div class="dev-sensors-head">
+              <h2 id="dev-sensors-title" class="home-kicker">Capteurs</h2>
+              <p id="recall-note" class="note"></p>
+            </div>
+            <div class="dev-sensors-body">
+              <article id="card-trainer" class="sensor">
+                <div class="sensor-head">
+                  <span class="sensor-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="12" r="5"/><path d="M14 12h6M9 12V7M4 20h16"/></svg></span>
+                  <div><h3>Home trainer</h3><span id="state" class="pill">Non connecté</span></div>
+                </div>
+                <p id="trainer-known" class="sensor-name">Aucun trainer connu.</p>
                 <p id="caps" class="note"></p>
                 <div class="row">
                   <button id="connect-ble">Rechercher un trainer</button>
@@ -68,28 +102,14 @@
                   <button id="disconnect" class="secondary" disabled>Déconnecter</button>
                   <button id="forget-trainer" class="secondary" hidden>Oublier</button>
                 </div>
-                <details class="trainer-help note">
-                  <summary>Ton trainer n'apparaît pas, ou ne se pilote pas ?</summary>
-                  <ul>
-                    <li>Ferme les autres applications reliées au trainer (Zwift, l'app de la marque) et déconnecte ton compteur : beaucoup de trainers n'acceptent qu'une connexion Bluetooth à la fois.</li>
-                    <li>Mets à jour son firmware avec l'app de la marque (Wahoo, Tacx Training, My E-Training d'Elite) : les anciens firmwares n'ont pas toujours de mode de pilotage standard.</li>
-                    <li>Sous Windows, n'appaire pas le trainer dans les réglages Bluetooth : Chrome ou Edge s'en chargent. Après une mise à jour du firmware, retire-le de la liste Windows s'il y figure.</li>
-                  </ul>
-                  <label>Protocole de pilotage
-                    <select id="trainer-protocol">
-                      <option value="">Automatique, selon le modèle (recommandé)</option>
-                      <option value="ftms">FTMS (standard)</option>
-                      <option value="wahoo">Wahoo (propriétaire)</option>
-                      <option value="fec">FE-C over BLE (Tacx)</option>
-                    </select>
-                  </label>
-                </details>
               </article>
 
-              <article id="card-hr" class="device-card">
-                <h2>Ceinture cardio</h2>
-                <p id="hr-known" class="note">Aucune ceinture connue. Facultatif.</p>
-                <span id="state-hr" class="pill">cardio : déconnecté</span>
+              <article id="card-hr" class="sensor">
+                <div class="sensor-head">
+                  <span class="sensor-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/><path d="M8 12h2l1.2-2 1.6 4 1.2-2H16"/></svg></span>
+                  <div><h3>Ceinture cardio</h3><span id="state-hr" class="pill">Non connectée</span></div>
+                </div>
+                <p id="hr-known" class="sensor-name">Aucune ceinture connue. Facultatif.</p>
                 <div class="row">
                   <button id="connect-hr" class="secondary">Rechercher une ceinture</button>
                   <button id="connect-hr-other" class="secondary" hidden>Autre ceinture</button>
@@ -98,12 +118,62 @@
                 </div>
               </article>
             </div>
-
-            <div class="row">
-              <button id="go-ride" disabled>Continuer vers l'accueil</button>
-              <a href="#accueil" class="note">Continuer sans trainer</a>
+            <div class="dev-sensors-foot">
+              <details class="trainer-help note">
+                <summary>Ton trainer n'apparaît pas, ou ne se pilote pas ?</summary>
+                <ul>
+                  <li>Ferme les autres applications reliées au trainer (Zwift, l'app de la marque) et déconnecte ton compteur : beaucoup de trainers n'acceptent qu'une connexion Bluetooth à la fois.</li>
+                  <li>Mets à jour son firmware avec l'app de la marque (Wahoo, Tacx Training, My E-Training d'Elite) : les anciens firmwares n'ont pas toujours de mode de pilotage standard.</li>
+                  <li>Sous Windows, n'appaire pas le trainer dans les réglages Bluetooth : Chrome ou Edge s'en chargent. Après une mise à jour du firmware, retire-le de la liste Windows s'il y figure.</li>
+                </ul>
+                <label>Protocole de pilotage
+                  <select id="trainer-protocol">
+                    <option value="">Automatique, selon le modèle (recommandé)</option>
+                    <option value="ftms">FTMS (standard)</option>
+                    <option value="wahoo">Wahoo (propriétaire)</option>
+                    <option value="fec">FE-C over BLE (Tacx)</option>
+                  </select>
+                </label>
+              </details>
+              <p id="support" class="note"></p>
             </div>
-          </div>
+          </section>
+
+          <dialog id="rider-dialog" class="rider-dialog" aria-labelledby="rider-title">
+            <div class="rider-card">
+              <div class="rider-top">
+                <img id="rider-avatar" class="rider-avatar" alt="" />
+                <div>
+                  <span class="home-kicker">Cycliste</span>
+                  <h2 id="rider-title">Mon coureur</h2>
+                  <p class="rider-wkg"><b id="rider-wkg"></b> W/kg</p>
+                </div>
+              </div>
+              <div class="rider-fields">
+                <div class="rider-field">
+                  <label for="rider-mass">Masse (coureur + vélo)</label>
+                  <div class="stepper">
+                    <button type="button" class="secondary" data-step="mass" data-dir="-1" aria-label="Masse moins 1 kg">−</button>
+                    <input id="rider-mass" type="number" inputmode="numeric" min="30" max="200" step="1" />
+                    <span>kg</span>
+                    <button type="button" class="secondary" data-step="mass" data-dir="1" aria-label="Masse plus 1 kg">+</button>
+                  </div>
+                  <p id="rider-mass-note" class="note" hidden>La masse est figée pendant la sortie.</p>
+                </div>
+                <div class="rider-field">
+                  <label for="rider-ftp">FTP</label>
+                  <div class="stepper">
+                    <button type="button" class="secondary" data-step="ftp" data-dir="-1" aria-label="FTP moins 5 W">−</button>
+                    <input id="rider-ftp" type="number" inputmode="numeric" min="50" max="600" step="5" />
+                    <span>W</span>
+                    <button type="button" class="secondary" data-step="ftp" data-dir="1" aria-label="FTP plus 5 W">+</button>
+                  </div>
+                </div>
+              </div>
+              <ul id="rider-zones" class="rider-zones" aria-label="Zones de puissance"></ul>
+              <div class="row"><button type="button" data-close>Terminé</button></div>
+            </div>
+          </dialog>
         </div>
       </section>
 

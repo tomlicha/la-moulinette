@@ -2,9 +2,10 @@
 
 Référence permanente des deux écrans d'entrée de l'application. Toute évolution part de ce fichier et le met à jour.
 
-- Code : [`src/ui/radar.ts`](../../src/ui/radar.ts) (radar), [`src/ui/radar-model.ts`](../../src/ui/radar-model.ts) (textes des bulles, testés), [`src/ui/home.css`](../../src/ui/home.css) (style), balisage dans [`index.html`](../../index.html), branchement dans `renderDevices()` de [`src/main.ts`](../../src/main.ts).
+- Code : [`src/ui/radar.ts`](../../src/ui/radar.ts) (radar), [`src/ui/radar-model.ts`](../../src/ui/radar-model.ts) (textes des bulles, testés), [`src/ui/rider-profile.ts`](../../src/ui/rider-profile.ts) (fiche du coureur), [`src/workout/zones.ts`](../../src/workout/zones.ts) (`zoneRangesW`, zones en watts, testées), [`src/ui/home.css`](../../src/ui/home.css) (style), balisage dans [`index.html`](../../index.html), branchement dans `renderDevices()` de [`src/main.ts`](../../src/main.ts).
 - Maquettes (claude.ai) : [Direction graphique](https://claude.ai/artifact/XsuzQxwA5WEKoyn8Jxu4nP), propositions A, B, C puis B1, B2, B3 sous la planche de style. Retenue : **B1 · Médaillon**.
 - Refonte visuelle du 12 novembre 2026 : [trois directions de l'accueil](https://claude.ai/artifact/WGUyMUZaSszLNa58c1kqzb) (A · Verre givré, **B · Doux et chaleureux**, C · Cockpit sportif). Retenue : **B**, appliquée à tous les écrans (voir « Style »). Ce canevas est privé : seul son propriétaire l'ouvre.
+- Refonte de l'écran Appareils du 12 novembre 2026 : [trois propositions](https://claude.ai/artifact/FH2tcDEQvkHgZJU9ZrGij7) (A · Tableau, B · Radar vivant, C · Grille d'accueil). Retenue : **C avec l'idée de B** (voir « Appareils »). Canevas privé.
 
 ## Décisions
 
@@ -15,6 +16,7 @@ Référence permanente des deux écrans d'entrée de l'application. Toute évolu
 | 2026-11-11 | Parcours : **Appareils → Accueil → Sortie**. L'application s'ouvre toujours sur Appareils (un rechargement perd les connexions Bluetooth) ; quand les appareils connus sont reconnectés, elle passe seule à l'accueil. | Les appareils sont un préalable ; l'accueil est l'endroit où l'on choisit de rouler. |
 | 2026-11-12 | Thème **« Doux »** (direction B de la refonte) retenu pour **tous les écrans** : fond crème, cartes blanches très arrondies, accent orange brûlé, **navigation en pastille flottante en bas**. Les trois fonds d'écran (scènes SVG) sont conservés. | Plus accueillant et plus lisible que le verre sombre ; l'orange était déjà l'accent des écrans Appareils et Sortie, ce qui règle le point « accent » resté ouvert. Contre A (évolution douce du verre) et C (cockpit sombre, rail à gauche). |
 | 2026-11-12 | Le radar de l'accueil devient une **tuile carrée** (`mini`, 200 × 200), au lieu de 380 × 270 rognée par une hauteur maximale. | À 380 × 270 réduit, l'étiquette « Trainer » recouvrait le médaillon, et en téléphone paysage le médaillon était coupé. La tuile carrée met les étiquettes dans les coins, jamais sur le médaillon. |
+| 2026-11-12 | Écran **Appareils** refait sur la grille de l'accueil (proposition **C**), avec l'idée de **B** : toucher le médaillon du radar ouvre la fiche du coureur. Trainer et ceinture sont réunis dans **une seule carte « Capteurs »**. Le profil du cycliste (masse, FTP, zones) rejoint l'écran. | Même carte titre, même tuile radar, même bouton que l'accueil : transition naturelle, tout visible sans défiler. Une carte « Capteurs » unique évite deux cartes quasi identiques ; la fiche du coureur n'occupe de la place que sur demande. |
 | 2026-11-12 | **Invite plein écran** (téléphone en portrait) refaite en carte de verre translucide, avec bouton et astuce iPhone. | L'ancien écran opaque avec un « ⟳ » et un bouton brut était peu accueillant ; voir « Invite plein écran ». |
 
 ## Radar
@@ -30,7 +32,16 @@ Le coureur est au centre. Le trainer et la ceinture cardio sont des points sur l
 
 Le navigateur ne donne ni la liste des appareils proches ni leur puissance de signal (Web Bluetooth) : le radar montre l'état des appareils connus, pas un balayage réel. Le choix d'un nouvel appareil passe par la fenêtre du navigateur.
 
-Deux variantes : `full` (520 × 592, écran Appareils) et `mini` (200 × 200, accueil, cliquable vers Appareils). Sur l'accueil, `mini` est posée dans une **tuile sombre** (fond en dégradé radial, coins arrondis) : le médaillon est au centre, le trainer en haut à droite, la ceinture cardio en bas à gauche, les pastilles sur l'anneau de 68. Les positions sont en pourcentage, le dessin suit la largeur de la tuile (plafonnée à 340 px) ; les étiquettes gardent des tailles en pixels (14 et 11 px). Le balayage et l'onde sont coupés si le système demande moins de mouvement.
+Une seule géométrie, **carrée** (200 × 200 dans le repère du dessin) : le médaillon au centre, le trainer en haut à droite, la ceinture cardio en bas à gauche, les pastilles sur l'anneau de 68. Deux variantes : `mini` (accueil, tuile de 200 à 340 px, cliquable vers Appareils) et `large` (Appareils, 200 à 250 px, avec la ligne d'état dans chaque bulle). Sur l'écran Appareils le **médaillon est un bouton** qui ouvre la fiche du coureur (option `onRider`). Les positions sont en pourcentage ; les étiquettes gardent des tailles en pixels. Le balayage et l'onde sont coupés si le système demande moins de mouvement. L'ancienne variante `full` (520 × 592) a disparu avec la refonte.
+
+## Appareils
+
+Écran **plein écran** comme l'accueil et les séances : la scène en fond sous le voile crème, la marque en pastille et la navigation flottante, avec Appareils comme page courante ; la barre du haut est masquée (le journal reste sous l'écran).
+
+- **Ligne du haut** : une carte titre (« Équipe ton coureur », une phrase, le résumé du coureur, **Continuer vers l'accueil** et « Continuer sans trainer ») et la tuile radar `large`.
+- **Carte « Capteurs »** : le home trainer et la ceinture cardio côte à côte dans une seule carte. Chaque colonne donne l'icône, le nom de l'appareil, l'état (« Connecté », « Connexion… », « Erreur de connexion », « Non connecté(e) »), puis les boutons de connexion. Une ligne d'aide repliée (« Ton trainer n'apparaît pas… », avec le choix du protocole) et l'état du Bluetooth web complètent la carte.
+- **Fiche du coureur** : on l'ouvre en touchant le médaillon du radar ou le résumé « Mon coureur · 78 kg · FTP 230 W · 2,95 W/kg ». Une boîte de dialogue montre le portrait, le rapport W/kg, la masse et la FTP (champ numérique avec − et +, 1 kg et 5 W par pas) et les six zones en watts. Les champs de la Sortie (`#mass`, `#wo-ftp`) restent la source de vérité : la fiche les met à jour et déclenche leur `change`, donc la FTP continue d'être mémorisée et le profil des séances se redessine. La **masse est maintenant mémorisée** aussi (`zwift2.mass`) ; elle est figée pendant une sortie, la fiche le dit.
+- **Téléphone en paysage** (pointeur tactile, 600 px de haut ou moins) : titre, résumé et boutons en deux lignes à côté d'une tuile radar de 104 px sans étiquettes, capteurs dessous, aide réduite à un lien « Aide ? » dans le coin de la carte. Tout tient dans 360 px de haut (vérifié en émulation à 863 × 360). **Portrait étroit** : titre, radar, puis les deux capteurs s'empilent.
 
 ## Accueil
 
@@ -48,9 +59,9 @@ La **navigation** est la pastille flottante commune à tous les écrans (voir «
 Thème **« Doux »**, défini par des jetons dans [`src/style.css`](../../src/style.css) :
 
 - **Clair** : fond crème `#F4EDE3`, cartes `#FFF`, texte `#14171A`, texte atténué `#4F5865`, accent orange brûlé `#C2410C` (texte blanc dessus, 5,2:1), rayon des cartes 24 px, ombres chaudes (`--shadow-card`, `--shadow-nav`). **Nuit** (thème du système) : ardoise d'avant, accent `#FF8743`.
-- **Écrans posés sur la scène (Accueil, Séances)** : palette claire **fixe**, quel que soit le thème du système, comme le HUD qui reste en verre sombre (`hud.css`). Le radar est aussi une tuile aux couleurs fixes ; sa menthe est celle du jeu et n'est plus l'accent de l'interface.
+- **Écrans posés sur la scène (Accueil, Appareils, Séances)** : palette claire **fixe**, quel que soit le thème du système, comme le HUD qui reste en verre sombre (`hud.css`). Le radar est aussi une tuile aux couleurs fixes ; sa menthe est celle du jeu et n'est plus l'accent de l'interface.
 - **Navigation** : une seule pastille flottante en bas, au centre (`.topbar nav` et `.home-nav` partagent les règles de `style.css`), icônes 18 px et libellés, onglet courant à l'accent. Exceptions : sur la **Sortie** elle reste dans la barre du haut, pour ne pas recouvrir les compteurs de la vue 3D ; sur **Séances en téléphone paysage** elle redevient un rail vertical à gauche (la hauteur est trop rare).
-- **En-tête des pages** (Appareils, Sortie) : marque en pastille blanche à gauche, états des appareils en pastilles à droite.
+- **En-tête de la Sortie** : marque en pastille blanche à gauche, états des appareils en pastilles à droite. Les autres écrans sont plein écran.
 - Titres en Barlow Condensed (polices `@fontsource`). Les liens suivent l'accent.
 
 ## Invite plein écran (téléphone en portrait)
@@ -64,5 +75,4 @@ Sur mobile (pointeur tactile) tenu en portrait, un voile translucide (flou, halo
 - Le portrait du coureur est **rendu au chargement d'après `avatar.glb` et `bike.glb`** ([`src/render/rider-portrait.ts`](../../src/render/rider-portrait.ts), même classe `Rider` que la sortie) : il suit donc toute évolution de l'avatar, sans image à régénérer. `public/assets/rider-portrait.jpg` n'est plus qu'un repli (chargement, rendu impossible) ; il peut être supprimé quand ce repli ne sert plus. Reste à rendre l'avatar personnalisable (maillot, couleurs).
 - Un seul monde existe : la sélection de mondes (Col des Érables, Rive du lac, Quais de nuit) de la maquette B n'est pas reprise.
 - Le visuel du parcours est un dessin SVG ; à remplacer par un rendu de la scène 3D.
-- Thème « Doux » : vérifié en émulation (Pixel 7 en paysage, ordinateur 1280 × 800, clair et nuit pour Appareils) ; reste à l'essayer sur un vrai téléphone. Le HUD garde son verre sombre et sa menthe ; à reprendre si l'on veut l'aligner sur l'orange.
-- La pastille « trainer : disconnected » de la carte Appareils est encore en anglais (état brut du trainer) ; à traduire.
+- Thème « Doux » : vérifié en émulation (téléphone en paysage 863 × 360, portrait 800 × 1100, ordinateur 1280 × 720) ; reste à l'essayer sur un vrai téléphone. L'écran Appareils a une palette claire fixe (comme l'accueil), il ne suit plus le thème nuit. Le HUD garde son verre sombre et sa menthe ; à reprendre si l'on veut l'aligner sur l'orange.

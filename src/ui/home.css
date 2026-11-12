@@ -1,30 +1,21 @@
 /*
- * Écrans Appareils et Accueil. Référence : docs/design/accueil-appareils.md (maquette B1, « Médaillon »).
- * Le radar et le visuel d'accueil sont des panneaux de scène, aux couleurs fixes comme le HUD ;
- * le reste suit le thème de la page. L'accent est l'orange brûlé du thème « Doux » (voir style.css).
+ * Écrans Appareils et Accueil. Référence : docs/design/accueil-appareils.md.
+ * Les deux sont posés sur la scène, en cartes claires aux couleurs fixes (comme le HUD) ; le radar est une tuile sombre.
+ * L'accent est l'orange brûlé du thème « Doux » (voir style.css).
  */
 [data-view='appareils'], [data-view='accueil'], [data-view='seances'] { --pink: #FF5FA2; }
-main:has([data-view='appareils']:not([hidden])) { max-width: 1184px; }
-[data-view='appareils'] h1, [data-view='accueil'] h2.home-title {
+[data-view='accueil'] h2.home-title {
   font-family: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; font-weight: 700; line-height: 1; letter-spacing: .01em;
 }
-[data-view='appareils'] h1 { font-size: 2.9rem; margin: .2rem 0 .4rem; }
 
-/* --- Radar --- */
+/* --- Radar : tuile carrée, médaillon au centre, trainer en haut à droite, cardio en bas à gauche --- */
 .radar {
-  position: relative; width: 100%; aspect-ratio: 520 / 592; overflow: hidden; box-sizing: border-box;
+  position: relative; width: 100%; aspect-ratio: 1; overflow: hidden; box-sizing: border-box;
   border-radius: 18px; border: 1px solid rgba(255, 255, 255, .1); color: #fff;
   background: radial-gradient(circle at 50% 50%, #1A2D4D 0%, #0F1C31 55%, #0B1422 100%);
   font-family: Barlow, system-ui, sans-serif;
-  --tx: 78.3%; --ty: 32.6%; --hx: 19.8%; --hy: 65%;
-  --t-left: auto; --t-right: 4.6%; --t-top: 16.2%; --h-left: 4.6%; --h-top: 69.3%;
-  --core: 38.5%; --sweep: 88.5%; --ping: 46.2%;
-}
-/* Tuile carrée de l'accueil : médaillon au centre, trainer en haut à droite, cardio en bas à gauche. */
-.radar--mini {
-  aspect-ratio: 1;
   --tx: 74%; --ty: 31%; --hx: 26%; --hy: 69%;
-  --t-left: auto; --t-right: 6%; --t-top: 6%; --h-left: 6%; --h-top: 74%;
+  --t-right: 6%; --t-top: 6%; --h-left: 6%; --h-top: 74%;
   --core: 34%; --sweep: 92%; --ping: 34%;
 }
 .radar-rings { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; }
@@ -37,16 +28,20 @@ main:has([data-view='appareils']:not([hidden])) { max-width: 1184px; }
 }
 .radar-ping { width: var(--ping); box-sizing: border-box; border: 2px solid #5BE3C9; animation: radar-ping 2.6s ease-out infinite; }
 .radar-core {
-  width: var(--core); box-sizing: border-box; overflow: hidden; border: 3px solid #5BE3C9; background: #E2E4E7;
+  width: var(--core); box-sizing: border-box; overflow: hidden; padding: 0; border: 3px solid #5BE3C9; background: #E2E4E7;
   box-shadow: 0 0 36px rgba(91, 227, 201, .35);
 }
 .radar-core img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* Écran Appareils : le médaillon est un bouton qui ouvre la fiche du coureur. */
+button.radar-core { cursor: pointer; transition: box-shadow .15s ease; }
+button.radar-core:hover { box-shadow: 0 0 0 5px rgba(91, 227, 201, .45), 0 0 36px rgba(91, 227, 201, .35); }
+button.radar-core:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
 @keyframes radar-sweep { to { rotate: 360deg; } }
 @keyframes radar-ping { from { scale: .5; opacity: .8; } to { scale: 1.9; opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .radar-sweep, .radar-ping { animation: none; } .radar-ping { opacity: 0; } }
 
-.radar-dot { position: absolute; box-sizing: border-box; width: 22px; height: 22px; border-radius: 50%; translate: -50% -50%; }
-.radar--mini .radar-dot { width: 16px; height: 16px; }
+.radar-dot { position: absolute; box-sizing: border-box; width: 16px; height: 16px; border-radius: 50%; translate: -50% -50%; }
+.radar--large .radar-dot { width: 20px; height: 20px; }
 .radar-dot[data-role='trainer'] { left: var(--tx); top: var(--ty); }
 .radar-dot[data-role='hr'] { left: var(--hx); top: var(--hy); }
 .radar-dot[data-tone='ok'] { background: #5BE3C9; box-shadow: 0 0 18px #5BE3C9, 0 0 0 5px rgba(91, 227, 201, .25); }
@@ -55,42 +50,25 @@ main:has([data-view='appareils']:not([hidden])) { max-width: 1184px; }
 .radar-dot[data-tone='error'] { border: 2px dashed #FF8A85; background: rgba(255, 138, 133, .2); }
 
 .radar-tag {
-  position: absolute; box-sizing: border-box; max-width: 62%; display: flex; flex-direction: column;
-  padding: 6px 14px; border-radius: 12px; line-height: 1.25; background: rgba(11, 20, 34, .94);
+  position: absolute; box-sizing: border-box; max-width: 66%; display: flex; flex-direction: column;
+  padding: 4px 10px; border-radius: 12px; line-height: 1.2; background: rgba(11, 20, 34, .94);
   border: 1px solid rgba(91, 227, 201, .55);
 }
-.radar--mini .radar-tag { max-width: 66%; padding: 4px 10px; line-height: 1.2; }
-.radar--mini .radar-tag .r { font-size: 14px; }
-.radar--mini .radar-tag .n { font-size: 11px; }
-.radar-tag[data-role='trainer'] { left: var(--t-left); right: var(--t-right); top: var(--t-top); }
+.radar--large .radar-tag { padding: 6px 12px; }
+.radar-tag[data-role='trainer'] { right: var(--t-right); top: var(--t-top); }
 .radar-tag[data-role='hr'] { left: var(--h-left); top: var(--h-top); }
-.radar-tag .r { font-size: 16px; font-weight: 700; }
-.radar-tag .n { font-size: 14px; color: #D6E0EE; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.radar-tag .s { font-size: 14px; color: #5BE3C9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.radar--mini .radar-tag .s { display: none; }
+.radar-tag .r { font-size: 14px; font-weight: 700; }
+.radar-tag .n { font-size: 11px; color: #D6E0EE; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radar-tag .s { display: none; font-size: 12px; color: #5BE3C9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radar--large .radar-tag .r { font-size: 16px; }
+.radar--large .radar-tag .n { font-size: 13px; }
+.radar--large .radar-tag .s { display: block; font-size: 13px; }
 .radar-tag[data-tone='busy'] { border: 1px dashed rgba(255, 95, 162, .75); }
 .radar-tag[data-tone='busy'] .s { color: #FFB3D3; }
 .radar-tag[data-tone='off'] { border: 1px dashed rgba(255, 255, 255, .3); }
 .radar-tag[data-tone='off'] .s { color: #C9D3E0; }
 .radar-tag[data-tone='error'] { border: 1px dashed #FF8A85; }
 .radar-tag[data-tone='error'] .s { color: #FF8A85; }
-
-/* --- Écran Appareils --- */
-.dev-layout { display: grid; grid-template-columns: minmax(280px, 520px) minmax(0, 1fr); gap: 16px 32px; align-items: start; }
-.dev-radar { min-width: 0; }
-@media (min-width: 861px), (orientation: landscape) { .dev-radar { position: sticky; top: 72px; } }
-.dev-side { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-.dev-side .device-cards { grid-template-columns: 1fr; gap: 14px; margin: 10px 0; }
-.dev-side .device-card { border: 1.5px solid transparent; border-radius: var(--radius-card); padding: 18px 20px; }
-.dev-side .device-card h2 { font-size: 1.35rem; margin-bottom: .3rem; }
-.dev-side .device-card[data-s='connected'] { border-color: var(--ok); }
-.dev-side .device-card[data-s='connecting'] { border-style: dashed; border-color: var(--pink); }
-.dev-side .device-card[data-s='error'] { border-style: dashed; border-color: var(--err); }
-.dev-lede { margin: 0 0 4px; color: var(--muted); }
-@media (max-width: 860px) and (orientation: portrait) {
-  .dev-layout { grid-template-columns: 1fr; }
-  .dev-radar { max-width: 420px; }
-}
 
 /*
  * --- Logo « La Moulinette » ---
@@ -115,15 +93,16 @@ a:hover .logo-o, .home-brand:hover .logo-o { animation: logo-spin 1.2s linear in
 body:has([data-view='accueil']:not([hidden])) .topbar,
 body:has([data-view='accueil']:not([hidden])) .log-panel { display: none; }
 main:has([data-view='accueil']:not([hidden])) { max-width: none; padding: 0; }
-.home {
+.home, .dev {
   position: relative; box-sizing: border-box; overflow: hidden; min-height: 100vh; min-height: 100dvh; padding: 20px 32px 96px;
-  display: grid; grid-template-columns: minmax(0, 1fr) clamp(240px, 24vw, 340px) clamp(240px, 24vw, 340px); grid-template-rows: auto 1fr auto; gap: 16px 20px;
+  display: grid; gap: 16px 20px;
   background: #3F86D0; color: var(--fg); font-family: Barlow, system-ui, sans-serif;
   /* Les cartes sont posées sur la scène : palette claire fixe, quel que soit le thème de la page. */
   color-scheme: light; --fg: #14171A; --muted: #4F5865; --card: #fff; --raised: #fff; --line: rgb(90 60 30 / .16); --btn-line: #8B8478;
   --accent: #C2410C; --on-accent: #fff; --err: #C92A2A; --ok: #2B8A3E; --kicker: #B8470B;
   --glass: rgba(255, 255, 255, .94); --glass-line: rgb(90 60 30 / .12); --glass-muted: #4F5865;
 }
+.home { grid-template-columns: minmax(0, 1fr) clamp(240px, 24vw, 340px) clamp(240px, 24vw, 340px); grid-template-rows: auto 1fr auto; }
 .home-scenes { position: absolute; inset: 0; }
 /* Les scènes sont empilées ; celle qui est affichée (`data-on`) se fond dans la précédente. */
 .home-scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; transition: opacity 1.6s ease-in-out; }
@@ -131,18 +110,18 @@ main:has([data-view='accueil']:not([hidden])) { max-width: none; padding: 0; }
 @media (prefers-reduced-motion: reduce) { .home-scene { transition: none; } }
 /* Voile crème : la scène reste visible, les cartes se détachent. */
 .home-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(255, 246, 235, .38) 0%, rgba(255, 246, 235, .08) 45%, rgba(255, 246, 235, .3) 100%); }
-.home > :not(.home-scenes):not(.home-shade) { position: relative; z-index: 1; }
+.home > :not(.home-scenes):not(.home-shade), .dev > :not(.home-scenes):not(.home-shade):not(dialog):not(.home-top) { position: relative; z-index: 1; }
 
 .home-top { grid-column: 1 / -1; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .home-brand { display: flex; align-items: center; height: 48px; padding: 0 20px 0 14px; border-radius: 999px; background: var(--glass); border: 1px solid var(--glass-line); box-shadow: var(--shadow-card); backdrop-filter: blur(14px) saturate(1.2); color: var(--fg); font: 700 1.7rem/1 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; letter-spacing: .02em; }
-.home-nav a:focus-visible, a.home-radar:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }
+.home-nav a:focus-visible, .dev :focus-visible, a.home-radar:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }
 
 .home-kicker { font-size: .875rem; font-weight: 700; color: var(--kicker, #B8470B); letter-spacing: .08em; text-transform: uppercase; }
 .home-hero-body, a.home-radar, .home-workout { grid-row: 3; }
 .home-hero-body { grid-column: 1; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 4px; padding: 20px 24px; border-radius: var(--radius-card); background: var(--glass); border: 1px solid var(--glass-line); box-shadow: var(--shadow-card); backdrop-filter: blur(14px) saturate(1.2); }
 .home h2.home-title { margin: 0; font-family: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; font-weight: 700; line-height: .95; font-size: clamp(2.8rem, 5.4vw, 5rem); color: var(--fg); }
 .home-hero-body p { margin: 4px 0 14px; font-size: 1.05rem; line-height: 1.35; color: #434C57; }
-button.home-ride { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 32px 0 24px; border-radius: 18px; font-family: Barlow, system-ui, sans-serif; font-size: 1.35rem; font-weight: 700; box-shadow: 0 8px 20px rgb(194 65 12 / .35); }
+button.home-ride, button.dev-go-btn { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 32px 0 24px; border-radius: 18px; font-family: Barlow, system-ui, sans-serif; font-size: 1.35rem; font-weight: 700; box-shadow: 0 8px 20px rgb(194 65 12 / .35); }
 
 /* Le radar est une tuile sombre (couleurs fixes, comme le HUD) : il donne l'état des appareils d'un coup d'œil. */
 .home-side { display: contents; }
@@ -158,11 +137,107 @@ a.home-radar > div { width: 100%; }
 .home-workout .row button { flex: 1 1 auto; height: 48px; padding: 0 12px; background: #14171A; color: #fff; white-space: nowrap; }
 .home-workout .row a { color: var(--muted); font-size: .9rem; font-weight: 600; }
 
-/* Portrait étroit (tablette, fenêtre étroite) : les trois cartes s'empilent. */
+/* Portrait étroit (tablette, fenêtre étroite) : les cartes s'empilent. */
 @media (max-width: 900px) and (orientation: portrait) {
   .home { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto auto auto; padding: 16px 16px 96px; }
   .home-hero-body, a.home-radar, .home-workout { grid-column: 1; }
   .home-hero-body { grid-row: 3; } a.home-radar { grid-row: 4; max-width: 420px; } .home-workout { grid-row: 5; }
+}
+
+/* --- Écran Appareils : plein écran comme l'accueil. Carte titre et tuile radar, puis une carte « Capteurs » unique. --- */
+body:has([data-view='appareils']:not([hidden])) .topbar { display: none; }
+main:has([data-view='appareils']:not([hidden])) { max-width: none; padding: 0; }
+main:has([data-view='appareils']:not([hidden])) .log-panel { margin: 0; padding: 12px 16px 24px; }
+.dev { grid-template-columns: minmax(0, 1fr) clamp(200px, 20vw, 250px); grid-template-rows: auto 1fr auto auto; }
+.dev .home-top { grid-column: 1 / -1; }
+.dev-hero, .dev-sensors { border-radius: var(--radius-card); background: var(--glass); border: 1px solid var(--glass-line); box-shadow: var(--shadow-card); backdrop-filter: blur(14px) saturate(1.2); min-width: 0; }
+.dev-hero { grid-row: 3; grid-column: 1; display: flex; flex-direction: column; justify-content: space-between; gap: 14px; padding: 20px 24px; }
+.dev-hero-txt { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.dev-hero h1 { margin: 0; font: 700 clamp(2.6rem, 4.6vw, 4.2rem)/.95 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; letter-spacing: .01em; color: var(--fg); }
+.dev-lede { margin: 2px 0 8px; color: #434C57; font-size: 1.05rem; line-height: 1.35; }
+.dev-go { margin: 0; gap: 8px 18px; }
+button.dev-go-btn { height: 52px; padding: 0 28px; font-size: 1.25rem; box-shadow: 0 8px 20px rgb(194 65 12 / .35); }
+button.dev-go-btn[aria-disabled='true'], button.dev-go-btn:disabled { box-shadow: none; }
+.dev-go a { color: var(--muted); font-weight: 600; }
+
+/* Résumé du coureur : ouvre la fiche (masse, FTP, zones), comme le médaillon du radar. */
+button.rider-chip { display: inline-flex; align-items: center; gap: 10px; max-width: 100%; height: 44px; padding: 0 14px; border-radius: 14px; background: #fff; color: var(--fg); border: 1px solid var(--btn-line); font-weight: 500; text-align: left; }
+button.rider-chip:hover { background: #FBF6EF; }
+.rider-chip b { font-weight: 700; }
+.rider-chip > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rider-ico, .rider-edit { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.rider-edit { color: var(--accent); }
+
+.dev-radar { grid-row: 3; grid-column: 2; display: flex; align-items: center; overflow: hidden; border-radius: var(--radius-card); background: radial-gradient(circle at 50% 50%, #1A2D4D 0%, #0F1C31 55%, #0B1422 100%); box-shadow: var(--shadow-card); }
+.dev-radar > div { width: 100%; }
+.dev-radar .radar { border: 0; border-radius: 0; background: transparent; }
+
+.dev-sensors { grid-row: 4; grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; padding: 16px 22px; }
+.dev-sensors-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.dev-sensors-head h2 { margin: 0; }
+.dev-sensors p { margin: 0; }
+.dev-sensors .note { font-size: .9rem; }
+.dev-sensors p:empty { display: none; }
+.dev-sensors-body { display: grid; grid-template-columns: 1fr 1fr; }
+.sensor { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 0 22px; border-left: 1px solid var(--glass-line); }
+.sensor:first-child { padding-left: 0; border-left: 0; }
+.sensor:last-child { padding-right: 0; }
+.sensor-head { display: flex; align-items: center; gap: 12px; }
+.sensor-head > div { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.sensor h3 { margin: 0; font: 700 1.5rem/1 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; letter-spacing: .01em; }
+.sensor-ico { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 50%; background: rgb(90 60 30 / .07); color: var(--fg); }
+.sensor-ico svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sensor[data-s='connected'] .sensor-ico { background: rgb(43 138 62 / .14); color: var(--ok); }
+.sensor[data-s='connecting'] .sensor-ico { background: rgb(255 95 162 / .15); color: #B42366; }
+.sensor[data-s='error'] .sensor-ico { background: rgb(201 42 42 / .12); color: var(--err); }
+.sensor-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sensor .row { margin: 4px 0 0; }
+.sensor .pill { padding: 3px 10px; box-shadow: none; border-color: transparent; background: rgb(90 60 30 / .07); color: var(--muted); font-size: .85rem; font-weight: 700; }
+.sensor .pill[data-s='connected'] { background: rgb(43 138 62 / .12); color: var(--ok); }
+.sensor .pill[data-s='connecting'] { background: rgb(255 95 162 / .14); color: #B42366; }
+.sensor .pill[data-s='error'] { background: rgb(201 42 42 / .1); color: var(--err); }
+.dev-sensors-foot { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 20px; }
+.dev-sensors-foot .trainer-help { margin: 0; }
+
+/* Fiche du coureur */
+.rider-dialog { border: 0; padding: 0; background: transparent; max-width: none; color: var(--fg); font-family: Barlow, system-ui, sans-serif; }
+.rider-dialog::backdrop { background: rgb(20 23 26 / .45); backdrop-filter: blur(4px); }
+.rider-card { width: min(460px, calc(100vw - 32px)); box-sizing: border-box; display: flex; flex-direction: column; gap: 14px; padding: 22px 24px; border-radius: var(--radius-card); background: #fff; box-shadow: 0 18px 48px rgb(0 0 0 / .3); color-scheme: light; }
+.rider-top { display: flex; align-items: center; gap: 16px; }
+.rider-top h2 { margin: 0; font: 700 2.2rem/1 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; }
+.rider-avatar { width: 88px; height: 88px; flex: none; border-radius: 50%; object-fit: cover; border: 3px solid #5BE3C9; background: #E2E4E7; box-shadow: 0 0 0 4px rgba(91, 227, 201, .2); }
+.rider-wkg { margin: 2px 0 0; color: var(--muted); font-weight: 600; }
+.rider-wkg b { color: var(--fg); font: 700 1.9rem/1 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; }
+.rider-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.rider-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.rider-field label { font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.rider-field .note { margin: 0; font-size: .8rem; }
+.stepper { display: flex; align-items: center; height: 48px; overflow: hidden; border: 1px solid var(--btn-line); border-radius: 14px; background: #fff; }
+.stepper:focus-within { outline: 3px solid var(--accent); outline-offset: 1px; }
+.stepper button { width: 44px; height: 100%; flex: none; padding: 0; border: 0; border-radius: 0; background: rgb(90 60 30 / .06); color: var(--fg); font-size: 1.3rem; }
+.stepper button:hover:not(:disabled) { background: rgb(90 60 30 / .12); }
+.stepper input { flex: 1; min-width: 0; width: 100%; padding: 0 4px 0 0; border: 0; background: transparent; color: var(--fg); text-align: right; font: 700 1.25rem Barlow, system-ui, sans-serif; -moz-appearance: textfield; appearance: textfield; }
+.stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.stepper input:focus { outline: 0; }
+.stepper input:disabled { opacity: .5; }
+.stepper > span { padding: 0 8px 0 2px; color: var(--muted); font-size: .9rem; }
+.rider-zones { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.rider-zones li { display: flex; align-items: center; gap: 8px; font-size: .95rem; }
+.rider-zones li i { width: 10px; height: 10px; flex: none; border-radius: 3px; }
+.rider-zones li span { color: var(--muted); }
+.rider-zones li b { margin-left: auto; font-variant-numeric: tabular-nums; }
+.rider-zones .z1 { background: var(--z1); } .rider-zones .z2 { background: var(--z2); } .rider-zones .z3 { background: var(--z3); }
+.rider-zones .z4 { background: var(--z4); } .rider-zones .z5 { background: var(--z5); } .rider-zones .z6 { background: var(--z6); }
+.rider-card .row { margin: 0; justify-content: flex-end; }
+
+/* Appareils en portrait étroit : les cartes s'empilent (après les règles de base ci-dessus pour les surcharger). */
+@media (max-width: 900px) and (orientation: portrait) {
+  .dev { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto auto auto; padding: 16px 16px 96px; }
+  .dev-hero, .dev-radar, .dev-sensors { grid-column: 1; }
+  .dev-hero { grid-row: 3; } .dev-radar { grid-row: 4; max-width: 340px; } .dev-sensors { grid-row: 5; }
+  .dev-sensors-body { grid-template-columns: 1fr; gap: 14px; }
+  .sensor, .sensor:first-child, .sensor:last-child { padding: 0; border-left: 0; }
+  .sensor + .sensor { padding-top: 14px; border-top: 1px solid var(--glass-line); }
 }
 
 /* Aide à la connexion du trainer, repliée par défaut. */
@@ -187,8 +262,41 @@ a.home-radar > div { width: 100%; }
   .home-workout .wo-profile { height: 34px; }
   .home-workout .row button { height: 44px; font-size: .95rem; }
   .home-workout .row a { font-size: .85rem; }
-  .dev-layout { gap: 12px 20px; grid-template-columns: minmax(200px, 38%) minmax(0, 1fr); }
-  .dev-radar { top: 8px !important; }
-  .dev-side .device-card { padding: 10px 14px; }
-  .dev-side .device-card h2 { font-size: 1.1rem; }
+  /* Appareils : titre, résumé du coureur et bouton sur une ligne, capteurs dessous ; la page défile si besoin (aide, notes). */
+  .dev { min-height: 100dvh; padding: 10px max(16px, env(safe-area-inset-left)) 66px; gap: 6px 12px; grid-template-columns: minmax(0, 1fr) 104px; }
+  .dev-hero { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; padding: 8px 14px; gap: 4px 14px; }
+  .dev-hero-txt { display: contents; }
+  .dev-hero-txt .home-kicker, .dev-lede { display: none; }
+  .dev-hero h1 { flex: 0 0 100%; font-size: 1.9rem; }
+  .rider-chip b { display: none; }
+  button.rider-chip { order: 2; height: 38px; font-size: .9rem; padding: 0 10px; }
+  .dev-go { order: 3; gap: 4px 12px; }
+  button.dev-go-btn { height: 38px; padding: 0 16px; font-size: 1rem; box-shadow: none; }
+  .dev-sensors { padding: 8px 14px; gap: 4px; }
+  .dev-sensors-head .home-kicker { display: none; }
+  .dev-sensors-head:not(:has(.note:not(:empty))) { display: none; }
+  .dev .home-brand { height: 36px; }
+  /* L'aide se replie en lien « Aide ? » dans le coin de la carte ; ouverte, elle reprend sa place sous les capteurs (la page défile). */
+  .dev-sensors-foot { position: absolute; top: 8px; right: 14px; z-index: 3; }
+  .trainer-help summary { font-size: 0; list-style: none; }
+  .trainer-help summary::-webkit-details-marker { display: none; }
+  .trainer-help summary::after { content: 'Aide ?'; font-size: .9rem; font-weight: 600; text-decoration: underline; }
+  .dev-sensors-foot:has(.trainer-help[open]) { position: static; }
+  .trainer-help[open] { font-size: .85rem; }
+  .trainer-help[open] summary::after { content: 'Fermer'; }
+  #support { display: none; }
+  .sensor-ico { width: 34px; height: 34px; }
+  .sensor-ico svg { width: 18px; height: 18px; }
+  .sensor h3 { font-size: 1.25rem; }
+  .sensor-head > div { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
+  .sensor .row { gap: 6px; }
+  .sensor .row button { padding: 7px 10px; font-size: .85rem; }
+  .sensor .note, .dev-radar .radar-tag { display: none; }
+  .dev-radar .radar { --core: 46%; }
+  .rider-card { padding: 14px 18px; gap: 8px; }
+  .rider-avatar { width: 56px; height: 56px; }
+  .rider-top h2 { font-size: 1.6rem; }
+  .stepper { height: 40px; }
+  .rider-zones { grid-template-columns: 1fr 1fr; gap: 3px 16px; }
+  .rider-zones li { font-size: .85rem; }
 }
