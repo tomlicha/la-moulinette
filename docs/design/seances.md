@@ -57,7 +57,7 @@ Choix pour le téléphone : **en attente de la décision**. Recommandation : G ;
 
 ### Tour 4 : écran simplifié, commandes sur le bloc
 
-**Retour (12 novembre 2026).** Simplifier l'écran, et poser les commandes de modification de l'intervalle **directement sur son bloc graphique**, pour gagner la ligne de réglages. Base : le rail de G (navigation à gauche, titre qui ouvre la bibliothèque), réduit à quatre éléments : titre et sélecteur de séance (avec durée, charge et état en sous-titre), **Rouler**, profil, bande de blocs. Enregistrer, exporter, description et zones passent derrière un « ⋯ » de l'en-tête ; cadence, déplacer, dupliquer, séparer, supprimer le bloc derrière un « ⋯ » sous le profil. Les répétitions d'un intervalle étant liées, on règle un seul motif.
+**Retour (12 novembre 2026).** Simplifier l'écran, et poser les commandes de modification de l'intervalle **directement sur son bloc graphique**, pour gagner la ligne de réglages. Base : le rail de G (navigation à gauche, titre qui ouvre la bibliothèque), réduit à quatre éléments : titre et sélecteur de séance (avec durée, charge et état en sous-titre), **Rouler**, profil, bande de blocs. Enregistrer, exporter, description et zones passent derrière un « ⋯ » de l'en-tête ; cadence, déplacer, dupliquer, séparer, supprimer le bloc derrière un « ⋯ » sous le profil. Les répétitions d'un intervalle étant liées, on règle un seul motif. Chaque puissance s'affiche en **% de la FTP et en watts** (commandes du bloc et axe du profil).
 
 Planche : [tour 4, J, K, L](https://claude.ai/artifact/FS16DyG1wruUcz99zDuHTX), fenêtre de 800 × 360 px à l'échelle réelle.
 
@@ -86,6 +86,7 @@ Grille de l'accueil : une colonne principale, une colonne de verre de 380 px à 
 - Changer de séance avec des modifications non enregistrées demande confirmation (une boîte du navigateur), comme avant.
 - Les flèches, Suppr et Ctrl+Z agissent sur les blocs seulement quand le focus n'est ni dans la bibliothèque, ni dans la navigation, ni dans un champ.
 - Quand la FTP change, un modèle en watts (`.erg`, `.mrc`) est relu avec la nouvelle valeur.
+- Chaque champ de puissance du bloc affiche, à côté du pourcentage, la valeur en watts (selon la FTP) ; elle suit la frappe.
 - La hauteur du profil suit la hauteur de la fenêtre (100 px mini). Sur une fenêtre basse, la page défile et la bibliothèque reste visible.
 - Téléphone en paysage : même disposition, réduite (bibliothèque de 260 px, libellé et description masqués) ; la page défile.
 

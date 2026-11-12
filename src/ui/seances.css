@@ -111,6 +111,7 @@ button.sea-ride { display: flex; align-items: center; gap: 10px; height: 60px; p
 .stepper { display: flex; align-items: center; gap: 4px; }
 .stepper button { width: 34px; height: 34px; padding: 0; background: var(--raised); color: #fff; border: 1px solid var(--ctl-line); }
 .stepper input { width: 3.4rem; text-align: center; border: 0; background: transparent; font-size: 1.2rem; font-weight: 700; appearance: textfield; -moz-appearance: textfield; }
+.stepper .watts { margin-left: 6px; min-width: 3.4rem; font-size: .85rem; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .dur { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: .85rem; }
 .dur input { width: 4.6rem; padding: 4px 6px; border: 1px solid var(--btn-line); border-radius: 6px; background: var(--raised); }

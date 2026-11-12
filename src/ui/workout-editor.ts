@@ -557,10 +557,18 @@ export function setupWorkoutEditor(o: EditorOptions) {
       const b = el('button', { type: 'button', textContent: d > 0 ? '+' : '−' });
       b.setAttribute('aria-label', `${label} ${d > 0 ? 'plus' : 'moins'} 5 %`);
       b.dataset.key = `${key}-${d > 0 ? 'up' : 'down'}`;
-      b.addEventListener('click', () => commitSet(set, Math.min(3, Math.max(0.05, Math.round((value + d) * 100) / 100))));
+      b.addEventListener('click', () => {
+        // Part de ce qui est affiché : une valeur tapée juste avant n'a pas encore redessiné le champ.
+        const typed = Number(input.value) / 100;
+        const base = input.value.trim() !== '' && typed > 0 ? typed : value;
+        commitSet(set, Math.min(3, Math.max(0.05, Math.round((base + d) * 100) / 100)));
+      });
       return b;
     };
-    return el('div', { className: 'stepper' }, step(-POWER_STEP), input, el('span', { textContent: '%' }), step(POWER_STEP));
+    // La vraie valeur, à côté du pourcentage : elle suit la frappe (voir refreshInspectorText).
+    const watts = el('span', { className: 'watts', textContent: `${Math.round(value * ftp())} W` });
+    watts.dataset.power = key;
+    return el('div', { className: 'stepper' }, step(-POWER_STEP), input, el('span', { textContent: '%' }), step(POWER_STEP), watts);
   }
 
   /** Les setters écrivent dans le bloc sélectionné du brouillon : on le copie d'abord, l'historique garde l'original. */
@@ -722,6 +730,17 @@ export function setupWorkoutEditor(o: EditorOptions) {
       Début: 'from' in b ? z(b.from) : undefined,
       Fin: 'to' in b ? z(b.to) : undefined,
     };
+    const power: Record<string, number | undefined> = {
+      on: b.type === 'intervals' ? b.onPower : undefined,
+      off: b.type === 'intervals' ? b.offPower : undefined,
+      p: b.type === 'steady' ? b.power : undefined,
+      from: 'from' in b ? b.from : undefined,
+      to: 'to' in b ? b.to : undefined,
+    };
+    inspector.querySelectorAll<HTMLElement>('.watts[data-power]').forEach((w) => {
+      const v = power[w.dataset.power!];
+      if (v !== undefined) w.textContent = `${Math.round(v * ftp())} W`;
+    });
     inspector.querySelectorAll<HTMLFieldSetElement>('fieldset[data-legend]').forEach((fs) => {
       const zone = legends[fs.dataset.legend!];
       if (zone) fs.querySelector('legend')!.textContent = legendText(fs.dataset.legend!, zone);
