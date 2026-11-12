@@ -4,7 +4,7 @@ Référence permanente de l'écran **Séances** : bibliothèque et éditeur sur 
 
 - Code : [`src/ui/workout-editor.ts`](../../src/ui/workout-editor.ts) (bibliothèque et éditeur), [`src/ui/seances.css`](../../src/ui/seances.css) (style), balisage dans [`index.html`](../../index.html) (`data-view="seances"`), branchement dans [`src/main.ts`](../../src/main.ts) (`setupWorkoutEditor`).
 - Logique pure, testée : [`src/workout/`](../../src/workout/) (`blocks.ts`, `block-ops.ts`, `history.ts`, `zones.ts`, `library.ts`), inchangée par la refonte.
-- Maquettes (claude.ai), dans l'ordre : [tour 1, propositions A, B, C](https://claude.ai/artifact/2EYqkdcgcbfVNsmUkBJfLr) ; [tour 2, fusions D, E, F](https://claude.ai/artifact/9RCni2a8hDKeM26PUyM62Y) ; [tour 3, téléphone en paysage, G, H, I](https://claude.ai/artifact/TDiP7b83DzsLPigxce9kPE) ; [tour 4, commandes sur le bloc, J, K, L](https://claude.ai/artifact/FS16DyG1wruUcz99zDuHTX) ; [tour 5, bibliothèque de blocs préfaits, P, Q, R](https://claude.ai/artifact/4LjWhBFhSY2jaJKc26na9Q). Retenue pour l'ordinateur : **D · Miroir de l'accueil**. Pour le téléphone en paysage : **J · Dans la barre** (voir « Téléphone en paysage »), livrée le 12 novembre 2026.
+- Maquettes (claude.ai), dans l'ordre : [tour 1, propositions A, B, C](https://claude.ai/artifact/2EYqkdcgcbfVNsmUkBJfLr) ; [tour 2, fusions D, E, F](https://claude.ai/artifact/9RCni2a8hDKeM26PUyM62Y) ; [tour 3, téléphone en paysage, G, H, I](https://claude.ai/artifact/TDiP7b83DzsLPigxce9kPE) ; [tour 4, commandes sur le bloc, J, K, L](https://claude.ai/artifact/FS16DyG1wruUcz99zDuHTX) ; [tour 5, bibliothèque de blocs préfaits, P, Q, R](https://claude.ai/artifact/4LjWhBFhSY2jaJKc26na9Q) ; [tour 6, section du bas, S, T, U](https://claude.ai/artifact/EVjcLwUJ2TGnojBAaNPDA5). Retenue pour l'ordinateur : **D · Miroir de l'accueil**. Pour le téléphone en paysage : **J · Dans la barre** (voir « Téléphone en paysage »), livrée le 12 novembre 2026.
 
 ## Décisions
 
@@ -86,6 +86,22 @@ Planche : [tour 5, P, Q, R](https://claude.ai/artifact/4LjWhBFhSY2jaJKc26na9Q), 
 | R · Saisie rapide en texte | « + » ouvre une ligne de commande à la place de l'en-tête (`5x 4' 120% r 4' 50%`), résumé reformulé, aperçu en pointillés, suggestions en pastilles. | La plus rapide pour qui connaît ses séances ; les suggestions servent de bibliothèque ; ligne en haut, là où le clavier laisse de la place. | Mini-syntaxe à apprendre, clavier à l'écran ; moins de découverte ; analyseur de texte à écrire et à tester. |
 
 Recommandation : **P, avec l'aperçu de Q** (le cadre apparaît dès qu'on glisse un bloc) ; R en complément plus tard. Choix en attente de la décision.
+
+### Tour 6 : refonte de la section du bas (maquettes, choix en attente)
+
+**Précision du retour (12 novembre 2026).** Le tour 5 portait sur ce que le « + » ouvre ; la demande visait en réalité **toute la section du bas** : la barre du bloc sélectionné, qui réunit huit commandes (précédent, poignée, nom et détail, suivant, annuler, rétablir, « + », « ⋯ ») et doit accueillir la bibliothèque de blocs préfaits. Les contenus du tour 5 (types, cartes, aperçu en pointillés) restent valables.
+
+Principes : moins de commandes (annuler et rétablir ne sont pas des commandes du bloc), la bibliothèque dans la section même, un geste pour ajouter (toucher, ou glisser sur le profil, annulable), la hauteur du profil rendue dès que le choix est fait.
+
+Planche : [tour 6, S, T, U](https://claude.ai/artifact/EVjcLwUJ2TGnojBAaNPDA5), fenêtre de 800 × 360 px.
+
+| Piste | Principe | Pour | Contre |
+|---|---|---|---|
+| S · Étagère de blocs | La section du bas est une étagère toujours visible (pastilles de type, rangée de blocs préfaits à faire défiler). La barre du bloc, annuler, rétablir et « ⋯ » montent dans l'en-tête. | Bibliothèque toujours sous les yeux ; un seul geste pour ajouter ; l'en-tête a de la largeur libre. | 80 px de hauteur en permanence (profil d'environ 170 px) ; en-tête dense ; confusion possible entre blocs du profil et de l'étagère. |
+| T · La barre se déplie | La barre garde précédent, poignée, nom, suivant et gagne un bouton « + Bloc » qui la déplie en palette sur place ; toucher une carte ajoute (message « ajouté après le bloc 3 », Annuler). Annuler et rétablir passent dans l'en-tête. | Le plus léger : de la place seulement pendant l'ajout ; barre simplifiée (six commandes) ; ajout en un tap sans confirmation. | Profil réduit à environ 100 px pendant l'ajout ; pas de résultat visible avant l'ajout ; annuler plus loin du pouce. |
+| U · « + » en cascade | Bouton rond flottant dans le coin du profil ; pile de types, puis cartes de blocs du type choisi. La barre perd son « + ». | Le profil garde toute sa hauteur ; bouton au coin du pouce ; types comme porte d'entrée. | Trois taps pour ajouter ; pastilles de 22 px ; bouton flottant qui couvre un coin du profil. |
+
+Recommandation : **T** (la plus simple, rend la hauteur dès l'ajout fait) ; S si la bibliothèque doit rester en permanence à l'écran. Choix en attente de la décision.
 
 ## Écran
 
