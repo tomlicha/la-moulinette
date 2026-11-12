@@ -66,14 +66,27 @@ Thème **« Doux »**, défini par des jetons dans [`src/style.css`](../../src/s
 - Les quatre écrans sont plein écran. La barre du haut de l'ancienne Sortie (marque, navigation, pastilles d'état) a été supprimée le 2026-11-12.
 - Titres en Barlow Condensed (polices `@fontsource`). Les liens suivent l'accent.
 
-## Invite plein écran (téléphone en portrait)
+## Plein écran sur téléphone
 
-Code : balisage `#rotate-hint` en tête de [`index.html`](../../index.html), style dans `style.css` (« Mode application sur mobile »), comportement dans [`src/ui/app-shell.ts`](../../src/ui/app-shell.ts).
+Code : balisage `#rotate-hint` et `#install-hint` en tête de [`index.html`](../../index.html), style dans `style.css` (« Mode application sur mobile »), comportement dans [`src/ui/app-shell.ts`](../../src/ui/app-shell.ts).
 
-Sur mobile (pointeur tactile) tenu en portrait, un voile translucide (flou, halo menthe) recouvre l'application, qui reste visible derrière ; au centre, une carte de verre : téléphone qui bascule du portrait au paysage, « Mets ton téléphone à l'horizontale », une phrase d'explication et le bouton **Passer en plein écran**. Le bouton est masqué quand le plein écran est impossible ou déjà actif (mode installé, `fullscreenchange`) ; sans l'API (Safari sur iPhone), il laisse place à l'astuce « Partager → Sur l'écran d'accueil ». L'invite disparaît dès que le téléphone est à l'horizontale ; le premier toucher passe toujours en plein écran paysage. Animations coupées si le système demande moins de mouvement.
+Deux chemins, choisis d'après ce que le navigateur sait faire (détection de capacité, jamais de marque) :
+
+- **Le navigateur permet le plein écran** (Android, iPad, ordinateur) : le premier toucher passe en plein écran paysage ; le bouton **Passer en plein écran** de l'invite le refait.
+- **Il ne le permet pas** (tous les navigateurs sur iPhone, qui partagent le moteur de Safari) : aucune page ne peut y masquer les barres du navigateur. Seule l'application **lancée depuis l'écran d'accueil** s'affiche sans elles. Un **guide d'installation** recouvre alors l'application à chaque lancement dans le navigateur, en portrait comme en paysage : Partager, « Sur l'écran d'accueil », puis ouvrir La Moulinette depuis son icône. « Continuer dans le navigateur » l'écarte pour la session ; le bouton de l'invite, devenu **Comment passer en plein écran**, le rouvre. Lancée depuis l'écran d'accueil, l'application n'affiche ni guide ni bouton.
+
+| Date | Décision | Pourquoi |
+|---|---|---|
+| 2026-11-12 | Le guide d'installation remplace l'astuce d'une ligne qui n'apparaissait que sous l'invite à tourner. Il passe avant elle et se lit dans les deux orientations. | L'astuce disparaissait dès que le téléphone était tourné, et ne disait ni où trouver Partager ni qu'il faut ensuite ouvrir l'application depuis son icône : sur iPhone, on restait dans Safari, barres visibles. |
+| 2026-11-12 | Icône d'écran d'accueil en PNG (`public/apple-touch-icon.png`, 180 px, fond plein). | iOS n'accepte pas l'icône SVG du manifeste : sans elle, l'icône installée est une capture de la page. |
+
+**Invite à tourner** (téléphone tenu en portrait) : un voile translucide (flou, halo menthe) recouvre l'application, qui reste visible derrière ; au centre, une carte de verre : téléphone qui bascule du portrait au paysage, « Mets ton téléphone à l'horizontale », une phrase d'explication et le bouton décrit ci-dessus. L'invite disparaît dès que le téléphone est à l'horizontale. Animations coupées si le système demande moins de mouvement.
+
+Ce qui rend l'application plein écran une fois installée sur iPhone : `apple-mobile-web-app-capable`, la barre d'état `black-translucent` et `viewport-fit=cover` dans `index.html` ; l'orientation paysage du manifeste n'y est pas appliquée, d'où l'invite à tourner, qui reste active.
 
 ## À faire
 
+- **Plein écran sur iPhone** : le guide d'installation est vérifié en émulation (tactile, sans API de plein écran, portrait 390 × 750 et paysage 844 × 340, puis mode installé). Reste à l'essayer sur un vrai iPhone : libellés du menu Partager selon la version d'iOS, absence de barres une fois lancé depuis l'écran d'accueil.
 - Le portrait du coureur est **rendu au chargement d'après `avatar.glb` et `bike.glb`** ([`src/render/rider-portrait.ts`](../../src/render/rider-portrait.ts), même classe `Rider` que la sortie) : il suit donc toute évolution de l'avatar, sans image à régénérer. `public/assets/rider-portrait.jpg` n'est plus qu'un repli (chargement, rendu impossible) ; il peut être supprimé quand ce repli ne sert plus. Reste à rendre l'avatar personnalisable (maillot, couleurs).
 - Un seul monde existe : la sélection de mondes (Col des Érables, Rive du lac, Quais de nuit) de la maquette B n'est pas reprise.
 - Le visuel du parcours est un dessin SVG ; à remplacer par un rendu de la scène 3D.
