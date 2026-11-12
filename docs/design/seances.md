@@ -4,7 +4,7 @@ Référence permanente de l'écran **Séances** : bibliothèque et éditeur sur 
 
 - Code : [`src/ui/workout-editor.ts`](../../src/ui/workout-editor.ts) (bibliothèque et éditeur), [`src/ui/seances.css`](../../src/ui/seances.css) (style), balisage dans [`index.html`](../../index.html) (`data-view="seances"`), branchement dans [`src/main.ts`](../../src/main.ts) (`setupWorkoutEditor`).
 - Logique pure, testée : [`src/workout/`](../../src/workout/) (`blocks.ts`, `block-ops.ts`, `history.ts`, `zones.ts`, `library.ts`), inchangée par la refonte.
-- Maquettes (claude.ai), dans l'ordre : [tour 1, propositions A, B, C](https://claude.ai/artifact/2EYqkdcgcbfVNsmUkBJfLr) ; [tour 2, fusions D, E, F](https://claude.ai/artifact/9RCni2a8hDKeM26PUyM62Y) ; [tour 3, téléphone en paysage, G, H, I](https://claude.ai/artifact/TDiP7b83DzsLPigxce9kPE). Retenue pour l'ordinateur : **D · Miroir de l'accueil**. Pour le téléphone : choix en attente (voir « Téléphone en paysage »).
+- Maquettes (claude.ai), dans l'ordre : [tour 1, propositions A, B, C](https://claude.ai/artifact/2EYqkdcgcbfVNsmUkBJfLr) ; [tour 2, fusions D, E, F](https://claude.ai/artifact/9RCni2a8hDKeM26PUyM62Y) ; [tour 3, téléphone en paysage, G, H, I](https://claude.ai/artifact/TDiP7b83DzsLPigxce9kPE) ; [tour 4, commandes sur le bloc, J, K, L](https://claude.ai/artifact/FS16DyG1wruUcz99zDuHTX). Retenue pour l'ordinateur : **D · Miroir de l'accueil**. Pour le téléphone : choix en attente (voir « Téléphone en paysage »).
 
 ## Décisions
 
@@ -54,6 +54,20 @@ Sur D, une recommandation a pesé : c'est la seule piste qui reprend la grille d
 | I · Profil à manipuler | Poignées sur le profil pour la puissance et la durée, une barre contextuelle, navigation derrière le logo, bibliothèque en feuille de cartes. | Le plus grand profil (environ 720 × 180 px) ; réglage en tirant. | Gestes tactiles à soigner (pas de 5 % et 15 s, cibles de 44 px) ; navigation à un tap de plus ; récupération et répétitions dans un menu « ⋯ ». |
 
 Choix pour le téléphone : **en attente de la décision**. Recommandation : G ; H si le profil de 120 px est trop petit ; I en seconde étape.
+
+### Tour 4 : écran simplifié, commandes sur le bloc
+
+**Retour (12 novembre 2026).** Simplifier l'écran, et poser les commandes de modification de l'intervalle **directement sur son bloc graphique**, pour gagner la ligne de réglages. Base : le rail de G (navigation à gauche, titre qui ouvre la bibliothèque), réduit à quatre éléments : titre et sélecteur de séance (avec durée, charge et état en sous-titre), **Rouler**, profil, bande de blocs. Enregistrer, exporter, description et zones passent derrière un « ⋯ » de l'en-tête ; cadence, déplacer, dupliquer, séparer, supprimer le bloc derrière un « ⋯ » sous le profil. Les répétitions d'un intervalle étant liées, on règle un seul motif.
+
+Planche : [tour 4, J, K, L](https://claude.ai/artifact/FS16DyG1wruUcz99zDuHTX), fenêtre de 800 × 360 px à l'échelle réelle.
+
+| Piste | Principe | Pour | Contre |
+|---|---|---|---|
+| J · Dans la barre | Pas + et − empilés à la verticale dans chaque barre (effort, récupération), pastille de durée en bas de la barre, badge de répétitions au-dessus. | Le plus direct ; cache peu le profil. | Cibles de 28 px sur la récupération ; durée de la récupération via « ⋯ » ; les commandes se chevauchent sur un bloc court (constaté sur un palier de 5 min). |
+| K · Bulle sur le bloc | Bulle posée sur le haut du bloc sélectionné, tous les réglages de l'intervalle sur deux lignes ; profil tracé à une échelle plus basse pour laisser de la place. | La plus simple à réaliser ; les cinq champs sous la main, boutons de 32 px. | Barres plus basses ; la bulle couvre le haut du bloc et masque le niveau réglé ; juste de place à 120 % de la FTP. |
+| L · Zoom sur une répétition | Toucher un intervalle zoome le profil sur une répétition (effort puis récupération) ; les barres, devenues larges, portent leurs commandes à l'horizontale (puissance et durée) ; badge de répétitions ; la bande de blocs reste la vue d'ensemble. | Cibles de 32 à 36 px sur tout bloc, même court (il est agrandi) ; les cinq champs sur le bloc ; bonne échelle de détail. | Perte de la vue d'ensemble pendant l'édition ; le plus de travail (fenêtre de zoom, transitions, repères) ; changement d'échelle à chaque bloc touché. |
+
+Recommandation : **L**, ou **K** pour aller vite. Choix en attente de la décision.
 
 ## Écran
 
