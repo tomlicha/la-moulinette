@@ -88,18 +88,25 @@ button.sea-ride { display: flex; align-items: center; gap: 10px; height: 60px; p
 .ed-zone-labels span.on { font-weight: 700; color: #fff; }
 .ed-tip { position: absolute; top: 6px; z-index: 2; background: var(--tip-bg); color: var(--tip-fg); border-radius: 8px; padding: 6px 10px; font-size: .82rem; line-height: 1.4; pointer-events: none; white-space: nowrap; box-shadow: 0 6px 18px rgb(0 0 0 / .3); }
 .ed-tip .muted { color: var(--tip-muted); }
+/* Barre du bloc sélectionné : flèches, poignée de déplacement bien visible, nom et détail, place (3/9). */
+.ed-bbar { display: flex; align-items: stretch; gap: 6px; height: 42px; margin-top: 2px; }
+.bb-step { flex: none; width: 40px; padding: 0; display: grid; place-items: center; border-radius: 10px; background: rgba(255, 255, 255, .1); color: #fff; border: 1px solid var(--ctl-line); }
+.bb-step svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.bb-step:disabled { opacity: .3; cursor: default; }
+.bb-handle { flex: none; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 10px; border-radius: 10px; background: rgba(91, 227, 201, .16); border: 1px solid rgba(91, 227, 201, .65); color: #5BE3C9; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.bb-handle.dragging { cursor: grabbing; background: rgba(91, 227, 201, .34); }
+.bb-grip { width: 12px; height: 20px; background: radial-gradient(circle, currentColor 1.7px, transparent 2.3px) 0 0 / 6px 7px; }
+.bb-hint { font-size: .8rem; font-weight: 700; letter-spacing: .02em; }
+.bb-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 0 12px; border-radius: 10px; background: rgba(255, 255, 255, .07); border: 1px solid var(--ctl-line); border-left: 5px solid var(--muted); }
+.bb-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bb-text strong { font-size: .95rem; }
+.bb-text small { font-size: .8rem; color: var(--muted); }
+.bb-pos { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--muted); }
+.ed-bbar.locked .bb-handle { display: none; }
+/* Pendant le glisser : le bloc tenu (cadre pointillé) suit le pointeur sur le profil, un repère indique où il tombera. */
+.dd-ghost { position: absolute; top: 0; bottom: 0; z-index: 4; border: 2px dashed #5BE3C9; border-radius: 4px; background: rgba(91, 227, 201, .2); pointer-events: none; }
+.dd-line { position: absolute; top: -4px; bottom: -4px; z-index: 5; width: 4px; margin-left: -2px; border-radius: 2px; background: #5BE3C9; box-shadow: 0 0 8px #5BE3C9; pointer-events: none; }
 .ed-xaxis { display: flex; justify-content: space-between; font-size: .72rem; color: var(--muted); }
-.ed-strip { display: flex; align-items: center; gap: 2px; height: 44px; margin-top: 2px; }
-.ed-strip .blk { height: 100%; min-width: 56px; padding: 0 8px; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: .8rem; line-height: 1.25; background: rgba(255, 255, 255, .07); color: #fff; border: 1px solid var(--ctl-line); border-left: 5px solid var(--muted); border-radius: 8px; }
-.ed-strip .blk strong { font-weight: 600; }
-.ed-strip { position: relative; }
-.ed-strip .blk { touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; }
-.ed-strip.dragging, .ed-strip.dragging .blk { cursor: grabbing; }
-.ed-strip .blk.lifted { z-index: 5; background: #1D3556; border-color: #5BE3C9; box-shadow: 0 6px 18px rgba(0, 0, 0, .55); transition: none; }
-.drop-line { position: absolute; top: -3px; bottom: -3px; width: 4px; margin-left: -2px; border-radius: 2px; background: #5BE3C9; box-shadow: 0 0 8px #5BE3C9; z-index: 6; pointer-events: none; }
-.ed-strip .blk[aria-pressed='true'] { border: 2px solid #5BE3C9; border-left-width: 5px; background: rgba(91, 227, 201, .14); }
-.ed-strip .blk small { color: var(--muted); }
-.ed-strip .ins { flex: none; width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 1px dashed var(--muted); background: rgba(255, 255, 255, .08); color: #fff; }
 
 .ed-inspector { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 8px 12px 10px; border-radius: 14px; background: rgba(255, 255, 255, .07); }
 .ed-inspector.ro { opacity: .6; }
@@ -247,10 +254,17 @@ kbd { font: inherit; font-size: .75rem; border: 1px solid var(--ctl-line); borde
   .ed-chart { flex: 1; min-height: 0; }
   .ed-yaxis { width: 76px; font-size: .62rem; }
   .ed-xaxis { font-size: .62rem; }
-  .ed-zone-labels, .ed-zones, .ed-keys-d, .ed-strip .ins { display: none; }
+  .ed-zone-labels, .ed-zones, .ed-keys-d { display: none; }
   .ed-srow { display: flex; align-items: center; gap: 5px; margin-top: 2px; }
-  .ed-srow .ed-strip { flex: 1; min-width: 0; height: 32px; margin: 0; }
-  .ed-strip .blk { padding: 1px 7px; font-size: .72rem; border-radius: 7px; }
+  .ed-srow .ed-bbar { flex: 1; min-width: 0; height: 34px; margin: 0; gap: 4px; }
+  .bb-step { width: 34px; border-radius: 9px; }
+  .bb-step svg { width: 18px; height: 18px; }
+  .bb-handle { padding: 0 9px 0 8px; gap: 6px; border-radius: 9px; }
+  .bb-grip { width: 10px; height: 18px; background-size: 5px 6px; }
+  .bb-hint { font-size: .72rem; }
+  .bb-main { padding: 0 8px; gap: 6px; border-radius: 9px; }
+  .bb-text strong { font-size: .82rem; }
+  .bb-text small { font-size: .72rem; }
   .ed-sbar { display: flex; gap: 4px; align-items: center; flex: none; }
   .ed-sbar .ph-btn { width: 30px; height: 30px; }
   .ed-sbar .plus { font-size: 19px; line-height: 1; border-style: dashed; border-radius: 50%; }

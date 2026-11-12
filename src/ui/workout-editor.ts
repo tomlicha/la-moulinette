@@ -103,7 +103,6 @@ export function setupWorkoutEditor(o: EditorOptions) {
   const plot = $('ed-plot');
   const tip = $('ed-tip');
   const inspector = $<HTMLFormElement>('ed-inspector');
-  const insertDialog = $<HTMLDialogElement>('ed-insert');
   const cadenceDialog = $<HTMLDialogElement>('ed-cadence');
   const history = new UndoHistory<EditorBlock[]>();
   const sea = document.querySelector<HTMLElement>('.sea')!;
@@ -124,7 +123,6 @@ export function setupWorkoutEditor(o: EditorOptions) {
   let baseZones: ZoneTimes | undefined;
   /** Saisie clavier en cours dans un champ : une seule entrée d'historique pour toute la frappe. */
   let typing = false;
-  let insertAt = 0;
 
   const ftp = () => o.readFtp();
   const workout = (): Workout => blocksToWorkout(draft?.name ?? '', draft?.description, draft?.blocks ?? []);
@@ -404,6 +402,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
     $('ed-dirty').hidden = !isDirty();
     $('ed-readonly').hidden = !ro;
     $('ed-kicker').textContent = ro ? 'Modèle' : draft.id ? 'Mes séances' : 'Nouvelle séance';
+    $('ed-bbar').classList.toggle('locked', ro);
     nameIn.readOnly = ro;
     descIn.readOnly = ro;
     $('ed-save').hidden = ro;
@@ -418,7 +417,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
     for (const id of ['ed-add-btn', 'ed-bmenu-btn']) setBlocked($<HTMLButtonElement>(id), ro ? roReason : undefined);
     renderSummary(stats, zones);
     renderChart(w, f);
-    renderStrip();
+    renderBlockBar();
     if (keepInspector) refreshInspectorText();
     else renderInspector();
     renderZones(zones);
@@ -527,52 +526,43 @@ export function setupWorkoutEditor(o: EditorOptions) {
     return zoneOf(main);
   }
 
-  function renderStrip() {
+  /**
+   * Barre du bloc sélectionné, sous le profil : le profil montre déjà tous les blocs, en couleur, et se touche pour en
+   * choisir un ; cette barre en donne le nom et le détail, la place (3/9), permet de passer au précédent ou au suivant,
+   * et porte la poignée qui le déplace (voir plus bas).
+   */
+  function renderBlockBar() {
     const blocks = draft!.blocks;
-    const items: HTMLElement[] = [];
-    const ins = (at: number) => {
-      const b = el('button', { type: 'button', className: 'ins', textContent: '+' });
-      b.setAttribute('aria-label', at >= blocks.length ? 'Ajouter un bloc à la fin' : `Insérer un bloc avant le bloc ${at + 1}`);
-      b.addEventListener('click', () => {
-        insertAt = at;
-        insertDialog.showModal();
-      });
-      return b;
-    };
-    blocks.forEach((b, i) => {
-      if (i > 0) items.push(ins(i));
-      const btn = el('button', { type: 'button', className: 'blk' }, el('strong', { textContent: BLOCK_LABEL[b.type] }), el('br'), el('small', { textContent: blockShort(b) }));
-      btn.style.flex = `${blockDurationS(b)} 1 0`;
-      const main = b.type === 'free' ? undefined : b.type === 'steady' ? b.power : b.type === 'intervals' ? b.onPower : (b.from + b.to) / 2;
-      btn.style.borderLeftColor = main === undefined ? 'var(--muted)' : `var(--${zoneOf(main)})`;
-      btn.setAttribute('aria-pressed', String(i === selected));
-      btn.title = `${BLOCK_LABEL[b.type]} · ${blockShort(b)}`;
-      btn.addEventListener('click', () => {
-        if (!justDragged) select(i);
-      });
-      items.push(btn);
-    });
-    items.push(ins(blocks.length));
-    $('ed-strip').replaceChildren(...items);
+    const b = blocks[selected];
+    $('ed-bbar').hidden = !b;
+    if (!b) return;
+    $('bb-name').textContent = BLOCK_LABEL[b.type];
+    $('bb-short').textContent = blockShort(b);
+    $('bb-pos').textContent = `${selected + 1}/${blocks.length}`;
+    const main = b.type === 'free' ? undefined : b.type === 'steady' ? b.power : b.type === 'intervals' ? b.onPower : (b.from + b.to) / 2;
+    $('bb-main').style.borderLeftColor = main === undefined ? 'var(--muted)' : `var(--${zoneOf(main)})`;
+    $<HTMLButtonElement>('bb-prev').disabled = selected === 0;
+    $<HTMLButtonElement>('bb-next').disabled = selected >= blocks.length - 1;
+    $('bb-handle').hidden = blocks.length < 2;
   }
 
-  // --- Déplacer un bloc par glisser-déposer dans la bande de structure ---
+  // --- Déplacer un bloc : on tient la poignée de la barre et on la fait glisser sur le profil ---
 
-  /** Un glisser vient de finir : le clic qui le suit ne doit pas sélectionner un bloc. */
-  let justDragged = false;
   interface BlockDrag {
     from: number;
     to: number;
     startX: number;
     pointerId: number;
     active: boolean;
-    el: HTMLElement;
-    rects: DOMRect[];
+    width: number;
+    ranges: { start: number; end: number }[];
+    total: number;
+    ghost?: HTMLElement;
     line?: HTMLElement;
   }
   let drag: BlockDrag | undefined;
-  const stripEl = $('ed-strip');
-  const DRAG_THRESHOLD_PX = 10;
+  const handleEl = $('bb-handle');
+  const DRAG_THRESHOLD_PX = 4;
 
   /** Place le bloc `from` à l'indice `to` et le sélectionne : une seule entrée d'historique. */
   function moveBlock(from: number, to: number) {
@@ -585,52 +575,61 @@ export function setupWorkoutEditor(o: EditorOptions) {
     }, to);
   }
 
-  stripEl.addEventListener('pointerdown', (e) => {
-    if (!draft || draft.readOnly || (e.pointerType === 'mouse' && e.button !== 0)) return;
-    const blk = (e.target as HTMLElement).closest<HTMLElement>('.blk');
-    if (!blk) return;
-    const blks = [...stripEl.querySelectorAll<HTMLElement>('.blk')];
-    const from = blks.indexOf(blk);
-    drag = { from, to: from, startX: e.clientX, pointerId: e.pointerId, active: false, el: blk, rects: blks.map((b) => b.getBoundingClientRect()) };
-    blk.setPointerCapture?.(e.pointerId);
+  handleEl.addEventListener('pointerdown', (e) => {
+    if (!draft || draft.readOnly || draft.blocks.length < 2 || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    e.preventDefault();
+    const w = workout();
+    drag = {
+      from: selected,
+      to: selected,
+      startX: e.clientX,
+      pointerId: e.pointerId,
+      active: false,
+      width: plot.clientWidth,
+      ranges: blockRanges(draft.blocks),
+      total: w.steps.reduce((t, s) => t + s.durationS, 0) || 1,
+    };
+    handleEl.setPointerCapture?.(e.pointerId);
   });
-  stripEl.addEventListener('pointermove', (e) => {
+  handleEl.addEventListener('pointermove', (e) => {
     const d = drag;
     if (!d || e.pointerId !== d.pointerId) return;
     const dx = e.clientX - d.startX;
     if (!d.active) {
       if (Math.abs(dx) < DRAG_THRESHOLD_PX) return;
       d.active = true;
-      stripEl.classList.add('dragging');
-      d.el.classList.add('lifted');
-      d.line = el('div', { className: 'drop-line' });
-      stripEl.append(d.line);
+      handleEl.classList.add('dragging');
+      d.ghost = el('div', { className: 'dd-ghost' });
+      d.line = el('div', { className: 'dd-line' });
+      plot.append(d.ghost, d.line);
+      overlay.style.visibility = 'hidden'; // les capsules du bloc reviennent au dépôt
     }
-    d.el.style.translate = `${dx}px 0`;
+    const px = (s: number) => (s / d.total) * d.width;
+    const me = d.ranges[d.from]!;
+    const left = Math.max(0, Math.min(d.width - (px(me.end) - px(me.start)), px(me.start) + dx));
+    d.ghost!.style.left = `${left}px`;
+    d.ghost!.style.width = `${px(me.end) - px(me.start)}px`;
     // Place visée : autant de blocs que de milieux franchis par le centre du bloc tenu.
-    const me = d.rects[d.from]!;
-    const centre = me.left + me.width / 2 + dx;
-    const others = d.rects.filter((_, i) => i !== d.from);
-    d.to = others.filter((r) => r.left + r.width / 2 < centre).length;
-    const edge = d.to < others.length ? others[d.to]!.left : others[others.length - 1]!.right;
-    d.line!.style.left = `${edge - stripEl.getBoundingClientRect().left}px`;
+    const centre = left + (px(me.end) - px(me.start)) / 2;
+    const others = d.ranges.filter((_, i) => i !== d.from);
+    d.to = others.filter((r) => px((r.start + r.end) / 2) < centre).length;
+    d.line!.style.left = `${d.to < others.length ? px(others[d.to]!.start) : px(others[others.length - 1]!.end)}px`;
   });
   const endDrag = (e: PointerEvent) => {
     const d = drag;
     if (!d || e.pointerId !== d.pointerId) return;
     drag = undefined;
-    d.el.releasePointerCapture?.(e.pointerId);
-    d.el.style.translate = '';
-    d.el.classList.remove('lifted');
-    stripEl.classList.remove('dragging');
+    handleEl.releasePointerCapture?.(e.pointerId);
+    handleEl.classList.remove('dragging');
+    overlay.style.visibility = '';
+    d.ghost?.remove();
     d.line?.remove();
-    if (!d.active) return; // un simple appui : le clic sélectionne
-    justDragged = true;
-    setTimeout(() => (justDragged = false));
-    if (e.type === 'pointerup') moveBlock(d.from, d.to);
+    if (d.active && e.type === 'pointerup') moveBlock(d.from, d.to);
   };
-  stripEl.addEventListener('pointerup', endDrag);
-  stripEl.addEventListener('pointercancel', endDrag);
+  handleEl.addEventListener('pointerup', endDrag);
+  handleEl.addEventListener('pointercancel', endDrag);
+  $('bb-prev').addEventListener('click', () => select(selected - 1));
+  $('bb-next').addEventListener('click', () => select(selected + 1));
 
   // --- Ligne de réglages du bloc sélectionné ---
 
@@ -952,6 +951,8 @@ export function setupWorkoutEditor(o: EditorOptions) {
   interface EditSpec {
     title: string;
     power?: PowerField;
+    /** Seconde puissance réglée dans la même saisie (début et fin d'une montée, sur un bloc trop étroit pour deux capsules). */
+    power2?: PowerField;
     dur?: 'on' | 'off' | 'block';
     cad?: 'on' | 'off';
     reps?: boolean;
@@ -966,6 +967,8 @@ export function setupWorkoutEditor(o: EditorOptions) {
     editSpec = spec;
     $('pop-title').textContent = spec.title;
     $('pop-g-power').hidden = !spec.power;
+    $('pop-g-power2').hidden = !spec.power2;
+    $('pop-l-power').textContent = spec.power2 ? 'Début' : 'Puissance';
     $('pop-g-dur').hidden = !spec.dur;
     $('pop-g-cad').hidden = !spec.cad;
     $('pop-g-rep').hidden = !spec.reps;
@@ -973,6 +976,11 @@ export function setupWorkoutEditor(o: EditorOptions) {
       const v = b[spec.power] ?? 0;
       popIn('pop-pct').value = String(pct(v));
       popIn('pop-w').value = String(Math.round(v * ftp()));
+    }
+    if (spec.power2) {
+      const v = b[spec.power2] ?? 0;
+      popIn('pop-pct2').value = String(pct(v));
+      popIn('pop-w2').value = String(Math.round(v * ftp()));
     }
     if (spec.dur) popIn('pop-dur').value = formatDuration((spec.dur === 'on' ? b.onS : spec.dur === 'off' ? b.offS : b.durationS) ?? 0);
     if (spec.cad) popIn('pop-cad').value = String((spec.cad === 'on' ? b.cadenceRpm : b.restCadenceRpm) ?? '');
@@ -987,11 +995,19 @@ export function setupWorkoutEditor(o: EditorOptions) {
   // Pourcentage et watts se suivent : on tape l'un ou l'autre.
   popIn('pop-pct').addEventListener('input', () => {
     const v = Number(popIn('pop-pct').value);
-    if (v > 0) popIn('pop-w').value = String(Math.round((v / 100) * ftp()));
+    if (v > 0) popIn('pop-w').value = String(Math.round((v * ftp()) / 100));
   });
   popIn('pop-w').addEventListener('input', () => {
     const v = Number(popIn('pop-w').value);
-    if (v > 0) popIn('pop-pct').value = String(Math.round((v / ftp()) * 100));
+    if (v > 0) popIn('pop-pct').value = String(Math.round((v * 100) / ftp()));
+  });
+  popIn('pop-pct2').addEventListener('input', () => {
+    const v = Number(popIn('pop-pct2').value);
+    if (v > 0) popIn('pop-w2').value = String(Math.round((v * ftp()) / 100));
+  });
+  popIn('pop-w2').addEventListener('input', () => {
+    const v = Number(popIn('pop-w2').value);
+    if (v > 0) popIn('pop-pct2').value = String(Math.round((v * 100) / ftp()));
   });
   pop.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -1002,12 +1018,18 @@ export function setupWorkoutEditor(o: EditorOptions) {
       input.classList.toggle('invalid', !valid);
       if (!valid) ok = false;
     };
-    const out: { pct?: number; dur?: number; cad?: number | null; reps?: number } = {};
+    const out: { pct?: number; pct2?: number; dur?: number; cad?: number | null; reps?: number } = {};
     if (spec.power) {
       const t = popIn('pop-pct').value.trim();
       const v = Number(t);
       check(popIn('pop-pct'), t !== '' && v > 0 && v <= 300);
       out.pct = v;
+    }
+    if (spec.power2) {
+      const t = popIn('pop-pct2').value.trim();
+      const v = Number(t);
+      check(popIn('pop-pct2'), t !== '' && v > 0 && v <= 300);
+      out.pct2 = v;
     }
     if (spec.dur) {
       const v = parseDuration(popIn('pop-dur').value);
@@ -1030,6 +1052,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
     updateSelected((b) => {
       const c = { ...b } as unknown as Record<string, number | undefined>;
       if (spec.power && out.pct !== undefined) c[spec.power] = clampPower(out.pct / 100);
+      if (spec.power2 && out.pct2 !== undefined) c[spec.power2] = clampPower(out.pct2 / 100);
       if (spec.dur && out.dur !== undefined) c[spec.dur === 'on' ? 'onS' : spec.dur === 'off' ? 'offS' : 'durationS'] = out.dur;
       if (spec.cad) {
         const key = spec.cad === 'on' ? 'cadenceRpm' : 'restCadenceRpm';
@@ -1145,8 +1168,13 @@ export function setupWorkoutEditor(o: EditorOptions) {
       case 'ramp': {
         const bw = px(b.durationS);
         const barTop = Math.min(topOf(b.from), topOf(b.to));
-        if (bw >= 64) cap('from', b.from, x0 + bw * 0.22, 'Début', true, capMin(barTop), { title: 'Début', power: 'from', dur: 'block', cad: 'on' });
-        cap('to', b.to, x0 + (bw >= 64 ? bw * 0.78 : bw / 2), 'Fin', true, capMin(barTop), { title: 'Fin', power: 'to', dur: 'block', cad: 'on' });
+        if (bw >= 52) {
+          cap('from', b.from, x0 + bw * 0.22, 'Début', true, capMin(barTop), { title: 'Début', power: 'from', dur: 'block', cad: 'on' });
+          cap('to', b.to, x0 + bw * 0.78, 'Fin', true, capMin(barTop), { title: 'Fin', power: 'to', dur: 'block', cad: 'on' });
+        } else {
+          // Trop étroit pour deux capsules : une seule (la fin), dont la saisie règle aussi le début.
+          cap('to', b.to, x0 + bw / 2, 'Fin', true, capMin(barTop), { title: 'Début et fin', power: 'from', power2: 'to', dur: 'block', cad: 'on' });
+        }
         chip(x0 + bw / 2, b.durationS, barTop, { title: 'Durée', dur: 'block' });
         break;
       }
@@ -1238,17 +1266,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
     cadenceDialog.close();
   });
 
-  // --- Insertion à un endroit précis ---
-
-  $('ed-insert-types').replaceChildren(
-    ...(['warmup', 'steady', 'intervals', 'ramp', 'free', 'cooldown'] as BlockType[]).map((t) =>
-      button(BLOCK_LABEL[t], () => {
-        insertDialog.close();
-        insertBlock(t, insertAt);
-      }, 'chip'),
-    ),
-  );
-  for (const d of [insertDialog, cadenceDialog]) {
+  for (const d of [cadenceDialog]) {
     d.querySelector('[data-close]')?.addEventListener('click', () => d.close());
   }
 

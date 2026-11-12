@@ -301,7 +301,12 @@
                   </div>
                   <div id="ed-xaxis" class="ed-xaxis" aria-hidden="true"></div>
                   <div class="ed-srow">
-                    <div id="ed-strip" class="ed-strip" aria-label="Structure de la séance"></div>
+                    <div id="ed-bbar" class="ed-bbar" role="group" aria-label="Bloc sélectionné">
+                      <button id="bb-prev" type="button" class="bb-step" aria-label="Bloc précédent"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 6l-6 6 6 6" /></svg></button>
+                      <div id="bb-handle" class="bb-handle" title="Glisser pour déplacer le bloc sur le profil" aria-label="Déplacer le bloc : glisser sur le profil"><span class="bb-grip"></span><span class="bb-hint">Glisser</span></div>
+                      <div id="bb-main" class="bb-main"><span class="bb-text"><strong id="bb-name"></strong> <small id="bb-short"></small></span><span id="bb-pos" class="bb-pos"></span></div>
+                      <button id="bb-next" type="button" class="bb-step" aria-label="Bloc suivant"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6l6 6-6 6" /></svg></button>
+                    </div>
                     <div class="ed-sbar">
                       <button id="ed-undo2" type="button" class="ph-btn" aria-label="Annuler"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7L4 12l5 5" /><path d="M4 12h9a6 6 0 0 1 0 10" /></svg></button>
                       <button id="ed-redo2" type="button" class="ph-btn" aria-label="Rétablir"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 7l5 5-5 5" /><path d="M20 12h-9a6 6 0 0 0 0 10" /></svg></button>
@@ -346,7 +351,8 @@
           <!-- Saisie d'une valeur exacte, ouverte en touchant une valeur sur le profil (téléphone en paysage) -->
           <form id="ed-pop" class="ed-pop" autocomplete="off" aria-labelledby="pop-title">
             <strong id="pop-title" class="pop-title"></strong>
-            <div id="pop-g-power" class="pop-g"><span>Puissance</span><input id="pop-pct" type="text" inputmode="numeric" aria-label="Puissance en % de la FTP" /><b>%</b><input id="pop-w" type="text" inputmode="numeric" aria-label="Puissance en watts" /><b>W</b></div>
+            <div id="pop-g-power" class="pop-g"><span id="pop-l-power">Puissance</span><input id="pop-pct" type="text" inputmode="numeric" aria-label="Puissance en % de la FTP" /><b>%</b><input id="pop-w" type="text" inputmode="numeric" aria-label="Puissance en watts" /><b>W</b></div>
+            <div id="pop-g-power2" class="pop-g"><span>Fin</span><input id="pop-pct2" type="text" inputmode="numeric" aria-label="Puissance de fin en % de la FTP" /><b>%</b><input id="pop-w2" type="text" inputmode="numeric" aria-label="Puissance de fin en watts" /><b>W</b></div>
             <div id="pop-g-dur" class="pop-g"><span>Durée</span><input id="pop-dur" type="text" inputmode="numeric" placeholder="mm:ss" aria-label="Durée, minutes et secondes" /></div>
             <div id="pop-g-cad" class="pop-g"><span>Cadence</span><input id="pop-cad" type="text" inputmode="numeric" placeholder="libre" aria-label="Cadence cible, facultative" /><b>rpm</b></div>
             <div id="pop-g-rep" class="pop-g"><span>Répétitions</span><input id="pop-rep" type="text" inputmode="numeric" aria-label="Nombre de répétitions" /></div>
@@ -354,11 +360,6 @@
             <button type="button" class="secondary" data-open-panel="">Annuler</button>
           </form>
 
-          <dialog id="ed-insert" class="ed-dialog" aria-labelledby="ed-insert-title">
-            <h3 id="ed-insert-title">Insérer un bloc ici</h3>
-            <div class="row" id="ed-insert-types"></div>
-            <div class="row"><button type="button" class="secondary" data-close>Annuler</button></div>
-          </dialog>
           <dialog id="ed-cadence" class="ed-dialog" aria-labelledby="ed-cadence-title">
             <h3 id="ed-cadence-title">Cadence cible</h3>
             <p class="note">Facultatif : laissée vide, la cadence est à ton choix.</p>
