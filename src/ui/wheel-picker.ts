@@ -44,7 +44,8 @@ interface Column {
   index: number;
 }
 
-const DIGIT_HEADS = ['Centaines', 'Dizaines', 'Unités'];
+/** Noms des colonnes pour les lecteurs d'écran seulement : l'ordre des chiffres est évident à l'écran. */
+const DIGIT_NAMES = ['centaines', 'dizaines', 'unités'];
 
 /**
  * Roulettes de chiffres en surimpression (une boîte de dialogue) : on fait défiler jusqu'à la valeur, qui s'accroche au
@@ -53,7 +54,6 @@ const DIGIT_HEADS = ['Centaines', 'Dizaines', 'Unités'];
  */
 export function setupWheel(dialog: HTMLDialogElement) {
   const holder = dialog.querySelector<HTMLElement>('#wheel-cols')!;
-  const heads = dialog.querySelector<HTMLElement>('#wheel-heads')!;
   const title = dialog.querySelector<HTMLElement>('#wheel-title')!;
   const unit = dialog.querySelector<HTMLElement>('#wheel-unit')!;
   let cols: Column[] = [];
@@ -85,7 +85,7 @@ export function setupWheel(dialog: HTMLDialogElement) {
     c.el.className = 'wheel';
     c.el.tabIndex = 0;
     c.el.setAttribute('role', 'listbox');
-    c.el.setAttribute('aria-label', req.digits ? `${req.title}, ${DIGIT_HEADS[k]!.toLowerCase()}` : `${req.title} en ${req.unit}`);
+    c.el.setAttribute('aria-label', req.digits ? `${req.title}, ${DIGIT_NAMES[k]}` : `${req.title} en ${req.unit}`);
     c.el.replaceChildren(
       ...c.values.map((v, i) => {
         const li = document.createElement('div');
@@ -148,8 +148,6 @@ export function setupWheel(dialog: HTMLDialogElement) {
       title.textContent = r.title;
       unit.textContent = r.unit;
       holder.classList.toggle('wheel-cols--digits', !!r.digits);
-      heads.hidden = !r.digits;
-      heads.replaceChildren(...(r.digits ? DIGIT_HEADS.map((h) => Object.assign(document.createElement('span'), { textContent: h })) : []));
       const digitSets = [Array.from({ length: Math.floor(r.max / 100) + 1 }, (_, i) => i), range10(), range10()];
       cols = r.digits
         ? digitSets.map((values) => ({ el: document.createElement('div'), values, index: 0 }))

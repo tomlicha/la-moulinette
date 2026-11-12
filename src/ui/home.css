@@ -248,9 +248,10 @@ button.rider-chip:hover { background: #FBF6EF; }
 .wheel-band { position: absolute; left: 0; right: 0; top: 50%; height: 40px; translate: 0 -50%; display: flex; align-items: center; justify-content: flex-end; padding-right: 14px; border-radius: 12px; background: rgb(194 65 12 / .1); border: 1px solid rgb(194 65 12 / .3); pointer-events: none; }
 .wheel-band span { color: var(--accent); font-weight: 700; }
 .wheel-cols { display: flex; gap: 6px; height: 100%; }
-.wheel-cols--digits { padding-right: 26px; }
-.wheel-heads { display: flex; gap: 6px; padding-right: 26px; font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
-.wheel-heads span { flex: 1; text-align: center; }
+/* Trois chiffres : colonnes étroites et serrées, groupe centré, l'unité juste à droite (pas d'écart entre les chiffres). */
+.wheel-cols--digits { gap: 0; padding-right: 28px; }
+.wheel-cols--digits .wheel { flex: 0 0 64px; }
+.wheel-wrap:has(.wheel-cols--digits) { width: 220px; margin-inline: auto; }
 .wheel {
   flex: 1; min-width: 0; height: 100%; overflow-y: auto; overscroll-behavior: contain; scroll-snap-type: y mandatory; scrollbar-width: none; padding-block: calc((var(--wh) - 40px) / 2);
   -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
