@@ -338,21 +338,20 @@ function saddle(b: MeshBuilder) {
   const top = SADDLE_CLAMP.y + 0.035;
   const path = polyline([V(0, top - 0.004, -0.06), V(0, top - 0.012, -0.335)]);
   const L = path.length;
-  const width = keys([[0, 0.016], [0.25, 0.027], [0.55, 0.064], [0.78, 0.076], [1, 0.064]]);
+  const width = keys([[0, 0.014], [0.25, 0.024], [0.55, 0.058], [0.78, 0.068], [1, 0.056]]);
   b.sweep({
     path,
     ds: 0.008,
     radial: 20,
     front: Y,
-    sCuts: [0.84 * L],
     section: (s, th) => {
       const t = s / L;
       const k = roundEnds(s, 0, L, 0.012, 0.02);
       const w = width(t);
-      return oval(th, 0.016 * k, 0.016 * k, w * k, w * k, 3.2);
+      // Le dessus reste mince : plus épais, il traverserait le cuissard du coureur assis.
+      return oval(th, 0.011 * k, 0.017 * k, w * k, w * k, 3.2);
     },
-    region: (s, th) => (s / L > 0.84 && Math.cos(th) > -0.2 ? REGION.frame : REGION.saddle),
-    thetaCuts: [Math.acos(-0.2), -Math.acos(-0.2)],
+    region: REGION.saddle,
     capStart: 'pole',
     capEnd: 'pole',
   });

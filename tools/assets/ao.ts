@@ -26,6 +26,8 @@ export interface AoOptions {
 }
 
 const RAYS = 48;
+/** Plancher de l'occlusion : un pli très fermé (entrejambe, aisselle) ne devient pas une tache noire aux bords en dents de scie. */
+const AO_FLOOR = 0.3;
 /** Directions réparties sur l'hémisphère +Z, plus denses vers le pôle (pondération en cosinus). */
 const HEMISPHERE: [number, number, number][] = Array.from({ length: RAYS }, (_, i) => {
   const u = (i + 0.5) / RAYS;
@@ -172,7 +174,7 @@ export function bakeAo(target: Occluder, occluders: Occluder[], opts: AoOptions 
         }
       }
     }
-    ao[v] = Math.max(0, 1 - strength * (hit / RAYS));
+    ao[v] = Math.max(AO_FLOOR, 1 - strength * (hit / RAYS));
   }
-  target.mesh.ao = smoothOverSurface(target.mesh, ao, 3);
+  target.mesh.ao = smoothOverSurface(target.mesh, ao, 6);
 }

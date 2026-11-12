@@ -6,7 +6,8 @@ import { ROAD_HALF, TERRAIN_HALF, type WorldPath } from './world-path';
 
 /**
  * Monde « Col des Érables » d'après la planche de style : prairie verte, sapins à étages et feuillus en bulles,
- * rochers et nuages arrondis, clôture en bois, montagnes enneigées à l'horizon, route grise à ligne jaune.
+ * rochers et nuages arrondis, clôture en bois, montagnes enneigées à l'horizon, route grise à ligne jaune, balises,
+ * fleurs et touffes d'herbe au bord de la route, arches gonflables au départ et au pied des montées.
  */
 const PALETTE = {
   sky: new THREE.Color(0x3f86d0),
@@ -42,14 +43,18 @@ export interface WorldOptions {
   rocks: number;
   /** Nombre de nuages. */
   clouds: number;
+  /** Nombre de massifs de fleurs près de la route. */
+  flowers: number;
+  /** Nombre de touffes d'herbe haute près de la route. */
+  tufts: number;
   /** Découpage de l'anneau de montagnes autour de la boucle. */
   mountainSegments: number;
   /** Définition de chaque cascade d'ombre. */
   shadowMapSize: number;
 }
 
-export const WORLD_HIGH: WorldOptions = { trees: 2200, rocks: 520, clouds: 60, mountainSegments: 256, shadowMapSize: 2048 };
-export const WORLD_LOW: WorldOptions = { trees: 700, rocks: 160, clouds: 30, mountainSegments: 128, shadowMapSize: 1024 };
+export const WORLD_HIGH: WorldOptions = { trees: 2200, rocks: 520, clouds: 60, flowers: 2600, tufts: 4200, mountainSegments: 256, shadowMapSize: 2048 };
+export const WORLD_LOW: WorldOptions = { trees: 700, rocks: 160, clouds: 30, flowers: 800, tufts: 1200, mountainSegments: 128, shadowMapSize: 1024 };
 
 /* ---------- Outils de géométrie ---------- */
 
@@ -324,6 +329,117 @@ function buildRocks(path: WorldPath, count: number): THREE.InstancedMesh {
   return rocks;
 }
 
+/* ---------- Bord de route ---------- */
+
+/** Géométrie fusionnée où chaque pièce garde sa couleur, portée par les sommets. */
+function mergeColored(parts: [THREE.BufferGeometry, THREE.Color][]): THREE.BufferGeometry {
+  const geo = merge(parts.map(([g]) => g));
+  const col = new Float32Array(geo.getAttribute('position').count * 3);
+  let at = 0;
+  for (const [g, c] of parts) {
+    const n = (g.index ? g.index.count : g.getAttribute('position').count) * 3;
+    for (let i = 0; i < n; i += 3) col.set([c.r, c.g, c.b], at + i);
+    at += n;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return geo;
+}
+
+/**
+ * Balises blanches à bandeau sombre et catadioptre, tous les 20 m de chaque côté : elles donnent l'échelle et la
+ * vitesse, comme sur une vraie route de col.
+ */
+function buildDelineators(path: WorldPath): THREE.InstancedMesh {
+  const stepM = 20;
+  const lat = ROAD_HALF + 0.85;
+  const n = Math.floor(path.route.lengthM / stepM);
+  const geo = mergeColored([
+    [new THREE.BoxGeometry(0.12, 0.95, 0.05).translate(0, 0.475, 0), new THREE.Color(0xf4f4f0)],
+    [new THREE.BoxGeometry(0.125, 0.2, 0.055).translate(0, 0.76, 0), new THREE.Color(0x1b1f27)],
+    [new THREE.BoxGeometry(0.07, 0.11, 0.065).translate(0, 0.76, 0), new THREE.Color(0xff8a3c)],
+  ]);
+  const posts = new THREE.InstancedMesh(geo, new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.6 }), n * 2);
+  posts.castShadow = true;
+  posts.receiveShadow = true;
+  posts.frustumCulled = false;
+  const dummy = new THREE.Object3D();
+  const p = new THREE.Vector3();
+  const s = new THREE.Vector3();
+  const f = new THREE.Vector3();
+  let i = 0;
+  for (let k = 0; k < n; k++) {
+    const d = k * stepM + 10;
+    path.point(d, p);
+    path.side(d, s);
+    path.forward(d, f);
+    for (const side of [-1, 1]) {
+      dummy.position.set(p.x + s.x * lat * side, path.groundHeight(d, lat * side), p.z + s.z * lat * side);
+      dummy.lookAt(dummy.position.x + f.x, dummy.position.y, dummy.position.z + f.z);
+      dummy.updateMatrix();
+      posts.setMatrixAt(i++, dummy.matrix);
+    }
+  }
+  return posts;
+}
+
+/** Position au hasard dans la bande d'herbe proche de la route, plus dense près d'elle. */
+function scatterNearRoad(path: WorldPath, rand: () => number, dummy: THREE.Object3D, near: number, far: number) {
+  const d = rand() * path.route.lengthM;
+  const lat = (rand() < 0.5 ? -1 : 1) * (near + rand() * rand() * (far - near));
+  const p = path.point(d);
+  const s = path.side(d);
+  dummy.position.set(p.x + s.x * lat, path.groundHeight(d, lat), p.z + s.z * lat);
+  dummy.rotation.set(0, rand() * Math.PI * 2, 0);
+}
+
+/** Massifs de fleurs : quelques corolles à facettes au ras de l'herbe, une couleur par massif. */
+function buildFlowers(path: WorldPath, count: number): THREE.InstancedMesh {
+  const rand = mulberry32(4242);
+  const heads: THREE.BufferGeometry[] = [];
+  for (let k = 0; k < 7; k++) {
+    const a = rand() * Math.PI * 2;
+    const r = 0.15 + rand() * 0.55;
+    heads.push(new THREE.IcosahedronGeometry(0.05 + rand() * 0.025, 0).translate(Math.cos(a) * r, 0.16 + rand() * 0.14, Math.sin(a) * r));
+  }
+  const flowers = instanced(faceted(merge(heads)), count, { roughness: 0.8, shadows: false });
+  const colors = [0xfdf6e3, 0xf2cf3a, 0xf58fb1, 0xb18cf0, 0xff8a3c].map((c) => new THREE.Color(c));
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < count; i++) {
+    scatterNearRoad(path, rand, dummy, ROAD_HALF + 3.6, 46);
+    const k = 0.75 + rand() * 0.6;
+    dummy.scale.set(k, k, k);
+    dummy.updateMatrix();
+    flowers.setMatrixAt(i, dummy.matrix);
+    flowers.setColorAt(i, colors[Math.floor(rand() * colors.length)]!);
+  }
+  return flowers;
+}
+
+/** Touffes d'herbe haute : quelques lames à facettes, d'un vert qui varie, pour rompre l'aplat de la prairie. */
+function buildTufts(path: WorldPath, count: number): THREE.InstancedMesh {
+  const rand = mulberry32(8181);
+  const blades: THREE.BufferGeometry[] = [];
+  for (let k = 0; k < 6; k++) {
+    const a = rand() * Math.PI * 2;
+    const r = rand() * 0.22;
+    const h = 0.32 + rand() * 0.3;
+    blades.push(new THREE.ConeGeometry(0.075, h, 4).rotateZ((rand() - 0.5) * 0.5).translate(Math.cos(a) * r, h / 2 - 0.03, Math.sin(a) * r));
+  }
+  const tufts = instanced(faceted(merge(blades)), count, { roughness: 0.95, shadows: false });
+  const dummy = new THREE.Object3D();
+  const color = new THREE.Color();
+  for (let i = 0; i < count; i++) {
+    scatterNearRoad(path, rand, dummy, ROAD_HALF + 3.4, 60);
+    const k = 0.8 + rand() * 1.1;
+    dummy.scale.set(k, k * (0.8 + rand() * 0.5), k);
+    dummy.updateMatrix();
+    tufts.setMatrixAt(i, dummy.matrix);
+    color.copy(PALETTE.grassDark).lerp(PALETTE.grassLight, rand()).offsetHSL(0, 0.04, -0.03);
+    tufts.setColorAt(i, color);
+  }
+  return tufts;
+}
+
 /* ---------- Clôture ---------- */
 
 /** Clôture en bois sur le bord droit, par tronçons : piquets tous les 2,6 m et deux lisses. */
@@ -403,22 +519,43 @@ function bannerTexture(text: string): THREE.CanvasTexture | undefined {
   return tex;
 }
 
-/** Portique au-dessus de la route à la distance `d`, avec une banderole lisible des deux côtés. */
+/**
+ * Arche gonflable au-dessus de la route à la distance `d` : deux jambes rondes sur leur lest, un boudin en travers,
+ * des bagues de la couleur d'accent, et une banderole suspendue, lisible des deux côtés.
+ */
 function buildArch(path: WorldPath, d: number, text: string): THREE.Group {
   const g = new THREE.Group();
-  const navy = new THREE.MeshStandardNodeMaterial({ color: PALETTE.gantry, roughness: 0.6 });
-  const span = ROAD_HALF + 0.9;
+  const navy = new THREE.MeshStandardNodeMaterial({ color: PALETTE.gantry, roughness: 0.55 });
+  const accent = new THREE.MeshStandardNodeMaterial({ color: PALETTE.accent, roughness: 0.5 });
+  const white = new THREE.MeshStandardNodeMaterial({ color: PALETTE.edgeLine, roughness: 0.6 });
+  const span = ROAD_HALF + 1.3;
+  const height = 5.6;
+  const r = 0.46;
+  const add = (geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x, y, 0);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    g.add(m);
+  };
+  const ring = new THREE.CylinderGeometry(r * 1.04, r * 1.04, 0.34, 24);
   for (const side of [-1, 1]) {
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.4, 5.6, 0.4).translate(0, 2.8, 0), navy);
-    post.position.x = side * span;
-    post.castShadow = true;
-    g.add(post);
+    add(new THREE.CylinderGeometry(r, r * 1.12, height, 24), navy, side * span, height / 2);
+    add(new THREE.CylinderGeometry(r * 1.5, r * 1.65, 0.28, 24), white, side * span, 0.14); // lest
+    add(ring, accent, side * span, 1.15);
+    add(ring, white, side * span, 1.55);
+    add(ring, accent, side * span, height - 1.0);
+    add(new THREE.SphereGeometry(r * 1.02, 24, 16), navy, side * span, height); // coude
   }
+  add(new THREE.CylinderGeometry(r, r, 2 * span, 24).rotateZ(Math.PI / 2), navy, 0, height);
+  const sleeve = new THREE.CylinderGeometry(r * 1.04, r * 1.04, 0.34, 24).rotateZ(Math.PI / 2);
+  for (const side of [-1, 1]) add(sleeve, accent, side * (span - 1.1), height);
+
   const tex = bannerTexture(text);
   const face = tex ? new THREE.MeshStandardNodeMaterial({ map: tex, roughness: 0.7 }) : navy;
-  const width = 2 * span + 0.6;
-  const banner = new THREE.Mesh(new THREE.BoxGeometry(width, width / 8, 0.25), [navy, navy, navy, navy, face, face]);
-  banner.position.y = 5.6 - width / 16;
+  const width = 2 * span - 2 * r - 0.5;
+  const banner = new THREE.Mesh(new THREE.BoxGeometry(width, width / 8, 0.1), [navy, navy, navy, navy, face, face]);
+  banner.position.y = height - r - width / 16 - 0.05;
   banner.castShadow = true;
   g.add(banner);
 
@@ -559,6 +696,9 @@ export function buildWorld(path: WorldPath, scene: THREE.Scene, opts: WorldOptio
     buildTrees(path, opts.trees),
     buildRocks(path, opts.rocks),
     buildFence(path),
+    buildDelineators(path),
+    buildFlowers(path, opts.flowers),
+    buildTufts(path, opts.tufts),
     buildArches(path),
     buildMountains(path, opts.mountainSegments),
     buildClouds(path, opts.clouds),

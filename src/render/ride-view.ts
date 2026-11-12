@@ -28,6 +28,9 @@ const FRAME_WINDOW = 240;
 const STATS_EVERY_MS = 500;
 /** Plafond du pas de temps d'animation : un onglet qui reprend ne doit pas téléporter le cycliste. */
 const MAX_DT_S = 0.1;
+/** Recul et hauteur de la caméra de poursuite par rapport au coureur, en m. */
+const CAMERA_BACK_M = 3.8;
+const CAMERA_UP_M = 1.78;
 /** Position latérale du coureur : voie de droite (le côté négatif de l'axe latéral), à côté de la ligne centrale. */
 const LANE_M = -1.6;
 
@@ -122,10 +125,11 @@ export class RideView {
 
   private follow(dtS: number) {
     this.path.forward(this.dist, this.fwd);
+    // Caméra de poursuite rapprochée : le coureur occupe le tiers central de l'écran, entre les panneaux du HUD.
     this.camTarget.set(
-      this.p.x - this.fwd.x * 4.4,
-      this.p.y + 1.85,
-      this.p.z - this.fwd.z * 4.4,
+      this.p.x - this.fwd.x * CAMERA_BACK_M,
+      this.p.y + CAMERA_UP_M,
+      this.p.z - this.fwd.z * CAMERA_BACK_M,
     );
     if (!this.cameraReady) {
       this.camera.position.copy(this.camTarget);
@@ -133,7 +137,7 @@ export class RideView {
     } else {
       this.camera.position.lerp(this.camTarget, 1 - Math.exp(-dtS * 7));
     }
-    this.look.set(this.p.x + this.fwd.x * 8, this.p.y + 1.05, this.p.z + this.fwd.z * 8);
+    this.look.set(this.p.x + this.fwd.x * 8, this.p.y + 0.82, this.p.z + this.fwd.z * 8);
     this.camera.lookAt(this.look);
     this.sky.position.copy(this.camera.position);
   }

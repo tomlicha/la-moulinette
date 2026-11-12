@@ -21,7 +21,7 @@ import { Body, Ellipsoid, ovalRadius, polygonize, simplify, smax, smin, splitReg
 const vec = (p: V3) => new Vector3(p.x, p.y, p.z);
 
 /** Grossissement des volumes par rapport à l'anatomie réelle. */
-const CHUNK = { leg: 1.13, arm: 1.22, torso: 1.05, neck: 1.12, hand: 1.24, shoe: 1.18 };
+const CHUNK = { leg: 1.13, arm: 1.17, torso: 1.04, neck: 1.12, hand: 1.24, shoe: 1.18 };
 const BONE_INDEX = Object.fromEntries(SKELETON.map((b, i) => [b.bone, i])) as Record<string, number>;
 const bone = (name: string) => BONE_INDEX[name]!;
 
@@ -131,7 +131,7 @@ function legTube(pose: Pose, s: 'l' | 'r', mirror: 1 | -1): TubeSpec {
     front: vec(pose.bases[`thigh_${s}`].z).negate(), // l'avant de la cuisse regarde vers le haut et l'avant
     mirror,
     radius: (ss, th) =>
-      (r(ss, th) * CHUNK.leg + plateau(ss, band, shortsEnd, 0.0012) + ridge(ss, shortsEnd - 0.002) + ridge(ss, sockTop + 0.002, 0.0015)) *
+      (r(ss, th) * lerp(1.03, CHUNK.leg, smooth(sh, sh + 0.14, ss)) + plateau(ss, band, shortsEnd, 0.0012) + ridge(ss, shortsEnd - 0.002) + ridge(ss, sockTop + 0.002, 0.0015)) *
       roundEnds(ss, 0, total, 0.035, 0),
     region: (ss, th) => {
       // Bande latérale de la couleur du maillot sur le cuissard, côté extérieur.
@@ -164,7 +164,7 @@ function torsoTube(pose: Pose): TubeSpec {
   const sT = sL + DEFAULT_BODY.spine;
   const sN = sT + DEFAULT_BODY.chest;
   const end = sN + 0.02;
-  const width = keys([[0, 0.095], [0.05, 0.135], [0.12, 0.15], [0.2, 0.145], [0.28, 0.14], [0.36, 0.145], [0.45, 0.155], [0.55, 0.158], [0.6, 0.142], [0.635, 0.105], [end, 0.06]]);
+  const width = keys([[0, 0.095], [0.05, 0.135], [0.12, 0.15], [0.2, 0.145], [0.28, 0.14], [0.36, 0.143], [0.45, 0.148], [0.55, 0.149], [0.6, 0.136], [0.635, 0.103], [end, 0.06]]);
   const prof: Profile = {
     front: keys([[0, 0.07], [0.06, 0.088], [0.12, 0.098], [0.23, 0.094], [0.32, 0.094], [0.45, 0.104], [0.55, 0.108], [0.615, 0.08], [end, 0.045]]),
     back: keys([[0, 0.07], [0.06, 0.09], [0.14, 0.095], [0.23, 0.092], [0.32, 0.09], [0.45, 0.098], [0.55, 0.104], [0.625, 0.08], [end, 0.045]]),
@@ -180,17 +180,19 @@ function torsoTube(pose: Pose): TubeSpec {
   const pocketTop = sR + 0.2;
   for (const th of [Math.PI - 0.75, Math.PI, Math.PI + 0.75]) prof.bumps.push({ s: pocketTop - 0.045, theta: th, h: 0.007, ws: 0.03, wt: 0.22 });
   const r = profileRadius(prof);
+  // Les épaules et les fessiers, fondus dans le buste, le dépassent de chaque côté de la colonne : sans cet apport
+  // au milieu du dos, ils y laissent une gouttière, très visible de dos sur la bande claire du maillot.
+  const spineFill = (s: number, th: number) => 0.013 * Math.exp(-((angleDiff(th, Math.PI) / 0.6) ** 2)) * smooth(0.05, 0.16, s) * (1 - smooth(0.57, 0.65, s));
   const hem = TORSO_HEM;
   const yoke = sN - 0.07;
   const hoop = sT - 0.062;
-  const side = (th: number) => Math.abs(Math.abs(th) - Math.PI / 2) < 0.24;
   const skin = chainSkin([bone('pelvis'), bone('spine'), bone('chest'), bone('neck')], [{ s: sL, w: 0.06 }, { s: sT, w: 0.07 }, { s: sN, w: 0.02 }]);
   return {
     points: [bottom, root, lumbar, thorax, neck, top],
     blend: 0.06,
     front: vec(pose.bases.pelvis.z), // ventre
     // Le bas du buste s'arrondit sous les hanches : les fesses viennent des jambes, fondues dans le bassin.
-    radius: (s, th) => (r(s, th) * CHUNK.torso + ridge(s, hem + 0.003, 0.0012)) * roundEnds(s, 0.05, end, 0.07, 0.025),
+    radius: (s, th) => (r(s, th) * CHUNK.torso + spineFill(s, th) + ridge(s, hem + 0.003, 0.0012)) * roundEnds(s, 0.05, end, 0.07, 0.025),
     region: (s, th) => {
       if (s < hem) return REGION.shorts;
       // Bande claire bordée de deux filets sombres, sous les aisselles : elle fait le tour du buste et barre le dos,
@@ -199,8 +201,7 @@ function torsoTube(pose: Pose): TubeSpec {
       if (s > yoke) return REGION.jersey;
       if (Math.abs(th) < 0.025 && s > sN - 0.12) return REGION.jerseyAccent; // fermeture éclair
       if (s > pocketTop && s < pocketTop + 0.006 && Math.abs(angleDiff(th, Math.PI)) < 1.15) return REGION.jerseyAccent;
-      // Sous la bande, un panneau latéral étroit de la seconde couleur affine la taille.
-      return s < hoop && side(th) ? REGION.jerseyAlt : REGION.jersey;
+      return REGION.jersey;
     },
     skin,
   };
@@ -243,7 +244,7 @@ function armTube(pose: Pose, s: 'l' | 'r', mirror: 1 | -1): TubeSpec {
     front: new Vector3(0, 1, 0), // dessus du bras
     mirror,
     radius: (ss, th) =>
-      (r(ss, th) * CHUNK.arm + plateau(ss, sleeveEnd - 0.028, sleeveEnd, 0.001) + ridge(ss, sleeveEnd - 0.002) + ridge(ss, cuff + 0.002, 0.0015)) *
+      (r(ss, th) * lerp(1, CHUNK.arm, smooth(s0 + 0.03, s0 + 0.15, ss)) + plateau(ss, sleeveEnd - 0.028, sleeveEnd, 0.001) + ridge(ss, sleeveEnd - 0.002) + ridge(ss, cuff + 0.002, 0.0015)) *
       roundEnds(ss, 0, end, 0.03, 0.012),
     region: (ss) => {
       if (ss < sleeveEnd - 0.028) return REGION.jersey;
@@ -366,10 +367,10 @@ function pelvisMass(pose: Pose): Shape {
   return new Ellipsoid({
     center,
     axes: [x, y, z],
-    radii: [0.12, 0.1, 0.095],
+    radii: [0.12, 0.1, 0.1],
     shape: (lx, _ly, lz, d) => {
       const back = smooth(-0.02, -0.09, lz); // 0 devant, 1 à l'arrière
-      const cleft = 0.0025 * Math.exp(-((lx / 0.02) ** 2)) * back;
+      const cleft = 0.0012 * Math.exp(-((lx / 0.02) ** 2)) * back;
       return d + cleft;
     },
     region: () => REGION.shorts,
@@ -387,7 +388,7 @@ function deltoid(pose: Pose, s: 'l' | 'r', mirror: 1 | -1): Shape {
   return new Ellipsoid({
     center: sh.clone().addScaledVector(ua, 0.028).addScaledVector(chestUp, 0.004),
     axes: [out, ua, out.clone().cross(ua).normalize()],
-    radii: [0.045 * CHUNK.arm, 0.068 * CHUNK.arm, 0.052 * CHUNK.arm],
+    radii: [0.041, 0.07, 0.053],
     region: () => REGION.jersey,
     skin: { joints: [bone(`upperarm_${s}`), bone('chest')], weights: [0.65, 0.35] },
   });
@@ -405,7 +406,7 @@ function trapezius(pose: Pose): Shape {
   return new Ellipsoid({
     center: vec(pose.joints.neckBase).addScaledVector(up, -0.045).addScaledVector(front, -0.012),
     axes: [x, up, front],
-    radii: [DEFAULT_BODY.shoulderHalfWidth * 0.92, 0.054, 0.072],
+    radii: [DEFAULT_BODY.shoulderHalfWidth * 0.92, 0.05, 0.07],
     region: () => REGION.jersey,
     skin: { joints: [bone('chest')], weights: [1] },
   });
