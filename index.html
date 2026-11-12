@@ -253,10 +253,15 @@
               <div class="sea-hero-row">
                 <button id="lib-open" class="ph-btn" type="button" data-open-panel="lib" aria-label="Choisir une séance"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></button>
                 <button id="ed-more" class="ph-btn" type="button" data-open-panel="more" aria-label="Plus d'actions"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></svg></button>
+                <button id="ed-undo2" type="button" class="ph-btn" aria-label="Annuler"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7L4 12l5 5" /><path d="M4 12h9a6 6 0 0 1 0 10" /></svg></button>
+                <button id="ed-redo2" type="button" class="ph-btn" aria-label="Rétablir"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 7l5 5-5 5" /><path d="M20 12h-9a6 6 0 0 0 0 10" /></svg></button>
                 <button id="ed-ride" class="sea-ride" type="button" title="Enregistre la séance puis la lance sur la sortie">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12-7.5z" /></svg>Rouler
                 </button>
                 <div id="ed-hmenu" class="ed-hmenu">
+                  <div class="hm-t">Bloc sélectionné</div>
+                  <div id="ed-bactions" class="ed-bactions"></div>
+                  <div class="hm-t">Séance</div>
                   <button id="ed-save" class="secondary" type="button">Enregistrer</button>
                   <button id="ed-copy" class="secondary" type="button" hidden>Dupliquer pour modifier</button>
                   <button id="ed-export" class="secondary" type="button">Exporter .zwo</button>
@@ -272,13 +277,6 @@
                 <button id="ed-undo" type="button" class="chip icon" aria-label="Annuler" title="Annuler (Ctrl+Z)">↶</button>
                 <button id="ed-redo" type="button" class="chip icon" aria-label="Rétablir" title="Rétablir (Ctrl+Maj+Z)">↷</button>
                 <span class="spacer"></span>
-                <span class="note">Ajouter</span>
-                <button type="button" class="chip" data-add="warmup">Échauffement</button>
-                <button type="button" class="chip" data-add="steady">Palier</button>
-                <button type="button" class="chip" data-add="intervals">Intervalles</button>
-                <button type="button" class="chip" data-add="ramp">Rampe</button>
-                <button type="button" class="chip" data-add="free">Libre</button>
-                <button type="button" class="chip" data-add="cooldown">Retour au calme</button>
               <details class="ed-keys-d">
                 <summary title="Raccourcis clavier" aria-label="Raccourcis clavier">?</summary>
                 <p class="ed-keys note">
@@ -307,15 +305,13 @@
                       <div id="bb-main" class="bb-main"><span class="bb-text"><strong id="bb-name"></strong> <small id="bb-short"></small></span><span id="bb-pos" class="bb-pos"></span></div>
                       <button id="bb-next" type="button" class="bb-step" aria-label="Bloc suivant"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6l6 6-6 6" /></svg></button>
                     </div>
-                    <div class="ed-sbar">
-                      <button id="ed-undo2" type="button" class="ph-btn" aria-label="Annuler"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7L4 12l5 5" /><path d="M4 12h9a6 6 0 0 1 0 10" /></svg></button>
-                      <button id="ed-redo2" type="button" class="ph-btn" aria-label="Rétablir"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 7l5 5-5 5" /><path d="M20 12h-9a6 6 0 0 0 0 10" /></svg></button>
-                      <button id="ed-add-btn" type="button" class="ph-btn plus" data-open-panel="add" aria-label="Ajouter un bloc">+</button>
-                      <button id="ed-bmenu-btn" type="button" class="ph-btn" data-open-panel="block" aria-label="Réglages du bloc"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></svg></button>
-                    </div>
                   </div>
                 </div>
               </div>
+              <section id="ed-shelf" class="ed-shelf" aria-label="Blocs préfaits : toucher pour ajouter après le bloc sélectionné, ou glisser sur le profil">
+                <div id="sh-tabs" class="sh-tabs" role="group" aria-label="Types de blocs"></div>
+                <div id="sh-cards" class="sh-cards"></div>
+              </section>
               <section id="ed-zones" class="ed-zones" aria-label="Temps par zone"></section>
               <form id="ed-inspector" class="ed-inspector" aria-label="Bloc sélectionné"></form>
               <ul id="ed-errors" class="errors"></ul>

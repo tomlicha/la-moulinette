@@ -7,15 +7,16 @@ import {
   validateBlocks,
   workoutStats,
   workoutToBlocks,
-  type BlockType,
   type EditorBlock,
   type WorkoutStats,
 } from '../workout/blocks';
 import { blockIndexAt, blockRanges, blockShort, describeBlock, nudgeDuration, nudgePower, splitIntervals } from '../workout/block-ops';
 import { UndoHistory } from '../workout/history';
+import type { BlockLibrary, SavedBlock } from '../workout/block-library';
 import type { SavedWorkout, WorkoutLibrary } from '../workout/library';
 import { targetWatts, type Workout } from '../workout/model';
 import { profilePeakW, profileShapes, zoneOf, type Zone } from '../workout/profile';
+import { BLOCK_PRESETS, blankPresets, PRESET_CATEGORIES, summarizeBlocks, type PresetCategory } from '../workout/presets';
 import { parseWorkout } from '../workout/runner';
 import { SAMPLE_WORKOUTS } from '../workout/samples';
 import { effortSeconds, intensityWord, timeInZones, ZONES, zoneName, zoneReading, type ZoneTimes } from '../workout/zones';
@@ -42,6 +43,8 @@ interface Draft {
 
 export interface EditorOptions {
   library: WorkoutLibrary;
+  /** « Mes blocs » : blocs mis de côté par l'utilisateur, proposés dans l'étagère. */
+  blocks: BlockLibrary;
   readFtp: () => number;
   log: (msg: string) => void;
   /** La bibliothèque a changé : la liste des séances de l'écran de sortie doit être reconstruite. */
@@ -86,7 +89,7 @@ const pct = (fraction: number) => Math.round(fraction * 100);
 const fmtLong = (s: number) => (s >= 3600 ? `${Math.floor(s / 3600)} h ${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}` : formatDuration(s));
 const isTyping = (t: EventTarget | null) => t instanceof HTMLElement && !!t.closest('input, textarea, select, dialog[open]');
 /** Bibliothèque et navigation ont leurs propres touches : les flèches et Suppr n'y touchent pas aux blocs. */
-const isElsewhere = (t: EventTarget | null) => t instanceof HTMLElement && !!t.closest('.sea-lib, .home-top');
+const isElsewhere = (t: EventTarget | null) => t instanceof HTMLElement && !!t.closest('.sea-lib, .home-top, .ed-shelf');
 
 /**
  * Écran « Séances » : bibliothèque (mes séances, modèles, import) et éditeur à profil direct, sur le même écran
@@ -165,8 +168,8 @@ export function setupWorkoutEditor(o: EditorOptions) {
   }
 
   /** Aperçu du profil d'une séance (mêmes couleurs de zones que l'éditeur), pour sa ligne dans la bibliothèque. */
-  function miniProfile(w: Workout) {
-    const root = svg('svg', { class: 'lib-mini', viewBox: '0 0 100 40', preserveAspectRatio: 'none', 'aria-hidden': 'true' });
+  function miniProfile(w: Workout, cls = 'lib-mini') {
+    const root = svg('svg', { class: cls, viewBox: '0 0 100 40', preserveAspectRatio: 'none', 'aria-hidden': 'true' });
     for (const s of profileShapes(w, ftp(), 100, 40)) root.append(svg('path', { d: s.d, class: s.zone }));
     return root;
   }
@@ -316,6 +319,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
     say();
     renderLibrary();
     render();
+    renderShelf();
     return true;
   }
 
@@ -361,8 +365,9 @@ export function setupWorkoutEditor(o: EditorOptions) {
   const updateSelected = (f: (b: EditorBlock) => EditorBlock) =>
     commit((bs) => bs.map((b, i) => (i === selected ? f(b) : b)));
 
-  function insertBlock(type: BlockType, at: number) {
-    commit((bs) => [...bs.slice(0, at), defaultBlock(type), ...bs.slice(at)], at);
+  /** Insère des blocs (copies) à l'indice `at` et sélectionne le premier : une seule entrée d'historique. */
+  function addBlocks(blocks: EditorBlock[], at: number) {
+    commit((bs) => [...bs.slice(0, at), ...structuredClone(blocks), ...bs.slice(at)], at);
   }
 
   function select(i: number) {
@@ -411,10 +416,8 @@ export function setupWorkoutEditor(o: EditorOptions) {
     inspector.inert = ro;
     inspector.classList.toggle('ro', ro);
     const roReason = 'Un modèle est en lecture seule : duplique-le pour le modifier.';
-    document.querySelectorAll<HTMLButtonElement>('[data-add]').forEach((b) => setBlocked(b, ro ? roReason : undefined));
     for (const id of ['ed-undo', 'ed-undo2']) setBlocked($<HTMLButtonElement>(id), history.canUndo ? undefined : ro ? roReason : 'Rien à annuler pour l’instant.');
     for (const id of ['ed-redo', 'ed-redo2']) setBlocked($<HTMLButtonElement>(id), history.canRedo ? undefined : ro ? roReason : 'Rien à rétablir : tu n’as rien annulé.');
-    for (const id of ['ed-add-btn', 'ed-bmenu-btn']) setBlocked($<HTMLButtonElement>(id), ro ? roReason : undefined);
     renderSummary(stats, zones);
     renderChart(w, f);
     renderBlockBar();
@@ -545,6 +548,199 @@ export function setupWorkoutEditor(o: EditorOptions) {
     $<HTMLButtonElement>('bb-next').disabled = selected >= blocks.length - 1;
     $('bb-handle').hidden = blocks.length < 2;
   }
+
+  // --- Étagère de blocs préfaits (docs/design/seances.md, piste S) ---
+
+  type ShelfTab = 'all' | PresetCategory | 'blank' | 'mine';
+  interface ShelfItem {
+    id: string;
+    name: string;
+    blocks: EditorBlock[];
+    mine?: SavedBlock;
+  }
+  let shelfTab: ShelfTab = 'all';
+  let shelfItemsNow: ShelfItem[] = [];
+  const shelfTabsEl = $('sh-tabs');
+  const shelfCardsEl = $('sh-cards');
+
+  function shelfItems(): ShelfItem[] {
+    if (shelfTab === 'blank') return blankPresets();
+    if (shelfTab === 'mine') return o.blocks.list().map((b) => ({ id: b.id, name: b.name, blocks: b.blocks, mine: b }));
+    return BLOCK_PRESETS.filter((p) => shelfTab === 'all' || p.category === shelfTab);
+  }
+
+  /** Reconstruit les onglets et les cartes : à l'ouverture d'une séance, au changement d'onglet, de « Mes blocs » ou de FTP. */
+  function renderShelf() {
+    const ro = !!draft?.readOnly;
+    const tab = (id: ShelfTab, label: string, zone?: string) => {
+      const b = el('button', { type: 'button', className: 'sh-tab' });
+      if (zone) {
+        const dot = el('i');
+        dot.style.background = `var(--${zone})`;
+        b.append(dot);
+      }
+      b.append(label);
+      b.setAttribute('aria-pressed', String(shelfTab === id));
+      b.addEventListener('click', () => {
+        shelfTab = id;
+        shelfCardsEl.scrollLeft = 0;
+        renderShelf();
+      });
+      return b;
+    };
+    shelfTabsEl.replaceChildren(tab('all', 'Tous'), ...PRESET_CATEGORIES.map((c) => tab(c.id, c.name, c.zone)), tab('blank', 'Vierges'), tab('mine', '★ Mes blocs'));
+
+    shelfItemsNow = shelfItems();
+    const cards = shelfItemsNow.map((item, i) => {
+      const sum = summarizeBlocks(item.blocks);
+      const meta = `${fmtLong(sum.durationS)}${sum.power !== undefined ? ` · ${pct(sum.power)} %` : ''}`;
+      const card = el(
+        'button',
+        { type: 'button', className: 'sh-card' },
+        el('span', { className: 'sh-grip' }),
+        miniProfile(blocksToWorkout('x', undefined, item.blocks), 'sh-mini'),
+        el('span', { className: 'sh-text' }, el('strong', { textContent: item.name }), el('small', { textContent: meta })),
+      );
+      card.dataset.i = String(i);
+      card.title = `${item.name} : toucher pour l’ajouter après le bloc sélectionné, ou glisser sur le profil`;
+      if (ro) setBlocked(card, 'Un modèle est en lecture seule : duplique-le pour le modifier.');
+      else
+        card.addEventListener('click', () => {
+          if (justDraggedCard || !draft) return;
+          addBlocks(item.blocks, draft.blocks.length ? selected + 1 : 0);
+        });
+      const wrap = el('div', { className: 'sh-item' }, card);
+      if (item.mine) {
+        const mine = item.mine;
+        const del = el('button', { type: 'button', className: 'sh-del', textContent: '✕', title: 'Retirer de Mes blocs' });
+        del.setAttribute('aria-label', `Retirer « ${mine.name} » de Mes blocs`);
+        del.addEventListener('click', () => {
+          if (!confirm(`Retirer le bloc « ${mine.name} » de Mes blocs ?`)) return;
+          o.blocks.remove(mine.id);
+          renderShelf();
+        });
+        wrap.append(del);
+      }
+      return wrap;
+    });
+    shelfCardsEl.replaceChildren(
+      ...(cards.length ? cards : [el('p', { className: 'sh-empty', textContent: 'Aucun bloc ici : « Enregistrer comme bloc », dans le menu du bloc, le range sur l’étagère.' })]),
+    );
+  }
+
+  /** Range le bloc sélectionné dans « Mes blocs » et ouvre cet onglet. */
+  function saveAsBlock(b: EditorBlock) {
+    const name = prompt('Nom du bloc', `${BLOCK_LABEL[b.type]} ${blockShort(b)}`);
+    if (name === null) return;
+    try {
+      o.blocks.save(name, [b]);
+      o.log(`bloc enregistré : ${name.trim() || 'Bloc sans nom'}`);
+      shelfTab = 'mine';
+      shelfCardsEl.scrollLeft = 0;
+      renderShelf();
+    } catch (e) {
+      say(`enregistrement du bloc impossible (stockage du navigateur plein ou bloqué) : ${e instanceof Error ? e.message : e}`);
+    }
+  }
+
+  // Glisser une carte sur le profil : un cadre en pointillés la suit, un repère montre où elle tombera ; la lâcher ailleurs annule.
+  interface CardDrag {
+    blocks: EditorBlock[];
+    startX: number;
+    startY: number;
+    pointerId: number;
+    mouse: boolean;
+    active: boolean;
+    inside: boolean;
+    at: number;
+    el: HTMLElement;
+    ghostW: number;
+    width: number;
+    ranges: { start: number; end: number }[];
+    total: number;
+    ghost?: HTMLElement;
+    line?: HTMLElement;
+  }
+  let cardDrag: CardDrag | undefined;
+  let justDraggedCard = false;
+
+  shelfCardsEl.addEventListener('pointerdown', (e) => {
+    const card = (e.target as HTMLElement).closest<HTMLElement>('.sh-card');
+    if (!card || !draft || draft.readOnly || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    const item = shelfItemsNow[Number(card.dataset.i)];
+    if (!item) return;
+    const total = workout().steps.reduce((t, st) => t + st.durationS, 0) || 1;
+    const width = plot.clientWidth;
+    cardDrag = {
+      blocks: item.blocks,
+      startX: e.clientX,
+      startY: e.clientY,
+      pointerId: e.pointerId,
+      mouse: e.pointerType === 'mouse',
+      active: false,
+      inside: false,
+      at: draft.blocks.length,
+      el: card,
+      ghostW: Math.max(28, Math.min(width * 0.5, (summarizeBlocks(item.blocks).durationS / total) * width)),
+      width,
+      ranges: blockRanges(draft.blocks),
+      total,
+    };
+  });
+  shelfCardsEl.addEventListener('pointermove', (e) => {
+    const d = cardDrag;
+    if (!d || e.pointerId !== d.pointerId) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (!d.active) {
+      // Au doigt, un geste horizontal fait défiler l'étagère : on ne saisit la carte qu'en la tirant vers le haut.
+      const start = d.mouse ? Math.hypot(dx, dy) > 6 : dy < -8 && Math.abs(dy) > Math.abs(dx);
+      if (!start) return;
+      d.active = true;
+      d.el.setPointerCapture?.(e.pointerId);
+      d.ghost = el('div', { className: 'dd-ghost' });
+      d.line = el('div', { className: 'dd-line' });
+      d.ghost.style.width = `${d.ghostW}px`;
+      plot.append(d.ghost, d.line);
+      overlay.style.visibility = 'hidden';
+    }
+    const r = plot.getBoundingClientRect();
+    d.inside = e.clientY >= r.top - 24 && e.clientY <= r.bottom + 24 && e.clientX >= r.left - 12 && e.clientX <= r.right + 12;
+    d.ghost!.hidden = d.line!.hidden = !d.inside;
+    const px = (sec: number) => (sec / d.total) * d.width;
+    const x = Math.max(0, Math.min(d.width, e.clientX - r.left));
+    d.ghost!.style.left = `${Math.max(0, Math.min(d.width - d.ghostW, x - d.ghostW / 2))}px`;
+    // Place visée : autant de blocs que de milieux déjà franchis.
+    d.at = d.ranges.filter((b) => px((b.start + b.end) / 2) < x).length;
+    const edge = d.ranges.length ? (d.at < d.ranges.length ? px(d.ranges[d.at]!.start) : px(d.ranges[d.ranges.length - 1]!.end)) : 0;
+    d.line!.style.left = `${edge}px`;
+  });
+  const endCardDrag = (e: PointerEvent) => {
+    const d = cardDrag;
+    if (!d || e.pointerId !== d.pointerId) return;
+    cardDrag = undefined;
+    d.el.releasePointerCapture?.(e.pointerId);
+    overlay.style.visibility = '';
+    d.ghost?.remove();
+    d.line?.remove();
+    if (!d.active) return; // un simple appui : le clic ajoute après le bloc sélectionné
+    justDraggedCard = true;
+    setTimeout(() => (justDraggedCard = false));
+    if (e.type === 'pointerup' && d.inside) addBlocks(d.blocks, d.at);
+  };
+  shelfCardsEl.addEventListener('pointerup', endCardDrag);
+  shelfCardsEl.addEventListener('pointercancel', endCardDrag);
+
+  /**
+   * Téléphone : la barre du bloc sélectionné monte dans l'en-tête, à côté du titre, et l'étagère occupe le bas.
+   * Ailleurs, elle reste sous le profil.
+   */
+  const barEl = $('ed-bbar');
+  function placeBar() {
+    const target = PHONE.matches ? document.querySelector<HTMLElement>('.sea-hero-row')! : document.querySelector<HTMLElement>('.ed-srow')!;
+    if (barEl.parentElement !== target) target.prepend(barEl);
+  }
+  PHONE.addEventListener('change', placeBar);
 
   // --- Déplacer un bloc : on tient la poignée de la barre et on la fait glisser sur le profil ---
 
@@ -726,18 +922,8 @@ export function setupWorkoutEditor(o: EditorOptions) {
     return f;
   }
 
-  function renderInspector() {
-    const active = document.activeElement instanceof HTMLElement ? document.activeElement.dataset.key : undefined;
-    const b = draft!.blocks[selected];
-    if (!b) {
-      inspector.replaceChildren(el('p', { className: 'note', textContent: 'Aucun bloc : ajoute-en un ci-dessous.' }));
-      return;
-    }
-    const f = ftp();
-    const cur = () => draft!.blocks[selected]!;
-    const set = <K extends string>(k: K) => (v: number) => ((cur() as unknown as Record<K, number>)[k] = v);
-    const z = (p: number) => zoneName(zoneOf(p));
-
+  /** Actions du bloc sélectionné : cadence, déplacer, dupliquer, séparer, enregistrer comme bloc, supprimer. */
+  function blockActions(b: EditorBlock, keyed: boolean): HTMLElement {
     const actions = el('div', { className: 'actions' });
     if (b.type !== 'free') {
       const c = b.cadenceRpm;
@@ -755,11 +941,32 @@ export function setupWorkoutEditor(o: EditorOptions) {
       split.title = 'Séparer les répétitions en blocs individuels';
       actions.append(split);
     }
-    actions.append(button('Supprimer', deleteSelected, 'secondary danger'));
-    actions.querySelectorAll('button').forEach((x, i) => (x.dataset.key = `act-${i}`));
+    const keep = button('Enregistrer comme bloc', () => saveAsBlock(b), 'secondary');
+    keep.title = 'Le ranger dans « Mes blocs », sur l’étagère';
+    actions.append(keep, button('Supprimer', deleteSelected, 'secondary danger'));
+    if (keyed) actions.querySelectorAll('button').forEach((x, i) => (x.dataset.key = `act-${i}`));
     const [before, after] = [...actions.querySelectorAll('button')].filter((x) => /Avant|Après/.test(x.textContent ?? ''));
     if (before) setBlocked(before, selected === 0 ? 'C’est déjà le premier bloc.' : undefined);
     if (after) setBlocked(after, selected === draft!.blocks.length - 1 ? 'C’est déjà le dernier bloc.' : undefined);
+    // Sur téléphone, ces actions vivent dans le menu « ⋯ » : une action faite, il se referme.
+    actions.addEventListener('click', () => setPanel());
+    return actions;
+  }
+
+  function renderInspector() {
+    const active = document.activeElement instanceof HTMLElement ? document.activeElement.dataset.key : undefined;
+    const b = draft!.blocks[selected];
+    if (!b) {
+      inspector.replaceChildren(el('p', { className: 'note', textContent: 'Aucun bloc : ajoute-en depuis l’étagère.' }));
+      $('ed-bactions').replaceChildren();
+      return;
+    }
+    const f = ftp();
+    const cur = () => draft!.blocks[selected]!;
+    const set = <K extends string>(k: K) => (v: number) => ((cur() as unknown as Record<K, number>)[k] = v);
+    const z = (p: number) => zoneName(zoneOf(p));
+
+    const actions = blockActions(b, true);
 
     const line = el('div', { className: 'ed-line' });
     switch (b.type) {
@@ -810,8 +1017,8 @@ export function setupWorkoutEditor(o: EditorOptions) {
     close.dataset.openPanel = '';
     const head = el('div', { className: 'sheet-head' }, el('strong', { textContent: `${BLOCK_LABEL[b.type]} · bloc ${selected + 1} sur ${draft!.blocks.length}` }), close);
     // Sur téléphone, l'inspecteur n'est plus qu'un menu d'actions : une action faite, il se referme.
-    actions.addEventListener('click', () => setPanel());
     inspector.replaceChildren(head, sentence, el('div', { className: 'ed-body' }, line, actions));
+    $('ed-bactions').replaceChildren(blockActions(b, false)); // le même menu, dans le « ⋯ » de l'en-tête (téléphone)
     if (active) inspector.querySelector<HTMLElement>(`[data-key="${active}"]`)?.focus();
   }
 
@@ -1194,7 +1401,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && sea.dataset.panel && editor.offsetParent !== null) setPanel();
-    if (!draft || editor.offsetParent === null || isTyping(e.target) || isElsewhere(e.target)) return;
+    if (!draft || editor.offsetParent === null || isTyping(e.target)) return;
     const ctrl = e.ctrlKey || e.metaKey;
     if (ctrl && e.key.toLowerCase() === 'z') {
       e.preventDefault();
@@ -1207,7 +1414,8 @@ export function setupWorkoutEditor(o: EditorOptions) {
       redo();
       return;
     }
-    if (ctrl || e.altKey) return;
+    // Annuler et rétablir valent partout ; flèches et Suppr n'agissent sur les blocs que hors bibliothèque, étagère et navigation.
+    if (ctrl || e.altKey || isElsewhere(e.target)) return;
     switch (e.key) {
       case 'ArrowUp':
       case 'ArrowDown':
@@ -1295,14 +1503,6 @@ export function setupWorkoutEditor(o: EditorOptions) {
   });
   inspector.addEventListener('submit', (e) => e.preventDefault());
 
-  document.querySelectorAll<HTMLButtonElement>('[data-add]').forEach((b) =>
-    b.addEventListener('click', () => {
-      if (!draft) return;
-      // Ajouté après le bloc sélectionné : c'est là que l'utilisateur regarde.
-      insertBlock(b.dataset.add as BlockType, draft.blocks.length ? selected + 1 : 0);
-      setPanel();
-    }),
-  );
   $('ed-undo').addEventListener('click', undo);
   $('ed-redo').addEventListener('click', redo);
   $('ed-undo2').addEventListener('click', undo);
@@ -1348,6 +1548,8 @@ export function setupWorkoutEditor(o: EditorOptions) {
   });
 
   renderLibrary();
+  renderShelf();
+  placeBar();
 
   return {
     /** À appeler à chaque arrivée sur l'écran : ouvre la séance choisie dans l'application. */
@@ -1366,6 +1568,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
         renderLibrary();
         if (draft) render();
       }
+      renderShelf();
     },
   };
 }

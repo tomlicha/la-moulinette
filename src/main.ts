@@ -28,6 +28,7 @@ import { controlModes } from './ui/radar-model';
 import { ClimbCounter, PowerAverage } from './ui/hud-model';
 import type { RideSnapshot } from './sim/ride';
 import { blocksToWorkout } from './workout/blocks';
+import { BlockLibrary } from './workout/block-library';
 import { WorkoutLibrary } from './workout/library';
 import { SAMPLE_WORKOUTS } from './workout/samples';
 
@@ -657,6 +658,7 @@ for (const [btn, delta] of [
 const library = new WorkoutLibrary();
 const editor = setupWorkoutEditor({
   library,
+  blocks: new BlockLibrary(),
   readFtp,
   log,
   onLibraryChange: refreshWorkoutChoices,

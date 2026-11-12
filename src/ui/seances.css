@@ -17,7 +17,7 @@ main:has([data-view='seances']:not([hidden])) { max-width: none; padding: 0; }
   --line: rgba(255, 255, 255, .16); --btn-line: rgba(255, 255, 255, .32); --ctl-line: rgba(255, 255, 255, .3);
   --err: #FF8A85; --tip-bg: #4A5462; --tip-fg: #F0F3F7; --tip-muted: #C0C9D5;
   --z1: #8E9BAD; --z2: #5AA5F5; --z3: #3FC781; --z4: #F2C641; --z5: #FF9440; --z6: #FF5E57;
-  --plot-h: clamp(100px, calc(100dvh - 720px), 340px);
+  --plot-h: clamp(100px, calc(100dvh - 800px), 340px);
 }
 .sea .home-scenes { position: absolute; inset: 0; }
 .sea-shade { background: linear-gradient(90deg, rgba(11, 20, 34, .4) 0%, rgba(11, 20, 34, .12) 55%, rgba(11, 20, 34, 0) 100%), linear-gradient(180deg, rgba(11, 20, 34, .6) 0%, rgba(11, 20, 34, .3) 26%, rgba(11, 20, 34, .42) 46%, rgba(11, 20, 34, .86) 100%); }
@@ -73,6 +73,30 @@ button.sea-ride { display: flex; align-items: center; gap: 10px; height: 60px; p
 .ed-card { display: flex; flex-direction: column; gap: 8px; padding: 10px 16px 12px; border-radius: 18px; background: var(--glass); border: 1px solid var(--glass-line); backdrop-filter: blur(16px) saturate(1.3); box-shadow: 0 8px 28px rgba(5, 10, 20, .3); min-width: 0; }
 .ed-toolbar { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
 .ed-toolbar .note { font-size: .85rem; }
+
+/* Étagère de blocs préfaits : types en pastilles de couleur, puis cartes (profil, nom, durée et intensité) à toucher ou à glisser sur le profil. */
+.ed-shelf { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.sh-tabs { display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; }
+.sh-tabs::-webkit-scrollbar { display: none; }
+.sh-tab { flex: none; height: 28px; padding: 0 11px; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px; font-size: .82rem; font-weight: 600; background: rgba(255, 255, 255, .08); color: #fff; border: 1px solid rgba(255, 255, 255, .28); }
+.sh-tab i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.sh-tab[aria-pressed='true'] { background: #5BE3C9; color: #0B1422; border-color: transparent; }
+.sh-tab[aria-pressed='true'] i { box-shadow: 0 0 0 2px #0B1422; }
+.sh-cards { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .3) transparent; }
+.sh-item { position: relative; flex: none; }
+.sh-card { display: grid; grid-template-columns: 8px 70px minmax(0, 1fr); gap: 8px; align-items: center; width: 206px; height: 52px; padding: 4px 10px 4px 7px; border-radius: 10px; background: rgba(255, 255, 255, .07); color: #fff; border: 1px solid rgba(255, 255, 255, .2); text-align: left; cursor: grab; touch-action: pan-x; user-select: none; -webkit-user-select: none; }
+.sh-card:hover { background: rgba(255, 255, 255, .14); }
+.sh-grip { width: 8px; height: 16px; background: radial-gradient(circle, currentColor 1.2px, transparent 1.7px) 0 0 / 4px 5px; opacity: .55; }
+.sh-mini { display: block; width: 70px; height: 30px; }
+.sh-mini .z1 { fill: var(--z1); } .sh-mini .z2 { fill: var(--z2); } .sh-mini .z3 { fill: var(--z3); }
+.sh-mini .z4 { fill: var(--z4); } .sh-mini .z5 { fill: var(--z5); } .sh-mini .z6 { fill: var(--z6); }
+.sh-mini .free { fill: var(--muted); opacity: .45; }
+.sh-text { min-width: 0; display: flex; flex-direction: column; }
+.sh-text strong { font-size: .88rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sh-text small { font-size: .74rem; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sh-del { position: absolute; right: 3px; top: 3px; width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 0; background: rgba(11, 20, 34, .8); color: var(--muted); font-size: .7rem; }
+.sh-del:hover { color: var(--err); }
+.sh-empty { margin: 8px 4px; font-size: .85rem; color: var(--muted); }
 .ed-toolbar .spacer { flex: 1 1 0; min-width: 8px; }
 .chip { padding: 0 12px; height: 32px; border-radius: 999px; font-size: .88rem; font-weight: 600; }
 .chip.icon { width: 34px; padding: 0; font-size: 1.05rem; }
@@ -196,7 +220,7 @@ kbd { font: inherit; font-size: .75rem; border: 1px solid var(--ctl-line); borde
 }
 
 /* Éléments propres au téléphone en paysage : absents ailleurs. */
-.ph-btn, .ed-sub, .ed-sbar, .ed-over, .sea-scrim, .sheet-head, .nav-ico, .ed-pop, .ed-hmenu .ed-zones-m { display: none; }
+.ph-btn, .ed-sub, .ed-over, .sea-scrim, .sheet-head, .nav-ico, .ed-pop, .ed-hmenu .ed-zones-m, .ed-hmenu .hm-t, .ed-bactions { display: none; }
 .ed-hmenu { display: contents; }
 
 /*
@@ -208,7 +232,7 @@ kbd { font: inherit; font-size: .75rem; border: 1px solid var(--ctl-line); borde
  */
 @media (pointer: coarse) and (orientation: landscape) and (max-height: 460px) {
   html:has([data-view='seances']:not([hidden])), body:has([data-view='seances']:not([hidden])) { overflow: hidden; height: 100dvh; }
-  .sea { height: 100dvh; min-height: 0; padding: 6px 8px; gap: 6px; grid-template-columns: 46px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); --plot-h: clamp(110px, calc(100dvh - 128px), 340px); }
+  .sea { height: 100dvh; min-height: 0; padding: 6px 8px; gap: 6px; grid-template-columns: 46px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); --plot-h: clamp(110px, calc(100dvh - 176px), 340px); }
 
   /* Rail de navigation */
   .sea .home-top { grid-column: 1; grid-row: 1; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 6px; }
@@ -223,31 +247,36 @@ kbd { font: inherit; font-size: .75rem; border: 1px solid var(--ctl-line); borde
   /* Sans niveau d'empilement propre : ses menus et feuilles passent au-dessus du voile. */
   .sea-main { grid-column: 2; grid-row: 1; gap: 6px; justify-content: flex-start; z-index: auto; }
 
-  /* En-tête : titre et sous-titre, chevron (bibliothèque), « ⋯ », Rouler */
-  .sea-hero { display: grid; grid-template-columns: minmax(0, 1fr) 34px 34px auto; grid-template-rows: auto auto; column-gap: 6px; align-items: center; }
-  .sea-hero-top, .sea-hero-l, .sea-hero-row { display: contents; }
+  /* En-tête : titre et sous-titre, chevron (bibliothèque), barre du bloc, annuler, rétablir, « ⋯ », Rouler */
+  .sea-hero { display: flex; flex-direction: row; align-items: center; gap: 6px; min-height: 38px; }
+  .sea-hero-top, .sea-hero-row { display: contents; }
+  .sea-hero-l { display: flex; flex-direction: column; flex: 1 1 40px; min-width: 0; order: 0; }
   .sea-hero .home-kicker, .ed-desc, .sea-hero-r, .ed-summary, .sea-hero-row .spacer { display: none; }
-  .ed-name { grid-column: 1; grid-row: 1; min-width: 0; }
-  .ed-name input { font-size: 22px; line-height: 1.1; padding: 0 2px; border-bottom: 0; }
-  .ed-sub { display: block; grid-column: 1; grid-row: 2; padding-left: 2px; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #lib-open { grid-column: 2; grid-row: 1 / 3; }
-  #ed-more { grid-column: 3; grid-row: 1 / 3; }
-  #ed-ride { grid-column: 4; grid-row: 1 / 3; }
+  .ed-name { min-width: 0; }
+  .ed-name input { font-size: 21px; line-height: 1.05; padding: 0 2px; border-bottom: 0; }
+  .ed-sub { display: block; padding-left: 2px; font-size: 10.5px; line-height: 1.1; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #lib-open { order: 1; } #ed-bbar { order: 2; } #ed-undo2 { order: 3; } #ed-redo2 { order: 4; } #ed-more { order: 5; } #ed-ride { order: 6; }
   button.sea-ride { height: 36px; padding: 0 14px; font-size: 16px; border-radius: 10px; gap: 6px; box-shadow: 0 0 16px rgba(91, 227, 201, .3); }
   button.sea-ride svg { width: 16px; height: 16px; }
   .ph-btn { display: grid; place-items: center; position: relative; width: 34px; height: 34px; padding: 0; border-radius: 9px; border: 1px solid rgba(255, 255, 255, .3); background: rgba(255, 255, 255, .1); color: #fff; }
   .ph-btn::before { content: ''; position: absolute; inset: -4px; }
   .ph-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-  #ed-more svg circle, #ed-bmenu-btn svg circle { fill: currentColor; stroke: none; }
+  #ed-more svg circle { fill: currentColor; stroke: none; }
 
   /* Menus et feuilles : au-dessus du voile, qui les referme */
   .sea-scrim { position: fixed; inset: 0; z-index: 25; background: rgba(5, 10, 20, .5); }
   .sea:not([data-panel='']) .sea-scrim { display: block; }
-  .ed-hmenu, .sea[data-panel='add'] .ed-toolbar, .sea[data-panel='block'] .ed-inspector { position: fixed; z-index: 30; background: #16233A; border: 1px solid var(--glass-line); box-shadow: 0 12px 32px rgba(5, 10, 20, .55); border-radius: 14px; }
-  .ed-hmenu { display: none; top: 50px; right: 8px; width: 260px; padding: 8px; flex-direction: column; gap: 6px; }
+  .ed-hmenu { position: fixed; z-index: 30; background: #16233A; border: 1px solid var(--glass-line); box-shadow: 0 12px 32px rgba(5, 10, 20, .55); border-radius: 14px; }
+  .ed-hmenu { display: none; top: 50px; right: 8px; width: 300px; max-height: calc(100dvh - 58px); overflow-y: auto; padding: 8px; flex-direction: column; gap: 6px; }
+  .ed-hmenu .hm-t { display: block; padding: 2px 4px 0; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .ed-hmenu .ed-bactions { display: block; }
+  .ed-bactions .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 0; }
+  .ed-bactions .actions button { height: 34px; padding: 0 10px; border-radius: 9px; font-size: .85rem; font-weight: 600; text-align: left; color: #fff; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .2); }
+  .ed-bactions .actions .danger { color: var(--err); }
   .sea[data-panel='more'] .ed-hmenu { display: flex; }
   .ed-hmenu button.secondary { height: 36px; padding: 0 12px; justify-content: flex-start; font-size: 14px; border-radius: 9px; }
   .ed-hmenu .ed-zones-m { display: flex; flex-wrap: wrap; padding: 4px 2px 0; }
+  .ed-hmenu .ed-zones-m ul { flex-wrap: wrap; }
 
   /* Profil, bande de blocs et outils */
   .ed-card { position: relative; flex: 1; min-height: 0; padding: 6px 10px 5px; gap: 4px; border-radius: 14px; backdrop-filter: none; background: rgba(11, 20, 34, .84); }
@@ -255,25 +284,28 @@ kbd { font: inherit; font-size: .75rem; border: 1px solid var(--ctl-line); borde
   .ed-yaxis { width: 76px; font-size: .62rem; }
   .ed-xaxis { font-size: .62rem; }
   .ed-zone-labels, .ed-zones, .ed-keys-d { display: none; }
-  .ed-srow { display: flex; align-items: center; gap: 5px; margin-top: 2px; }
-  .ed-srow .ed-bbar { flex: 1; min-width: 0; height: 34px; margin: 0; gap: 4px; }
-  .bb-step { width: 34px; border-radius: 9px; }
-  .bb-step svg { width: 18px; height: 18px; }
-  .bb-handle { padding: 0 9px 0 8px; gap: 6px; border-radius: 9px; }
+  .ed-srow { display: none; }
+  .ed-bbar { flex: 0 0 192px; min-width: 128px; height: 34px; margin: 0; gap: 3px; }
+  .bb-step { width: 30px; border-radius: 9px; }
+  .bb-step svg { width: 17px; height: 17px; }
+  .bb-handle { padding: 0 8px; border-radius: 9px; }
   .bb-grip { width: 10px; height: 18px; background-size: 5px 6px; }
-  .bb-hint { font-size: .72rem; }
-  .bb-main { padding: 0 8px; gap: 6px; border-radius: 9px; }
+  .bb-hint, .bb-text small { display: none; }
+  .bb-main { padding: 0 7px; gap: 6px; border-radius: 9px; }
   .bb-text strong { font-size: .82rem; }
-  .bb-text small { font-size: .72rem; }
-  .ed-sbar { display: flex; gap: 4px; align-items: center; flex: none; }
-  .ed-sbar .ph-btn { width: 30px; height: 30px; }
-  .ed-sbar .plus { font-size: 19px; line-height: 1; border-style: dashed; border-radius: 50%; }
+  .bb-pos { font-size: .78rem; }
+  .sea-hero .ph-btn { width: 32px; height: 34px; }
+  /* Étagère : tout en bas, une ligne de types et une rangée de cartes */
+  .ed-shelf { gap: 4px; }
+  .sh-tab { height: 24px; padding: 0 9px; font-size: .72rem; }
+  .sh-cards { gap: 6px; padding-bottom: 0; scrollbar-width: none; }
+  .sh-cards::-webkit-scrollbar { display: none; }
+  .sh-card { width: 140px; height: 46px; grid-template-columns: 8px 46px minmax(0, 1fr); gap: 6px; padding: 3px 7px 3px 5px; }
+  .sh-mini { width: 46px; height: 26px; }
+  .sh-text strong { font-size: .76rem; }
+  .sh-text small { font-size: .68rem; }
   .errors { position: absolute; z-index: 4; left: 90px; right: 16px; top: 8px; margin: 0; padding: 2px 8px; list-style: none; border-radius: 8px; background: rgba(11, 20, 34, .92); font-size: .72rem; }
   .ed-toolbar { display: none; }
-  .sea[data-panel='add'] .ed-toolbar { display: grid; grid-template-columns: 1fr 1fr; right: 8px; bottom: 46px; width: 240px; padding: 8px; gap: 6px; }
-  .sea[data-panel='add'] .ed-toolbar::before { content: 'Ajouter un bloc'; grid-column: 1 / -1; font-size: .85rem; font-weight: 700; }
-  .ed-toolbar #ed-undo, .ed-toolbar #ed-redo, .ed-toolbar .spacer, .ed-toolbar .note { display: none; }
-  .ed-toolbar .chip { height: 34px; }
 
   /* Commandes posées sur le bloc sélectionné (dessinées par renderOverlay) */
   .ed-over { display: block; position: absolute; inset: 0; z-index: 3; pointer-events: none; }
@@ -293,16 +325,9 @@ kbd { font: inherit; font-size: .75rem; border: 1px solid var(--ctl-line); borde
   .ov-reps { border-color: rgba(91, 227, 201, .7); }
   .ov-reps strong { min-width: 30px; }
 
-  /* « ⋯ » sous le profil : menu des actions du bloc. Les valeurs se saisissent en touchant la valeur sur le profil. */
+  /* Les actions du bloc sont dans le menu « ⋯ » de l'en-tête ; les valeurs se saisissent en touchant la valeur sur le profil. */
   .ed-inspector { display: none; }
-  .sea[data-panel='block'] .ed-inspector { display: flex; left: auto; right: 8px; bottom: 46px; width: 230px; padding: 6px; gap: 2px; max-height: calc(100dvh - 60px); overflow-y: auto; }
-  .ed-inspector .sheet-head { display: block; padding: 2px 8px 4px; font-size: .78rem; color: var(--muted); }
-  .sheet-x, .ed-inspector .sentence, .ed-inspector .ed-line, .act-cadence { display: none; }
-  .ed-inspector .ed-body { display: block; }
-  .ed-inspector .actions { display: grid; grid-template-columns: 1fr; gap: 2px; justify-content: stretch; margin: 0; }
-  .ed-inspector .actions button { height: 34px; padding: 0 10px; border: 0; border-radius: 9px; background: transparent; font-size: .9rem; font-weight: 600; text-align: left; color: #fff; }
-  .ed-inspector .actions button:hover { background: rgba(255, 255, 255, .12); }
-  .ed-inspector .actions .danger { color: var(--err); }
+  .act-cadence { display: none; } /* la cadence se règle en touchant la valeur sur le profil */
 
   /* Valeurs touchables sur le profil : un tap ouvre la saisie d'un chiffre exact */
   .ov-cap button.ov-val, .ov-chip button.ov-val { width: auto; height: auto; padding: 0 2px; border-radius: 6px; color: #fff; font-weight: inherit; display: flex; flex-direction: column; align-items: center; }
