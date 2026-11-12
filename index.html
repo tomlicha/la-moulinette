@@ -44,6 +44,22 @@
                   <button id="disconnect" class="secondary" disabled>Déconnecter</button>
                   <button id="forget-trainer" class="secondary" hidden>Oublier</button>
                 </div>
+                <details class="trainer-help note">
+                  <summary>Ton trainer n'apparaît pas, ou ne se pilote pas ?</summary>
+                  <ul>
+                    <li>Ferme les autres applications reliées au trainer (Zwift, l'app de la marque) et déconnecte ton compteur : beaucoup de trainers n'acceptent qu'une connexion Bluetooth à la fois.</li>
+                    <li>Mets à jour son firmware avec l'app de la marque (Wahoo, Tacx Training, My E-Training d'Elite) : les anciens firmwares n'ont pas toujours de mode de pilotage standard.</li>
+                    <li>Sous Windows, n'appaire pas le trainer dans les réglages Bluetooth : Chrome ou Edge s'en chargent. Après une mise à jour du firmware, retire-le de la liste Windows s'il y figure.</li>
+                  </ul>
+                  <label>Protocole de pilotage
+                    <select id="trainer-protocol">
+                      <option value="">Automatique, selon le modèle (recommandé)</option>
+                      <option value="ftms">FTMS (standard)</option>
+                      <option value="wahoo">Wahoo (propriétaire)</option>
+                      <option value="fec">FE-C over BLE (Tacx)</option>
+                    </select>
+                  </label>
+                </details>
               </article>
 
               <article id="card-hr" class="device-card">

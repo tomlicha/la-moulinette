@@ -14,7 +14,8 @@ import { ErgFollower } from './workout/erg-follower';
 import { STEP_LABEL, type Workout } from './workout/model';
 import { profileShapes } from './workout/profile';
 import { parseWorkout, WorkoutRunner, type WorkoutState } from './workout/runner';
-import { canRecallDevices, DeviceRegistry, recallDevices, type DeviceRole } from './sensors/device-registry';
+import { browserStore, canRecallDevices, DeviceRegistry, recallDevices, type DeviceRole } from './sensors/device-registry';
+import { ALL_PROTOCOLS, PROTOCOL_LABEL, type ControlProtocol } from './sensors/trainer-profiles';
 import { formatDuration } from './ui/duration';
 import { setBlocked, setupBlockedHints, type BlockReason } from './ui/blocked';
 import { setupRouter } from './ui/router';
@@ -57,6 +58,28 @@ const gradeInput = $<HTMLInputElement>('grade');
 
 const hub = new SensorHub();
 let trainer: TrainerAdapter | undefined;
+
+/** Protocole de pilotage imposé depuis l'aide de l'écran Appareils ; vide = choix automatique selon le modèle. */
+const PROTOCOL_KEY = 'zwift2.trainerProtocol';
+const prefs = browserStore();
+const protocolSelect = $<HTMLSelectElement>('trainer-protocol');
+const savedProtocol = prefs.getItem(PROTOCOL_KEY) as ControlProtocol | null;
+protocolSelect.value = savedProtocol && ALL_PROTOCOLS.includes(savedProtocol) ? savedProtocol : '';
+protocolSelect.addEventListener('change', () => {
+  try {
+    if (protocolSelect.value) prefs.setItem(PROTOCOL_KEY, protocolSelect.value);
+    else prefs.removeItem(PROTOCOL_KEY);
+  } catch {
+    // stockage bloqué : le choix vaut pour cette session
+  }
+  log(`protocole de pilotage : ${protocolSelect.value ? PROTOCOL_LABEL[protocolSelect.value as ControlProtocol] : 'automatique'}, appliqué à la prochaine connexion`);
+});
+
+function newBleTrainer(): WebBluetoothTrainer {
+  const t = new WebBluetoothTrainer();
+  t.forcedProtocol = (protocolSelect.value || undefined) as ControlProtocol | undefined;
+  return t;
+}
 let hrMonitor: HeartRateMonitor | undefined;
 
 /** Au-delà de ce délai sans mesure de puissance, le cycliste est considéré à l'arrêt dans la simulation. */
@@ -98,6 +121,7 @@ const telemetry = setupTelemetry({
     trainer: trainer?.name,
     trainerState: currentState,
     capabilities: trainer?.capabilities,
+    trainerIdentity: trainer instanceof WebBluetoothTrainer ? trainer.identity : undefined,
     heartRateState: roleState.hr,
     rideRunning: !!ride,
   }),
@@ -142,7 +166,9 @@ function setState(s: ConnectionState, detail?: string) {
   if (connected && trainer) {
     const c = trainer.capabilities;
     const range = c.powerRange ? `, plage ${c.powerRange.min}–${c.powerRange.max} W` : '';
-    $('caps').textContent = `ERG : ${c.targetPower ? 'oui' : 'non'} · SIM : ${c.simulation ? 'oui' : 'non'}${range}`;
+    const id = trainer instanceof WebBluetoothTrainer ? trainer.identity : undefined;
+    const model = id ? `${id.profile.label}${id.info.firmware ? ` (firmware ${id.info.firmware})` : ''} · pilotage ${id.protocol ? PROTOCOL_LABEL[id.protocol] : 'aucun'} · ` : '';
+    $('caps').textContent = `${model}ERG : ${c.targetPower ? 'oui' : 'non'} · SIM : ${c.simulation ? 'oui' : 'non'}${range}${id?.advice ? `. ${id.advice}` : ''}`;
   }
   roleState.trainer = s;
   renderDevices();
@@ -166,7 +192,7 @@ function attach(t: TrainerAdapter) {
 hub.on('log', log);
 hub.on('raw', (src, data) => {
   // Les trames brutes servent à documenter chaque modèle de trainer ; on ne journalise pas tout le flux.
-  if (src !== 'Indoor Bike Data' && src !== 'Heart Rate' && src !== 'Cycling Power') log(`${src} : ${hex(data)}`);
+  if (src !== 'Indoor Bike Data' && src !== 'Heart Rate' && src !== 'Cycling Power' && src !== 'FE-C') log(`${src} : ${hex(data)}`);
 });
 hub.on('measurement', (m) => {
   if (m.powerW !== undefined) lastPower = { w: m.powerW, at: performance.now() };
@@ -285,8 +311,8 @@ const connectHrWith = (hint?: string) =>
 connectHr.addEventListener('click', () => connectHrWith(registry.get('hr')?.name));
 $('connect-hr-other').addEventListener('click', () => connectHrWith());
 disconnectHr.addEventListener('click', () => void hrMonitor?.disconnect());
-connectBle.addEventListener('click', () => void start(new WebBluetoothTrainer(), registry.get('trainer')?.name));
-$('connect-ble-other').addEventListener('click', () => void start(new WebBluetoothTrainer()));
+connectBle.addEventListener('click', () => void start(newBleTrainer(), registry.get('trainer')?.name));
+$('connect-ble-other').addEventListener('click', () => void start(newBleTrainer()));
 connectSim.addEventListener('click', () => void start(new SimulatedTrainer()));
 for (const role of ['trainer', 'hr'] as const) {
   $(`forget-${role}`).addEventListener('click', () => {
@@ -740,7 +766,7 @@ async function reconnectKnownDevices() {
   for (const role of found.keys()) launchPending.add(role);
   const td = found.get('trainer');
   if (td) {
-    const t = new WebBluetoothTrainer();
+    const t = newBleTrainer();
     attach(t);
     void t.connectDevice(td, true);
   }
