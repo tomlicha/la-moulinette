@@ -252,6 +252,9 @@ button.rider-chip:hover { background: #FBF6EF; }
 .wheel-cols--digits { gap: 0; padding-right: 26px; }
 .wheel-cols--digits .wheel { flex: 0 0 50px; }
 .wheel-wrap:has(.wheel-cols--digits) { width: 176px; margin-inline: auto; }
+/* L'unité occupe la bande de 26 px à droite des chiffres, centrée, et sur la même ligne de base que le chiffre choisi (1,6 rem, contre 1 rem pour le W). */
+.wheel-wrap:has(.wheel-cols--digits) .wheel-band { padding-right: 0; }
+.wheel-wrap:has(.wheel-cols--digits) .wheel-band span { width: 26px; text-align: center; transform: translateY(4px); }
 .wheel-card:has(.wheel-cols--digits) { width: min(230px, calc(100vw - 32px)); }
 .wheel {
   flex: 1; min-width: 0; height: 100%; overflow-y: auto; overscroll-behavior: contain; scroll-snap-type: y mandatory; scrollbar-width: none; padding-block: calc((var(--wh) - 40px) / 2);
