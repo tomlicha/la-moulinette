@@ -215,75 +215,94 @@
           <input id="lib-import" type="file" accept=".zwo,.erg,.mrc" hidden />
         </div>
 
+        <!-- Éditeur plein écran (maquette E1 · Atelier, docs/design/editeur.md) : palette, profil à poignées, réglages du bloc -->
         <section id="editor" class="editor" hidden aria-labelledby="ed-title">
+          <div id="ed-bg" class="ed-bg" aria-hidden="true"></div>
           <h2 id="ed-title" class="visually-hidden">Nouvelle séance</h2>
-          <header class="ed-header">
-            <label class="ed-name"><span>Séance</span><input id="ed-name" type="text" maxlength="80" /></label>
-            <span id="ed-dirty" class="ed-dirty" hidden>● Modifiée, non enregistrée</span>
-            <div class="row">
-              <button id="ed-save">Enregistrer</button>
-              <button id="ed-use" class="secondary">Utiliser</button>
-              <button id="ed-export" class="secondary">Exporter .zwo</button>
-              <button id="ed-close" class="secondary">Fermer</button>
-            </div>
-          </header>
-          <details class="ed-desc">
-            <summary>Description</summary>
-            <textarea id="ed-desc" rows="2" maxlength="500" aria-label="Description de la séance"></textarea>
-          </details>
 
-          <section id="ed-summary" class="ed-summary" aria-label="Résumé"></section>
-
-          <section class="ed-card">
-            <div class="ed-toolbar" role="toolbar" aria-label="Outils d'édition">
-              <button id="ed-undo" type="button" class="secondary">↶ Annuler</button>
-              <button id="ed-redo" type="button" class="secondary">↷ Rétablir</button>
-              <span class="spacer"></span>
-              <span id="ed-linked" class="note"></span>
-            </div>
-            <div class="ed-chart">
-              <div id="ed-yaxis" class="ed-yaxis" aria-hidden="true"></div>
-              <div class="ed-plot-col">
-                <div id="ed-plot" class="ed-plot" tabindex="0" aria-label="Profil de la séance. Flèches gauche et droite : bloc précédent ou suivant ; haut et bas : puissance.">
-                  <svg id="ed-svg" viewBox="0 0 1000 120" preserveAspectRatio="none" role="img"></svg>
-                  <div id="ed-zone-labels" class="ed-zone-labels" aria-hidden="true"></div>
-                  <div id="ed-tip" class="ed-tip" role="tooltip" hidden></div>
+          <header class="ed-top">
+            <button id="ed-close" type="button" class="ed-glass ed-back">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>Séances
+            </button>
+            <strong class="ed-glass ed-brand"><span class="logo" role="img" aria-label="La Moulinette"><span class="logo-la" aria-hidden="true">LA</span><span class="logo-word" aria-hidden="true">M<svg class="logo-o" viewBox="0 0 24 24" fill="none"><circle class="logo-teeth" cx="12" cy="12" r="11" /><circle class="logo-ring" cx="12" cy="12" r="8" /><path class="logo-spokes" d="M12 12V5.4M12 12l6.3-2M12 12l3.9 5.3M12 12l-3.9 5.3M12 12l-6.3-2" /><circle cx="12" cy="12" r="2.1" fill="currentColor" stroke="none" /></svg>ULINETTE</span></span></strong>
+            <label class="ed-glass ed-name">
+              <span class="ed-kicker">Séance</span>
+              <input id="ed-name" type="text" maxlength="80" />
+              <span id="ed-dirty" class="ed-dirty" hidden>Non enregistrée</span>
+            </label>
+            <div class="ed-glass ed-tools" role="toolbar" aria-label="Historique et options">
+              <button id="ed-undo" type="button" class="ed-icon" aria-label="Annuler (Ctrl+Z)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5" /><path d="M4 9h10a6 6 0 010 12h-3" /></svg>
+              </button>
+              <button id="ed-redo" type="button" class="ed-icon" aria-label="Rétablir (Ctrl+Y)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14l5-5-5-5" /><path d="M20 9H10a6 6 0 000 12h3" /></svg>
+              </button>
+              <details class="ed-more">
+                <summary class="ed-icon" aria-label="Description et export">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
+                </summary>
+                <div class="ed-more-panel">
+                  <label class="ed-desc"><span class="ed-kicker">Description</span><textarea id="ed-desc" rows="3" maxlength="500"></textarea></label>
+                  <button id="ed-export" type="button" class="ed-ghost">Exporter en .zwo</button>
                 </div>
-                <div id="ed-strip" class="ed-strip" aria-label="Structure de la séance"></div>
-                <div id="ed-xaxis" class="ed-xaxis" aria-hidden="true"></div>
-              </div>
+              </details>
             </div>
-          </section>
+            <button id="ed-save" type="button" class="ed-glass ed-ghost">Enregistrer</button>
+            <button id="ed-use" type="button" class="ed-ride">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12-7.5z" /></svg>Rouler
+            </button>
+          </header>
 
-          <div class="ed-bottom">
-            <form id="ed-inspector" class="ed-inspector" aria-label="Bloc sélectionné"></form>
-            <section id="ed-zones" class="ed-zones" aria-label="Temps par zone"></section>
-          </div>
+          <div class="ed-body">
+            <aside class="ed-glass ed-palette" aria-labelledby="ed-palette-title">
+              <span id="ed-palette-title" class="ed-kicker">Ajouter un bloc</span>
+              <div id="ed-palette" class="ed-palette-list"></div>
+              <p class="ed-palette-hint">Glisse un bloc sur le profil pour l'insérer, ou touche-le pour l'ajouter après le bloc choisi.</p>
+              <p class="ed-keys">
+                <span><kbd>↑</kbd> <kbd>↓</kbd> ±5 %</span>
+                <span><kbd>⇧</kbd>+<kbd>←</kbd> <kbd>→</kbd> ±15 s</span>
+                <span><kbd>←</kbd> <kbd>→</kbd> autre bloc</span>
+                <span><kbd>Suppr</kbd> supprimer</span>
+              </p>
+            </aside>
 
-          <div class="ed-add-row">
-            <div class="row">
-              <span class="note">Ajouter</span>
-              <button type="button" class="chip" data-add="warmup">Échauffement</button>
-              <button type="button" class="chip" data-add="steady">Palier</button>
-              <button type="button" class="chip" data-add="intervals">Intervalles</button>
-              <button type="button" class="chip" data-add="ramp">Rampe</button>
-              <button type="button" class="chip" data-add="free">Libre</button>
-              <button type="button" class="chip" data-add="cooldown">Retour au calme</button>
+            <div class="ed-center">
+              <section class="ed-glass ed-chart-card" aria-label="Profil de la séance">
+                <div class="ed-chart-head">
+                  <span id="ed-ftp" class="ed-kicker">Profil</span>
+                  <span id="ed-linked" class="ed-linked"></span>
+                  <span class="ed-hint">Tire le haut du bloc pour la puissance, son bord droit pour la durée</span>
+                </div>
+                <div class="ed-chart">
+                  <div id="ed-yaxis" class="ed-yaxis" aria-hidden="true"></div>
+                  <div class="ed-plot-col">
+                    <div id="ed-plot" class="ed-plot" tabindex="0" aria-label="Profil de la séance. Flèches gauche et droite : bloc précédent ou suivant ; haut et bas : puissance ; Maj et flèches : durée.">
+                      <svg id="ed-svg" viewBox="0 0 1000 120" preserveAspectRatio="none" role="img"></svg>
+                      <div id="ed-zone-labels" class="ed-zone-labels" aria-hidden="true"></div>
+                      <div id="ed-marks" class="ed-marks"></div>
+                      <div id="ed-drop" class="ed-drop" hidden></div>
+                      <div id="ed-tip" class="ed-tip" role="tooltip" hidden></div>
+                    </div>
+                    <div id="ed-strip" class="ed-strip" aria-label="Structure de la séance"></div>
+                    <div id="ed-xaxis" class="ed-xaxis" aria-hidden="true"></div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="ed-glass ed-stats" aria-label="Résumé">
+                <div id="ed-summary" class="ed-summary"></div>
+                <div id="ed-zones" class="ed-zones"></div>
+                <ul id="ed-errors" class="errors"></ul>
+              </section>
             </div>
-            <p class="ed-keys note">
-              <span><kbd>↑</kbd> <kbd>↓</kbd> ±5 %</span>
-              <span><kbd>⇧</kbd>+<kbd>←</kbd> <kbd>→</kbd> ±15 s</span>
-              <span><kbd>←</kbd> <kbd>→</kbd> autre bloc</span>
-              <span><kbd>Suppr</kbd> supprimer</span>
-              <span><kbd>Ctrl</kbd>+<kbd>Z</kbd> annuler</span>
-            </p>
+
+            <form id="ed-inspector" class="ed-glass ed-inspector" aria-label="Bloc sélectionné"></form>
           </div>
-          <ul id="ed-errors" class="errors"></ul>
 
           <dialog id="ed-insert" class="ed-dialog" aria-labelledby="ed-insert-title">
             <h3 id="ed-insert-title">Insérer un bloc ici</h3>
             <div class="row" id="ed-insert-types"></div>
-            <div class="row"><button type="button" class="secondary" data-close>Annuler</button></div>
+            <div class="row"><button type="button" class="ed-ghost" data-close>Annuler</button></div>
           </dialog>
           <dialog id="ed-cadence" class="ed-dialog" aria-labelledby="ed-cadence-title">
             <h3 id="ed-cadence-title">Cadence cible</h3>
@@ -292,8 +311,8 @@
             <label class="ed-field" id="ed-cad-off-row"><span>Récupération</span><input id="ed-cad-off" type="number" min="30" max="200" step="1" placeholder="libre" /> rpm</label>
             <div class="row">
               <button type="button" id="ed-cad-apply">Appliquer</button>
-              <button type="button" id="ed-cad-clear" class="secondary">Retirer</button>
-              <button type="button" class="secondary" data-close>Annuler</button>
+              <button type="button" id="ed-cad-clear" class="ed-ghost">Retirer</button>
+              <button type="button" class="ed-ghost" data-close>Annuler</button>
             </div>
           </dialog>
         </section>

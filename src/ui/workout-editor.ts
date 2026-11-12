@@ -22,14 +22,20 @@ import { effortSeconds, intensityWord, timeInZones, ZONES, zoneName, zoneReading
 import { setBlocked } from './blocked';
 import { formatDuration, parseDuration } from './duration';
 import { $ } from './dom';
+import { HOME_SCENES } from './home-scenes';
 import { download } from '../util/download';
 import { errMsg } from '../util/errors';
+import './editor.css';
 
 const SVG = 'http://www.w3.org/2000/svg';
 const W = 1000;
 const H = 120;
 const POWER_STEP = 0.05;
 const DURATION_STEP_S = 15;
+/** Ordre de la palette : celui d'une séance, du début à la fin. */
+const PALETTE: BlockType[] = ['warmup', 'steady', 'intervals', 'ramp', 'free', 'cooldown'];
+/** Fond de l'éditeur : une scène de l'accueil, floutée. */
+const BACKGROUND_SCENE = 'Col des Érables';
 
 interface Draft {
   id?: string;
@@ -48,6 +54,8 @@ export interface EditorOptions {
   onUse: (id: string) => void;
   /** Utiliser une séance d'exemple dans la sortie. */
   onUseSample: (sampleId: string) => void;
+  /** « Rouler » depuis l'éditeur : la séance enregistrée est choisie et démarrée dans la sortie. */
+  onRide: (id: string) => void;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -67,17 +75,39 @@ function svg(tag: string, attrs: Record<string, string | number>): SVGElement {
   return e;
 }
 
+/** Petite icône au trait, décorative. */
+function icon(d: string): SVGElement {
+  const s = svg('svg', { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 2.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' });
+  s.append(svg('path', { d }));
+  return s;
+}
+
 const slug = (s: string) =>
   s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'seance';
 
 const pct = (fraction: number) => Math.round(fraction * 100);
 const fmtLong = (s: number) => (s >= 3600 ? `${Math.floor(s / 3600)} h ${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}` : formatDuration(s));
 const isTyping = (t: EventTarget | null) => t instanceof HTMLElement && !!t.closest('input, textarea, select, dialog[open]');
+const totalOf = (w: Workout) => w.steps.reduce((t, s) => t + s.durationS, 0);
+
+/** Puissance principale d'un bloc, celle de sa zone et de sa poignée ; rien pour un bloc libre. */
+function mainPower(b: EditorBlock): number | undefined {
+  switch (b.type) {
+    case 'steady':
+      return b.power;
+    case 'intervals':
+      return b.onPower;
+    case 'free':
+      return undefined;
+    default:
+      return (b.from + b.to) / 2;
+  }
+}
 
 /**
- * Écran « Séances » : bibliothèque (mes séances, modèles, import) et éditeur à profil direct.
- * Le profil, la bande de structure et la ligne de réglages montrent le même bloc sélectionné ; chaque
- * modification passe par `commit`, qui l'inscrit dans l'historique avant de redessiner.
+ * Écran « Séances » : bibliothèque (mes séances, modèles, import) et éditeur plein écran (maquette E1 · Atelier,
+ * docs/design/editeur.md). Le profil, la bande de structure et les réglages montrent le même bloc sélectionné ;
+ * chaque modification passe par l'historique avant de redessiner.
  */
 export function setupWorkoutEditor(o: EditorOptions) {
   const editor = $('editor');
@@ -85,6 +115,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
   const descIn = $<HTMLTextAreaElement>('ed-desc');
   const plot = $('ed-plot');
   const tip = $('ed-tip');
+  const drop = $('ed-drop');
   const inspector = $<HTMLFormElement>('ed-inspector');
   const insertDialog = $<HTMLDialogElement>('ed-insert');
   const cadenceDialog = $<HTMLDialogElement>('ed-cadence');
@@ -99,6 +130,15 @@ export function setupWorkoutEditor(o: EditorOptions) {
   /** Saisie clavier en cours dans un champ : une seule entrée d'historique pour toute la frappe. */
   let typing = false;
   let insertAt = 0;
+  /** Textes des réglages qui suivent la frappe (watts, zones), sans reconstruire les champs. */
+  let liveTexts: (() => void)[] = [];
+
+  /** Poignée tirée sur le profil : les blocs de départ, et l'échelle figée pour que le dessin ne fuie pas sous le doigt. */
+  let drag: { kind: 'power' | 'dur'; x: number; y: number; w: number; h: number; start: EditorBlock[]; recorded: boolean; moved: boolean } | undefined;
+  let frozen: { peak: number; total: number } | undefined;
+  let suppressClick = false;
+  /** Type de bloc glissé depuis la palette. */
+  let dragType: BlockType | undefined;
 
   const ftp = () => o.readFtp();
   const workout = (): Workout => blocksToWorkout(draft?.name ?? '', draft?.description, draft?.blocks ?? []);
@@ -201,7 +241,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
     descIn.value = d.description;
     editor.hidden = false;
     render();
-    editor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    plot.focus({ preventScroll: true });
   }
 
   function close(force = false) {
@@ -290,7 +330,8 @@ export function setupWorkoutEditor(o: EditorOptions) {
     setBlocked($<HTMLButtonElement>('ed-undo'), history.canUndo ? undefined : 'Rien à annuler pour l’instant.');
     setBlocked($<HTMLButtonElement>('ed-redo'), history.canRedo ? undefined : 'Rien à rétablir : tu n’as rien annulé.');
     const sel = draft.blocks[selected];
-    $('ed-linked').textContent = sel?.type === 'intervals' ? `Les ${sel.repeat} répétitions sont modifiées ensemble` : '';
+    $('ed-ftp').textContent = `Profil · FTP ${f} W`;
+    $('ed-linked').textContent = sel?.type === 'intervals' ? `Les ${sel.repeat} répétitions bougent ensemble` : '';
     renderSummary(stats, zones);
     renderChart(w, f);
     renderStrip();
@@ -321,21 +362,23 @@ export function setupWorkoutEditor(o: EditorOptions) {
       );
     $('ed-summary').replaceChildren(
       cell('Durée', fmtLong(s.durationS), `dont ${fmtLong(effortSeconds(z))} d'effort`, delta(s.durationS / 60, baseStats && baseStats.durationS / 60, 0, ' min')),
-      cell('Puissance moyenne', `${s.avgW} W`, `${Math.round((s.avgW / f) * 100)} % de ta FTP (${f} W)`, delta(s.avgW, baseStats?.avgW)),
+      cell('Moyenne', `${s.avgW} W`, `${Math.round((s.avgW / f) * 100)} % de ta FTP`, delta(s.avgW, baseStats?.avgW)),
       cell('Intensité', s.intensity.toFixed(2).replace('.', ','), '1,00 = tenir sa FTP', delta(s.intensity, baseStats?.intensity, 2), intensityWord(s.intensity)),
-      cell('Charge estimée', String(s.load), '1 h à la FTP = 100', delta(s.load, baseStats?.load)),
+      cell('Charge', String(s.load), '1 h à la FTP = 100', delta(s.load, baseStats?.load)),
     );
   }
 
   function renderChart(w: Workout, f: number) {
-    const peak = profilePeakW(w, f);
+    const realPeak = profilePeakW(w, f);
+    const realTotal = totalOf(w) || 1;
+    // Pendant un glissé, l'échelle reste celle du début du geste : le bloc suit le doigt au lieu de se dérober.
+    const peak = frozen?.peak ?? realPeak;
+    const total = frozen?.total ?? realTotal;
     const y = (watts: number) => H - (watts / peak) * H;
     const top = (watts: number) => `${(1 - watts / peak) * 100}%`;
-    const total = w.steps.reduce((t, s) => t + s.durationS, 0) || 1;
 
     // Axe vertical : % de FTP et watts, FTP en gras.
-    const yaxis = $('ed-yaxis');
-    yaxis.replaceChildren(
+    $('ed-yaxis').replaceChildren(
       ...[
         [peak, `${Math.round((peak / f) * 100)} % · ${Math.round(peak)} W`, ''],
         [f, `FTP · ${f} W`, 'ftp'],
@@ -349,7 +392,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
       }),
     );
 
-    // Bandes de zones, puis paliers, ligne de FTP et cadre du bloc sélectionné.
+    // Bandes de zones, puis paliers et ligne de FTP.
     const root = $('ed-svg');
     const bands = svg('g', {});
     const labels: HTMLElement[] = [];
@@ -367,33 +410,84 @@ export function setupWorkoutEditor(o: EditorOptions) {
 
     const bars = svg('g', { class: 'ed-svg-bars' });
     for (const s of profileShapes(w, f, W, H)) bars.append(svg('path', { d: s.d, class: s.zone }));
-    const ftpLine = svg('line', { x1: 0, x2: W, y1: y(f), y2: y(f), stroke: 'currentColor', 'stroke-opacity': 0.55, 'stroke-dasharray': '8 6', 'vector-effect': 'non-scaling-stroke' });
-    root.replaceChildren(bands, bars, ftpLine);
-    const r = blockRanges(draft!.blocks)[selected];
-    if (r) {
-      root.append(
-        svg('rect', {
-          x: (r.start / total) * W,
-          y: 0.5,
-          width: ((r.end - r.start) / total) * W,
-          height: H - 1,
-          fill: 'none',
-          stroke: 'var(--accent)',
-          'stroke-width': 2,
-          'vector-effect': 'non-scaling-stroke',
-        }),
-      );
+    if (frozen) {
+      // profileShapes dessine à l'échelle réelle : on ramène le dessin dans le repère figé (bas du profil fixe).
+      const sx = realTotal / total;
+      const sy = realPeak / peak;
+      bars.setAttribute('transform', `matrix(${sx} 0 0 ${sy} 0 ${H * (1 - sy)})`);
     }
-    root.setAttribute('aria-label', `Profil de la séance, ${draft!.blocks.length} blocs, ${fmtLong(total)}`);
+    const ftpLine = svg('line', { x1: 0, x2: W, y1: y(f), y2: y(f), stroke: '#fff', 'stroke-opacity': 0.7, 'stroke-dasharray': '8 6', 'vector-effect': 'non-scaling-stroke' });
+    root.replaceChildren(bands, bars, ftpLine);
+    root.setAttribute('aria-label', `Profil de la séance, ${draft!.blocks.length} blocs, ${fmtLong(realTotal)}`);
 
+    renderMarks(total, peak, f);
     $('ed-xaxis').replaceChildren(...[0, 0.25, 0.5, 0.75, 1].map((k) => el('span', { textContent: fmtLong(Math.round(k * total)) })));
+  }
+
+  /** Cadre du bloc sélectionné (une répétition pleine, les autres en pointillés) et ses deux poignées. */
+  function renderMarks(total: number, peak: number, f: number) {
+    const marks = $('ed-marks');
+    const b = draft!.blocks[selected];
+    const r = blockRanges(draft!.blocks)[selected];
+    if (!b || !r) {
+      marks.replaceChildren();
+      return;
+    }
+    const x = (t: number) => (t / total) * 100;
+    const yTop = (fraction: number) => (1 - (fraction * f) / peak) * 100;
+    const frame = (start: number, end: number, topFraction: number, cls: string) => {
+      const d = el('div', { className: cls });
+      d.style.left = `${x(start)}%`;
+      d.style.width = `${x(end - start)}%`;
+      d.style.top = `${yTop(topFraction)}%`;
+      return d;
+    };
+
+    const items: HTMLElement[] = [];
+    let main: { start: number; end: number; top: number };
+    let durS: number;
+    if (b.type === 'intervals') {
+      const period = b.onS + b.offS;
+      for (let k = 0; k < b.repeat; k++) {
+        const s = r.start + k * period;
+        items.push(frame(s, s + b.onS, b.onPower, k === 0 ? 'ed-sel' : 'ed-sel linked'));
+      }
+      main = { start: r.start, end: r.start + b.onS, top: b.onPower };
+      durS = b.onS;
+    } else {
+      const topFraction = b.type === 'free' ? 0.3 : b.type === 'steady' ? b.power : Math.max(b.from, b.to);
+      items.push(frame(r.start, r.end, topFraction, 'ed-sel'));
+      main = { start: r.start, end: r.end, top: topFraction };
+      durS = b.durationS;
+    }
+    items[0]!.append(el('span', { className: 'ed-sel-label', textContent: formatDuration(durS) }));
+
+    const what = b.type === 'intervals' ? 'de l’effort' : 'du bloc';
+    if (b.type !== 'free') {
+      const label = b.type === 'steady' || b.type === 'intervals' ? `${pct(mainPower(b)!)} % · ${Math.round(mainPower(b)! * f)} W` : `${pct(b.from)}→${pct(b.to)} %`;
+      const h = handle('power', `Puissance ${what} : ${label}. Glisser vers le haut ou le bas, ou flèches haut et bas.`, icon('M12 3v18M7 8l5-5 5 5M7 16l5 5 5-5'), label);
+      h.style.left = `${x((main.start + main.end) / 2)}%`;
+      h.style.top = `${yTop(main.top)}%`;
+      items.push(h);
+    }
+    const hd = handle('dur', `Durée ${what} : ${formatDuration(durS)}. Glisser à gauche ou à droite, ou Maj et flèches.`, icon('M3 12h18M8 7l-5 5 5 5M16 7l5 5-5 5'));
+    hd.style.left = `${x(main.end)}%`;
+    hd.style.top = `${(100 + yTop(main.top)) / 2}%`;
+    items.push(hd);
+    marks.replaceChildren(...items);
+  }
+
+  function handle(kind: 'power' | 'dur', aria: string, ...content: (Node | string)[]) {
+    const h = el('button', { type: 'button', className: `ed-handle ed-handle-${kind}` }, ...content);
+    h.setAttribute('aria-label', aria);
+    h.addEventListener('pointerdown', (e) => startDrag(e, kind));
+    return h;
   }
 
   function selectedZone(): Zone | undefined {
     const b = draft?.blocks[selected];
-    if (!b || b.type === 'free') return undefined;
-    const main = b.type === 'steady' ? b.power : b.type === 'intervals' ? b.onPower : (b.from + b.to) / 2;
-    return zoneOf(main);
+    const p = b && mainPower(b);
+    return p === undefined ? undefined : zoneOf(p);
   }
 
   function renderStrip() {
@@ -412,7 +506,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
       if (i > 0) items.push(ins(i));
       const btn = el('button', { type: 'button', className: 'blk' }, el('strong', { textContent: BLOCK_LABEL[b.type] }), el('br'), el('small', { textContent: blockShort(b) }));
       btn.style.flex = `${blockDurationS(b)} 1 0`;
-      const main = b.type === 'free' ? undefined : b.type === 'steady' ? b.power : b.type === 'intervals' ? b.onPower : (b.from + b.to) / 2;
+      const main = mainPower(b);
       btn.style.borderLeftColor = main === undefined ? 'var(--muted)' : `var(--${zoneOf(main)})`;
       btn.setAttribute('aria-pressed', String(i === selected));
       btn.title = `${BLOCK_LABEL[b.type]} · ${blockShort(b)}`;
@@ -423,7 +517,118 @@ export function setupWorkoutEditor(o: EditorOptions) {
     $('ed-strip').replaceChildren(...items);
   }
 
-  // --- Ligne de réglages du bloc sélectionné ---
+  // --- Palette : toucher ajoute après le bloc choisi, glisser sur le profil insère à l'endroit visé ---
+
+  function renderPalette() {
+    $('ed-palette').replaceChildren(
+      ...PALETTE.map((t) => {
+        const b = defaultBlock(t);
+        const shape = svg('svg', { viewBox: '0 0 32 24', preserveAspectRatio: 'none', class: 'ed-svg-bars', 'aria-hidden': 'true' });
+        for (const s of profileShapes(blocksToWorkout('', undefined, [b]), 100, 32, 24)) shape.append(svg('path', { d: s.d, class: s.zone }));
+        const tile = el(
+          'button',
+          { type: 'button', className: 'ed-tile', draggable: true },
+          shape,
+          el('span', {}, el('span', { className: 't', textContent: BLOCK_LABEL[t] }), el('span', { className: 's', textContent: blockShort(b) })),
+        );
+        tile.addEventListener('click', () => {
+          if (draft) insertBlock(t, draft.blocks.length ? selected + 1 : 0);
+        });
+        tile.addEventListener('dragstart', (e) => {
+          dragType = t;
+          e.dataTransfer?.setData('text/plain', BLOCK_LABEL[t]);
+          if (e.dataTransfer) e.dataTransfer.effectAllowed = 'copy';
+        });
+        tile.addEventListener('dragend', () => {
+          dragType = undefined;
+          drop.hidden = true;
+        });
+        return tile;
+      }),
+    );
+  }
+
+  /** Jointure entre deux blocs la plus proche du pointeur : l'index d'insertion et sa position (0 à 1). */
+  function dropTarget(clientX: number): { at: number; x: number } {
+    const ranges = blockRanges(draft!.blocks);
+    const total = ranges.at(-1)?.end ?? 0;
+    const r = plot.getBoundingClientRect();
+    const t = Math.max(0, Math.min(1, (clientX - r.left) / r.width)) * total;
+    const edges = [0, ...ranges.map((x) => x.end)];
+    let at = 0;
+    edges.forEach((e, i) => {
+      if (Math.abs(e - t) < Math.abs(edges[at]! - t)) at = i;
+    });
+    return { at, x: total ? edges[at]! / total : 0 };
+  }
+
+  plot.addEventListener('dragover', (e) => {
+    if (!dragType || !draft) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    drop.style.left = `${dropTarget(e.clientX).x * 100}%`;
+    drop.hidden = false;
+    tip.hidden = true;
+  });
+  plot.addEventListener('dragleave', (e) => {
+    if (!plot.contains(e.relatedTarget as Node | null)) drop.hidden = true;
+  });
+  plot.addEventListener('drop', (e) => {
+    if (!dragType || !draft) return;
+    e.preventDefault();
+    drop.hidden = true;
+    insertBlock(dragType, dropTarget(e.clientX).at);
+    dragType = undefined;
+  });
+
+  // --- Poignées : tirer le haut change la puissance, tirer le bord droit change la durée ---
+
+  function startDrag(e: PointerEvent, kind: 'power' | 'dur') {
+    if (!draft || e.button !== 0) return;
+    e.preventDefault();
+    const w = workout();
+    frozen = { peak: profilePeakW(w, ftp()), total: totalOf(w) || 1 };
+    const r = plot.getBoundingClientRect();
+    drag = { kind, x: e.clientX, y: e.clientY, w: r.width, h: r.height, start: draft.blocks, recorded: false, moved: false };
+    // La poignée est redessinée à chaque pas : c'est le profil, stable, qui garde le pointeur.
+    plot.setPointerCapture(e.pointerId);
+    tip.hidden = true;
+  }
+
+  plot.addEventListener('pointermove', (e) => {
+    if (!drag || !draft || !frozen) return;
+    const b0 = drag.start[selected];
+    if (!b0) return;
+    let next: EditorBlock;
+    if (drag.kind === 'power') {
+      const d = Math.round((((drag.y - e.clientY) / drag.h) * frozen.peak * 100) / ftp()) / 100;
+      next = nudgePower(b0, d);
+    } else {
+      const d = Math.round((((e.clientX - drag.x) / drag.w) * frozen.total) / DURATION_STEP_S) * DURATION_STEP_S;
+      next = nudgeDuration(b0, d);
+    }
+    if (JSON.stringify(next) === JSON.stringify(draft.blocks[selected])) return;
+    // Une seule entrée d'historique pour tout le geste, et seulement s'il a changé quelque chose.
+    if (!drag.recorded) {
+      history.record(drag.start);
+      drag.recorded = true;
+    }
+    drag.moved = true;
+    draft.blocks = drag.start.map((b, i) => (i === selected ? next : b));
+    render();
+  });
+
+  function endDrag() {
+    if (!drag) return;
+    suppressClick = drag.moved;
+    drag = undefined;
+    frozen = undefined;
+    render();
+  }
+  plot.addEventListener('pointerup', endDrag);
+  plot.addEventListener('pointercancel', endDrag);
+
+  // --- Réglages du bloc sélectionné ---
 
   /** Champ de puissance en % avec boutons ±5 % ; `key` sert à rendre le focus après redessin. */
   function powerStepper(label: string, value: number, set: (v: number) => void, key: string) {
@@ -444,7 +649,28 @@ export function setupWorkoutEditor(o: EditorOptions) {
       b.addEventListener('click', () => commitSet(set, Math.min(3, Math.max(0.05, Math.round((value + d) * 100) / 100))));
       return b;
     };
-    return el('div', { className: 'stepper' }, step(-POWER_STEP), input, el('span', { textContent: '%' }), step(POWER_STEP));
+    return el('div', { className: 'stepper' }, step(-POWER_STEP), input, el('span', { className: 'unit', textContent: '%' }), step(POWER_STEP));
+  }
+
+  /** Champ de durée mm:ss avec boutons ±15 s. */
+  function durationStepper(label: string, value: number, set: (v: number) => void, key: string) {
+    const input = el('input', { type: 'text', value: formatDuration(value), inputMode: 'numeric', placeholder: 'mm:ss' });
+    input.setAttribute('aria-label', label);
+    input.dataset.key = `${key}-in`;
+    input.addEventListener('input', () => {
+      const v = parseDuration(input.value);
+      input.classList.toggle('invalid', v === undefined || v < 1);
+      if (v === undefined || v < 1) return;
+      liveEdit(() => set(v));
+    });
+    const step = (d: number) => {
+      const b = el('button', { type: 'button', textContent: d > 0 ? '+' : '−' });
+      b.setAttribute('aria-label', `${label} ${d > 0 ? 'plus' : 'moins'} 15 secondes`);
+      b.dataset.key = `${key}-${d > 0 ? 'up' : 'down'}`;
+      b.addEventListener('click', () => commitSet(set, Math.max(5, value + d * DURATION_STEP_S)));
+      return b;
+    };
+    return el('div', { className: 'stepper' }, step(-1), input, step(1));
   }
 
   /** Les setters écrivent dans le bloc sélectionné du brouillon : on le copie d'abord, l'historique garde l'original. */
@@ -455,19 +681,6 @@ export function setupWorkoutEditor(o: EditorOptions) {
     draft.blocks = structuredClone(draft.blocks);
     set(v);
     render();
-  }
-
-  function durationField(label: string, value: number, set: (v: number) => void, key: string) {
-    const input = el('input', { type: 'text', value: formatDuration(value), inputMode: 'numeric', placeholder: 'mm:ss' });
-    input.setAttribute('aria-label', label);
-    input.dataset.key = key;
-    input.addEventListener('input', () => {
-      const v = parseDuration(input.value);
-      input.classList.toggle('invalid', v === undefined || v < 1);
-      if (v === undefined || v < 1) return;
-      liveEdit(() => set(v));
-    });
-    return el('label', { className: 'dur' }, label.split(' ')[0]!.toLowerCase(), input);
   }
 
   function countStepper(value: number, set: (v: number) => void) {
@@ -490,7 +703,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
     return el('div', { className: 'stepper' }, step(-1), input, step(1));
   }
 
-  /** Frappe dans un champ : on modifie le brouillon en place et on redessine tout sauf la ligne de réglages. */
+  /** Frappe dans un champ : on modifie le brouillon en place et on redessine tout sauf les champs des réglages. */
   function liveEdit(apply: () => void) {
     if (!draft) return;
     if (!typing) {
@@ -501,110 +714,146 @@ export function setupWorkoutEditor(o: EditorOptions) {
     render(true);
   }
 
-  /** Légende « Effort · Seuil » ; la zone est omise quand elle répète le nom (« Récupération · Récupération »). */
-  const legendText = (name: string, zone?: string) => (zone && zone !== name ? `${name} · ${zone}` : name);
+  const row = (label: string, control: Node) => el('div', { className: 'ed-row' }, el('span', { textContent: label }), control);
 
-  function fieldset(name: string, zone: string | undefined, main: boolean, ...children: Node[]) {
-    const f = el('fieldset', { className: main ? 'main' : '' }, el('legend', { textContent: legendText(name, zone) }), ...children);
-    f.dataset.legend = name;
-    return f;
+  /** Groupe teinté de la couleur de sa zone ; son titre (watts, zone) suit la frappe. */
+  function group(title: () => { text: string; zone?: Zone }, ...rows: Node[]) {
+    const t = el('span', { className: 'ed-group-title' });
+    const g = el('div', { className: 'ed-group' }, t, ...rows);
+    const paint = () => {
+      const { text, zone } = title();
+      t.textContent = text;
+      g.style.setProperty('--zc', zone ? `var(--${zone})` : 'var(--muted)');
+    };
+    paint();
+    liveTexts.push(paint);
+    return g;
   }
+
+  /** « Effort · 238 W · Seuil » ; la zone est omise quand elle répète le nom (« Récupération · 138 W »). */
+  const powerTitle = (name: string, p: number) => {
+    const zone = zoneOf(p);
+    const z = zoneName(zone);
+    return { text: `${name} · ${Math.round(p * ftp())} W${z !== name ? ` · ${z}` : ''}`, zone };
+  };
 
   function renderInspector() {
     const active = document.activeElement instanceof HTMLElement ? document.activeElement.dataset.key : undefined;
+    liveTexts = [];
     const b = draft!.blocks[selected];
     if (!b) {
-      inspector.replaceChildren(el('p', { className: 'note', textContent: 'Aucun bloc : ajoute-en un ci-dessous.' }));
+      inspector.replaceChildren(el('p', { className: 'ed-empty', textContent: 'Aucun bloc : glisse-en un depuis la palette, ou touche-le pour l’ajouter.' }));
       return;
     }
-    const f = ftp();
     const cur = () => draft!.blocks[selected]!;
     const set = <K extends string>(k: K) => (v: number) => ((cur() as unknown as Record<K, number>)[k] = v);
-    const z = (p: number) => zoneName(zoneOf(p));
+    const num = <K extends string>(k: K) => () => (cur() as unknown as Record<K, number>)[k];
 
-    const actions = el('div', { className: 'actions' });
-    if (b.type !== 'free') {
-      const c = b.cadenceRpm;
-      actions.append(button(c ? `Cadence cible : ${c} rpm…` : 'Cadence cible…', openCadence, 'secondary'));
-    }
-    actions.append(
-      button('← Avant', () => moveSelected(-1), 'secondary'),
-      button('Après →', () => moveSelected(1), 'secondary'),
-      button('Dupliquer', () => commit((bs) => [...bs.slice(0, selected + 1), structuredClone(b), ...bs.slice(selected + 1)], selected + 1), 'secondary'),
-    );
-    if (b.type === 'intervals') {
-      actions.append(button('Séparer les répétitions', () => commit((bs) => [...bs.slice(0, selected), ...splitIntervals(b), ...bs.slice(selected + 1)]), 'secondary'));
-    }
-    actions.append(button('Supprimer', deleteSelected, 'secondary danger'));
-    actions.querySelectorAll('button').forEach((x, i) => (x.dataset.key = `act-${i}`));
-    const [before, after] = [...actions.querySelectorAll('button')].filter((x) => /Avant|Après/.test(x.textContent ?? ''));
-    if (before) setBlocked(before, selected === 0 ? 'C’est déjà le premier bloc.' : undefined);
-    if (after) setBlocked(after, selected === draft!.blocks.length - 1 ? 'C’est déjà le dernier bloc.' : undefined);
+    const chip = el('span', { className: 'ed-zone-chip' });
+    const sentence = el('p', { className: 'sentence' });
+    liveTexts.push(() => {
+      const p = mainPower(cur());
+      chip.textContent = p === undefined ? 'Libre' : zoneName(zoneOf(p));
+      chip.style.setProperty('--zc', p === undefined ? 'var(--muted)' : `var(--${zoneOf(p)})`);
+      sentence.textContent = describeBlock(cur(), ftp());
+    });
 
-    const line = el('div', { className: 'ed-line' });
+    const parts: Node[] = [];
     switch (b.type) {
-      case 'intervals': {
-        const schema = el(
-          'div',
-          { className: 'rep-schema' },
-          el('span', { textContent: 'Une répétition' }),
-          el('div', { className: 'bars' }),
-          el('span', { textContent: `${formatDuration(b.onS)} + ${formatDuration(b.offS)}, × ${b.repeat}` }),
-        );
-        const bars = schema.querySelector('.bars')!;
-        for (const [s, p] of [[b.onS, b.onPower], [b.offS, b.offPower]] as const) {
-          const bar = el('span');
-          bar.style.flex = String(s);
-          bar.style.height = `${Math.min(100, (p / Math.max(b.onPower, b.offPower)) * 100)}%`;
-          bar.style.background = `var(--${zoneOf(p)})`;
-          bars.append(bar);
-        }
-        line.append(
-          schema,
-          fieldset('Répétitions', undefined, false, countStepper(b.repeat, set('repeat'))),
-          fieldset('Effort', z(b.onPower), true, powerStepper('Effort', b.onPower, set('onPower'), 'on'), durationField('Durée de l’effort', b.onS, set('onS'), 'on-dur')),
-          fieldset('Récupération', z(b.offPower), false, powerStepper('Récupération', b.offPower, set('offPower'), 'off'), durationField('Durée de la récupération', b.offS, set('offS'), 'off-dur')),
+      case 'intervals':
+        parts.push(
+          row('Répétitions', countStepper(b.repeat, set('repeat'))),
+          group(
+            () => powerTitle('Effort', num('onPower')()),
+            row('Durée', durationStepper('Durée de l’effort', b.onS, set('onS'), 'on-dur')),
+            row('Puissance', powerStepper('Puissance de l’effort', b.onPower, set('onPower'), 'on')),
+          ),
+          group(
+            () => powerTitle('Récupération', num('offPower')()),
+            row('Durée', durationStepper('Durée de la récupération', b.offS, set('offS'), 'off-dur')),
+            row('Puissance', powerStepper('Puissance de la récupération', b.offPower, set('offPower'), 'off')),
+          ),
         );
         break;
-      }
       case 'steady':
-        line.append(fieldset('Puissance', z(b.power), true, powerStepper('Puissance', b.power, set('power'), 'p'), durationField('Durée du palier', b.durationS, set('durationS'), 'dur')));
+        parts.push(
+          group(
+            () => powerTitle('Palier', num('power')()),
+            row('Durée', durationStepper('Durée du palier', b.durationS, set('durationS'), 'dur')),
+            row('Puissance', powerStepper('Puissance du palier', b.power, set('power'), 'p')),
+          ),
+        );
         break;
       case 'warmup':
       case 'cooldown':
       case 'ramp':
-        line.append(
-          fieldset('Début', z(b.from), true, powerStepper('Début', b.from, set('from'), 'from'), durationField('Durée du bloc', b.durationS, set('durationS'), 'dur')),
-          fieldset('Fin', z(b.to), false, powerStepper('Fin', b.to, set('to'), 'to')),
+        parts.push(
+          row('Durée', durationStepper('Durée du bloc', b.durationS, set('durationS'), 'dur')),
+          group(
+            () => {
+              const [from, to] = [num('from')(), num('to')()];
+              return { text: `Puissance · ${Math.round(from * ftp())} → ${Math.round(to * ftp())} W`, zone: zoneOf((from + to) / 2) };
+            },
+            row('Début', powerStepper('Puissance de début', b.from, set('from'), 'from')),
+            row('Fin', powerStepper('Puissance de fin', b.to, set('to'), 'to')),
+          ),
         );
         break;
       case 'free':
-        line.append(fieldset('Libre', 'sans consigne', true, durationField('Durée du bloc', b.durationS, set('durationS'), 'dur')));
+        parts.push(
+          row('Durée', durationStepper('Durée du bloc', b.durationS, set('durationS'), 'dur')),
+          el('p', { className: 'ed-free-note', textContent: 'Sans consigne de puissance : tu roules à ton rythme.' }),
+        );
         break;
     }
 
-    inspector.replaceChildren(el('div', { className: 'top' }, el('p', { className: 'sentence', textContent: describeBlock(b, f) }), actions), line);
+    if (b.type !== 'free') {
+      const c = b.cadenceRpm;
+      const cad = el(
+        'button',
+        { type: 'button', className: 'ed-cad' },
+        el('span', { textContent: 'Cadence cible' }),
+        el('span', { className: 'v', textContent: c ? `${c} rpm${b.type === 'intervals' && b.restCadenceRpm ? ` / ${b.restCadenceRpm}` : ''}` : 'libre · définir' }),
+      );
+      cad.dataset.key = 'cad';
+      cad.addEventListener('click', openCadence);
+      parts.push(cad);
+    }
+
+    const before = button('← Avant', () => moveSelected(-1));
+    const after = button('Après →', () => moveSelected(1));
+    setBlocked(before, selected === 0 ? 'C’est déjà le premier bloc.' : undefined);
+    setBlocked(after, selected === draft!.blocks.length - 1 ? 'C’est déjà le dernier bloc.' : undefined);
+    const actions = el(
+      'div',
+      { className: 'ed-actions' },
+      before,
+      after,
+      button('Dupliquer', () => commit((bs) => [...bs.slice(0, selected + 1), structuredClone(b), ...bs.slice(selected + 1)], selected + 1)),
+    );
+    if (b.type === 'intervals') {
+      const split = button('Séparer', () => commit((bs) => [...bs.slice(0, selected), ...splitIntervals(b), ...bs.slice(selected + 1)]));
+      split.title = 'Séparer les répétitions en paliers, pour en modifier une seule';
+      actions.append(split);
+    }
+    actions.append(button('Supprimer le bloc', deleteSelected, 'danger'));
+    actions.querySelectorAll('button').forEach((x, i) => (x.dataset.key = `act-${i}`));
+
+    inspector.replaceChildren(
+      el('span', { className: 'ed-kicker', textContent: `Bloc ${selected + 1} sur ${draft!.blocks.length}` }),
+      el('div', { className: 'ed-ins-head' }, el('h3', { textContent: BLOCK_LABEL[b.type] }), chip),
+      sentence,
+      ...parts,
+      actions,
+    );
+    refreshInspectorText();
     if (active) inspector.querySelector<HTMLElement>(`[data-key="${active}"]`)?.focus();
   }
 
-  /** Pendant la frappe : la phrase et les zones des légendes suivent, sans reconstruire les champs. */
+  /** Pendant la frappe : la phrase, la zone et les watts suivent, sans reconstruire les champs. */
   function refreshInspectorText() {
-    const b = draft!.blocks[selected];
-    if (!b) return;
-    const sentence = inspector.querySelector('.sentence');
-    if (sentence) sentence.textContent = describeBlock(b, ftp());
-    const z = (p: number) => zoneName(zoneOf(p));
-    const legends: Record<string, string | undefined> = {
-      Effort: b.type === 'intervals' ? z(b.onPower) : undefined,
-      Récupération: b.type === 'intervals' ? z(b.offPower) : undefined,
-      Puissance: b.type === 'steady' ? z(b.power) : undefined,
-      Début: 'from' in b ? z(b.from) : undefined,
-      Fin: 'to' in b ? z(b.to) : undefined,
-    };
-    inspector.querySelectorAll<HTMLFieldSetElement>('fieldset[data-legend]').forEach((fs) => {
-      const zone = legends[fs.dataset.legend!];
-      if (zone) fs.querySelector('legend')!.textContent = legendText(fs.dataset.legend!, zone);
-    });
+    if (!draft?.blocks[selected]) return;
+    for (const f of liveTexts) f();
   }
 
   function moveSelected(d: number) {
@@ -627,40 +876,43 @@ export function setupWorkoutEditor(o: EditorOptions) {
   function renderZones(z: ZoneTimes) {
     const total = Object.values(z).reduce((a, b) => a + b, 0) || 1;
     const ids = [...ZONES.map((x) => x.id), 'free'] as Zone[];
+    const color = (id: Zone) => (id === 'free' ? 'var(--muted)' : `var(--${id})`);
     const bar = el('div', { className: 'zone-bar' });
     bar.setAttribute('aria-hidden', 'true');
     for (const id of ids) {
       if (!z[id]) continue;
       const s = el('span');
       s.style.width = `${(z[id] / total) * 100}%`;
-      s.style.background = id === 'free' ? 'var(--muted)' : `var(--${id})`;
+      s.style.background = color(id);
       bar.append(s);
     }
     const rows = ids
       .filter((id) => z[id] || baseZones?.[id])
       .sort((a, b) => z[b] - z[a])
       .map((id) => {
-        const was = baseZones && baseZones[id] !== z[id] ? el('span', { className: 'was', textContent: ` (avant : ${formatDuration(baseZones[id])})` }) : '';
-        return el('li', {}, el('span', { textContent: zoneName(id) }), el('span', {}, el('strong', { textContent: formatDuration(z[id]) }), was));
+        const sw = el('span', { className: 'sw' });
+        sw.style.background = color(id);
+        const was = baseZones && baseZones[id] !== z[id] ? el('span', { className: 'was', textContent: `(avant : ${formatDuration(baseZones[id])})` }) : '';
+        return el('li', {}, sw, el('span', { textContent: zoneName(id) }), el('strong', { textContent: formatDuration(z[id]) }), was);
       });
-    $('ed-zones').replaceChildren(
-      el('h3', { textContent: 'Temps par zone' }),
-      bar,
-      el('ul', {}, ...rows),
-      el('p', { className: 'note', textContent: zoneReading(z, formatDuration) }),
-    );
+    const list = el('ul', {}, ...rows);
+    list.setAttribute('aria-label', 'Temps par zone');
+    $('ed-zones').replaceChildren(bar, list, el('p', { className: 'ed-reading', textContent: zoneReading(z, formatDuration) }));
   }
 
   // --- Info-bulle et sélection sur le profil ---
 
   function timeAt(e: MouseEvent): number {
     const r = plot.getBoundingClientRect();
-    const total = workout().steps.reduce((t, s) => t + s.durationS, 0);
+    const total = totalOf(workout());
     return Math.max(0, Math.min(total - 0.001, ((e.clientX - r.left) / r.width) * total));
   }
 
   plot.addEventListener('mousemove', (e) => {
-    if (!draft?.blocks.length) return;
+    if (!draft?.blocks.length || drag || (e.target as Element).closest('.ed-handle')) {
+      tip.hidden = true;
+      return;
+    }
     const t = timeAt(e);
     const bi = blockIndexAt(draft.blocks, t);
     const b = draft.blocks[bi]!;
@@ -700,13 +952,20 @@ export function setupWorkoutEditor(o: EditorOptions) {
   });
   plot.addEventListener('mouseleave', () => (tip.hidden = true));
   plot.addEventListener('click', (e) => {
+    // Fin d'un glissé, ou clic sur une poignée : ce n'est pas un choix de bloc.
+    if (suppressClick) {
+      suppressClick = false;
+      return;
+    }
+    if ((e.target as Element).closest('.ed-handle')) return;
     if (draft?.blocks.length) select(blockIndexAt(draft.blocks, timeAt(e)));
   });
 
   // --- Clavier ---
 
   document.addEventListener('keydown', (e) => {
-    if (!draft || editor.hidden || editor.offsetParent === null || isTyping(e.target)) return;
+    // L'éditeur est en position fixe (offsetParent toujours nul) : on teste qu'il est réellement affiché.
+    if (!draft || editor.hidden || !editor.getClientRects().length || isTyping(e.target)) return;
     const ctrl = e.ctrlKey || e.metaKey;
     if (ctrl && e.key.toLowerCase() === 'z') {
       e.preventDefault();
@@ -742,7 +1001,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
     }
   });
 
-  // --- Cadence cible (option, hors de la ligne de réglages) ---
+  // --- Cadence cible (option, dans une fenêtre) ---
 
   function openCadence() {
     const b = draft?.blocks[selected];
@@ -778,10 +1037,10 @@ export function setupWorkoutEditor(o: EditorOptions) {
     cadenceDialog.close();
   });
 
-  // --- Insertion à un endroit précis ---
+  // --- Insertion à un endroit précis (boutons « + » de la bande) ---
 
   $('ed-insert-types').replaceChildren(
-    ...(['warmup', 'steady', 'intervals', 'ramp', 'free', 'cooldown'] as BlockType[]).map((t) =>
+    ...PALETTE.map((t) =>
       button(BLOCK_LABEL[t], () => {
         insertDialog.close();
         insertBlock(t, insertAt);
@@ -790,6 +1049,21 @@ export function setupWorkoutEditor(o: EditorOptions) {
   );
   for (const d of [insertDialog, cadenceDialog]) {
     d.querySelector('[data-close]')?.addEventListener('click', () => d.close());
+  }
+
+  // --- Fond : une scène de l'accueil ---
+
+  function paintBackground() {
+    const scene = HOME_SCENES.find((s) => s.name === BACKGROUND_SCENE) ?? HOME_SCENES[0];
+    if (!scene) return;
+    const s = svg('svg', { viewBox: '0 0 800 420', preserveAspectRatio: 'xMidYMid slice', 'aria-hidden': 'true' });
+    // Le même dessin vit déjà dans l'accueil, caché quand l'éditeur est ouvert : ses identifiants internes sont
+    // préfixés, sinon les dégradés renverraient à la copie cachée et ne s'afficheraient pas.
+    s.innerHTML = scene.svg
+      .replace(/id="([^"]+)"/g, 'id="ed-$1"')
+      .replace(/url\(#([^)]+)\)/g, 'url(#ed-$1)')
+      .replace(/href="#([^"]+)"/g, 'href="#ed-$1"');
+    $('ed-bg').replaceChildren(s);
   }
 
   // --- Branchements ---
@@ -814,13 +1088,6 @@ export function setupWorkoutEditor(o: EditorOptions) {
   });
   inspector.addEventListener('submit', (e) => e.preventDefault());
 
-  document.querySelectorAll<HTMLButtonElement>('[data-add]').forEach((b) =>
-    b.addEventListener('click', () => {
-      if (!draft) return;
-      // Ajouté après le bloc sélectionné : c'est là que l'utilisateur regarde.
-      insertBlock(b.dataset.add as BlockType, draft.blocks.length ? selected + 1 : 0);
-    }),
-  );
   $('ed-undo').addEventListener('click', undo);
   $('ed-redo').addEventListener('click', redo);
   $('lib-new').addEventListener('click', () =>
@@ -835,7 +1102,9 @@ export function setupWorkoutEditor(o: EditorOptions) {
   $('ed-save').addEventListener('click', () => void save());
   $('ed-use').addEventListener('click', () => {
     const id = save();
-    if (id) o.onUse(id);
+    if (!id) return;
+    close(true);
+    o.onRide(id);
   });
   $('ed-export').addEventListener('click', () => {
     if (draft) download(`${slug(draft.name)}.zwo`, toZwo(draft.name, draft.description, draft.blocks), 'application/xml');
@@ -845,6 +1114,8 @@ export function setupWorkoutEditor(o: EditorOptions) {
     if (isDirty()) e.preventDefault();
   });
 
+  paintBackground();
+  renderPalette();
   renderLibrary();
   renderSamples();
 

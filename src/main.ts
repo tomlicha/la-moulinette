@@ -509,6 +509,12 @@ const editor = setupWorkoutEditor({
     router.go('sortie');
     chooseWorkout(`sample:${id}`);
   },
+  onRide: (id) => {
+    router.go('sortie');
+    chooseWorkout(`lib:${id}`);
+    // Une séance déjà en cours n'est pas remplacée : chooseWorkout l'a signalé dans le journal.
+    if (!session.workout) startWorkout();
+  },
 });
 refreshWorkoutChoices();
 
