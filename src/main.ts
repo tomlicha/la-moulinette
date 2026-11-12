@@ -24,6 +24,7 @@ import { setupWheel } from './ui/wheel-picker';
 import { setupAppShell } from './ui/app-shell';
 import { setupWorkoutEditor } from './ui/workout-editor';
 import { RideHud } from './ui/hud';
+import { setupRideMenu } from './ui/ride-menu';
 import { createRadar } from './ui/radar';
 import { setupHomeBackground } from './ui/home-background';
 import { controlModes } from './ui/radar-model';
@@ -202,7 +203,29 @@ hub.on('raw', (src, data) => {
   // Les trames brutes servent à documenter chaque modèle de trainer ; on ne journalise pas tout le flux.
   if (src !== 'Indoor Bike Data' && src !== 'Heart Rate' && src !== 'Cycling Power' && src !== 'FE-C') log(`${src} : ${hex(data)}`);
 });
+/**
+ * Démarrage au premier coup de pédale : sur l'écran Sortie, tant que rien n'a été lancé à la main, la première puissance
+ * ou cadence reçue démarre la séance chargée (et la sortie qui la porte), ou la sortie libre s'il n'y en a pas.
+ * Armé en arrivant sur l'écran ou en choisissant une séance ; désarmé dès qu'une sortie ou une séance démarre,
+ * donc un arrêt volontaire n'est pas défait par le pédalage qui continue.
+ */
+let autoStart = false;
+/** Ne s'arme que si rien ne tourne : revenir sur l'écran en pleine sortie ne doit pas lancer une séance. */
+const armAutoStart = () => (autoStart = !ride && !runner);
+function maybeAutoStart(m: { powerW?: number; cadenceRpm?: number }) {
+  if (!autoStart || runner || router.current() !== 'sortie') return;
+  if (!((m.powerW ?? 0) > 0 || (m.cadenceRpm ?? 0) > 0)) return;
+  if (workout && !workoutStartBlock()) {
+    log('premier coup de pédale : démarrage de la séance');
+    startWorkout();
+  } else if (!ride && currentState === 'connected') {
+    log('premier coup de pédale : démarrage de la sortie');
+    startRide();
+  }
+}
+
 hub.on('measurement', (m) => {
+  maybeAutoStart(m);
   if (m.powerW !== undefined) lastPower = { w: m.powerW, at: performance.now() };
   if (m.cadenceRpm !== undefined) lastCadence = { rpm: m.cadenceRpm, at: performance.now() };
   if (m.powerW !== undefined) power3s.push(m.powerW, performance.now());
@@ -244,6 +267,7 @@ function setErgActive(on: boolean) {
 }
 
 function startRide() {
+  autoStart = false;
   const massKg = Number(massInput.value) || DEFAULT_RIDER.massKg;
   ride = new Ride(DEMO_ROUTE, { ...DEFAULT_RIDER, massKg });
   lastRide = ride.snapshot();
@@ -374,7 +398,6 @@ gradeInput.addEventListener('input', () => {
 });
 // --- Séance structurée ---
 
-const woSelect = $<HTMLSelectElement>('wo-select');
 const woFtp = $<HTMLInputElement>('wo-ftp');
 const woStart = $<HTMLButtonElement>('wo-start');
 const woPause = $<HTMLButtonElement>('wo-pause');
@@ -382,8 +405,7 @@ const woSkip = $<HTMLButtonElement>('wo-skip');
 const woStop = $<HTMLButtonElement>('wo-stop');
 const woEasier = $<HTMLButtonElement>('wo-easier');
 const woHarder = $<HTMLButtonElement>('wo-harder');
-const woShapes = $('wo-shapes');
-// Aperçu de la séance sur l'écran d'accueil : même séance, même profil que celui de la sortie.
+// La séance se choisit sur l'accueil (ou dans l'écran Séances) ; la sortie, elle, ne fait que la dérouler.
 const homeShapes = $('home-wo-shapes');
 const homeSelect = $<HTMLSelectElement>('home-wo-select');
 const homeWoStart = $<HTMLButtonElement>('home-wo-start');
@@ -394,6 +416,7 @@ setupHomeBackground($('home-scenes'), $('home-title'), $('home-desc'));
 setupHomeBackground($('sea-scenes'));
 // Et l'écran Appareils.
 setupHomeBackground($('dev-scenes'));
+const NO_WORKOUT = "Aucune séance choisie : choisis-en une sur l'accueil.";
 const PROFILE_W = 1000;
 const PROFILE_H = 120;
 const FTP_KEY = 'zwift2.ftp';
@@ -444,20 +467,21 @@ function refreshWorkoutButtons() {
   refreshEditorRide?.();
   for (const b of [woPause, woSkip, woStop, woEasier, woHarder]) setBlocked(b, runner ? undefined : 'Démarre d’abord la séance.');
   woPause.textContent = woPaused ? 'Reprendre' : 'Pause';
+  // Dans le menu de la sortie : « Démarrer » avant la séance, les commandes de déroulement pendant.
+  woStart.hidden = !!runner;
+  for (const b of [woPause, woSkip, woStop]) b.hidden = !runner;
+  $('wo-intensity-row').hidden = !runner;
 }
 
 function renderProfile() {
-  woShapes.replaceChildren();
   homeShapes.replaceChildren();
   $('home-wo-meta').textContent = workout ? `${workout.name} · ${fmtTime(workout.steps.reduce((t, s) => t + s.durationS, 0))}` : 'Aucune séance choisie.';
   if (!workout) return;
   for (const s of profileShapes(workout, readFtp(), PROFILE_W, PROFILE_H)) {
-    for (const target of [woShapes, homeShapes]) {
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.setAttribute('d', s.d);
-      path.setAttribute('class', s.zone);
-      target.append(path);
-    }
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', s.d);
+    path.setAttribute('class', s.zone);
+    homeShapes.append(path);
   }
 }
 
@@ -479,7 +503,7 @@ function workoutFromChoice(value: string): Workout | undefined {
 }
 
 function refreshWorkoutChoices() {
-  const keep = woSelect.value;
+  const keep = homeSelect.value;
   const opt = (value: string, label: string) => Object.assign(document.createElement('option'), { value, textContent: label });
   const mine = document.createElement('optgroup');
   mine.label = 'Mes séances';
@@ -487,15 +511,8 @@ function refreshWorkoutChoices() {
   const samples = document.createElement('optgroup');
   samples.label = 'Modèles';
   samples.append(...SAMPLE_WORKOUTS.map((s) => opt(`sample:${s.id}`, parseWorkout(s.fileName, s.text).name)));
-  woSelect.replaceChildren(opt('', '— choisir une séance —'), ...(mine.children.length ? [mine] : []), samples);
-  woSelect.value = [...woSelect.options].some((o) => o.value === keep) ? keep : '';
-  syncHomeSelect();
-}
-
-/** Le sélecteur de l'accueil reprend les choix de celui de la sortie, et sa valeur. */
-function syncHomeSelect() {
-  homeSelect.replaceChildren(...[...woSelect.children].map((c) => c.cloneNode(true)));
-  homeSelect.value = woSelect.value;
+  homeSelect.replaceChildren(opt('', '— choisir une séance —'), ...(mine.children.length ? [mine] : []), samples);
+  homeSelect.value = [...homeSelect.options].some((o) => o.value === keep) ? keep : '';
 }
 
 function chooseWorkout(value: string) {
@@ -503,18 +520,18 @@ function chooseWorkout(value: string) {
     log("séance en cours : l'arrêter avant d'en choisir une autre");
     return;
   }
-  woSelect.value = value;
   homeSelect.value = value;
   const w = value ? workoutFromChoice(value) : undefined;
   if (!w) {
     workout = undefined;
-    $('wo-name').textContent = 'Aucune séance choisie.';
+    $('wo-name').textContent = NO_WORKOUT;
     renderProfile();
     renderWorkout(undefined);
     refreshWorkoutButtons();
     return;
   }
   workout = w;
+  armAutoStart();
   for (const x of workout.warnings) log(`séance : ${x}`);
   const total = workout.steps.reduce((t, s) => t + s.durationS, 0);
   $('wo-name').textContent = `${workout.name} · ${fmtTime(total)}${workout.description ? ` · ${workout.description}` : ''}`;
@@ -524,25 +541,9 @@ function chooseWorkout(value: string) {
   log(`séance choisie : ${workout.name} (${workout.steps.length} paliers, ${fmtTime(total)})`);
 }
 
+/** L'état de la séance est affiché par le HUD (palier, profil, curseur, message) : on ne fait que le garder pour lui. */
 function renderWorkout(s: WorkoutState | undefined) {
   lastWoState = s;
-  const cursor = $('wo-cursor');
-  const x = s ? (s.elapsedS / (s.totalS || 1)) * PROFILE_W : 0;
-  cursor.setAttribute('x1', String(x));
-  cursor.setAttribute('x2', String(x));
-  woShapes.querySelectorAll('path').forEach((p, i) => p.classList.toggle('past', !!s && i < s.stepIndex));
-
-  const msg = $('wo-message');
-  if (!s) {
-    $('wo-next').textContent = '';
-    msg.hidden = true;
-    return;
-  }
-  $('wo-next').textContent = s.next
-    ? `Ensuite : ${STEP_LABEL[s.next.kind]}, ${s.nextTargetW === undefined ? 'libre' : `${s.nextTargetW} W`}, ${fmtTime(s.next.durationS)}`
-    : 'Dernier palier';
-  msg.hidden = !s.message;
-  msg.textContent = s.message ?? '';
 }
 
 /** Relâche l'ERG pris par la séance : hors sortie virtuelle, le trainer ne le quitte qu'avec une consigne de pente. */
@@ -592,6 +593,7 @@ function tickWorkout() {
 
 function startWorkout() {
   if (!workout) return;
+  autoStart = false;
   // La séance se roule sur le parcours : sans sortie en cours, le cycliste resterait immobile dans la vue.
   if (!ride && currentState === 'connected') startRide();
   runner = new WorkoutRunner(workout, readFtp());
@@ -619,7 +621,6 @@ function finishWorkout(reason: string) {
   refreshWorkoutButtons();
 }
 
-woSelect.addEventListener('change', () => chooseWorkout(woSelect.value));
 homeSelect.addEventListener('change', () => chooseWorkout(homeSelect.value));
 homeWoStart.addEventListener('click', () => {
   router.go('sortie');
@@ -682,7 +683,7 @@ const editor = setupWorkoutEditor({
   readFtp,
   log,
   onLibraryChange: refreshWorkoutChoices,
-  currentChoice: () => woSelect.value,
+  currentChoice: () => homeSelect.value,
   // Pendant une séance, le choix reste celui de la séance en cours : on ne le change pas en parcourant la bibliothèque.
   onFocus: (key) => {
     if (!runner) chooseWorkout(key);
@@ -698,8 +699,11 @@ refreshEditorRide = editor.refreshRide;
 refreshWorkoutChoices();
 
 setupAppShell();
+const rideMenu = setupRideMenu({ prefs, opener: $<HTMLButtonElement>('ride-menu-open'), dialog: $<HTMLDialogElement>('ride-menu'), stats: $('view-stats') });
 const router = setupRouter((v) => {
   view?.setActive(v === 'sortie');
+  if (v !== 'sortie') rideMenu.close();
+  else armAutoStart();
   if (v === 'seances') editor.sync();
 });
 
@@ -772,11 +776,7 @@ function renderDevices() {
     roleState.trainer === 'connected' ? undefined : 'Connecte d’abord ton home trainer, ou choisis « Continuer sans trainer » juste à côté.',
   );
   $('sortie-hint').hidden = roleState.trainer === 'connected';
-  for (const [role, label] of [['trainer', 'trainer'], ['hr', 'cardio']] as const) {
-    const pill = $(`status-${role}`);
-    pill.dataset.s = roleState[role];
-    pill.textContent = `${label} : ${roleState[role] === 'connected' ? 'connecté' : roleState[role] === 'connecting' ? 'connexion…' : roleState[role] === 'error' ? 'erreur' : 'déconnecté'}`;
-  }
+  rideMenu.setAlert(roleState.trainer !== 'connected');
   $('card-trainer').dataset.s = roleState.trainer;
   $('card-hr').dataset.s = roleState.hr;
   // Nom réel : celui de l'appareil connecté ; sinon le dernier appareil mémorisé, que la reconnexion cherche.
@@ -883,6 +883,7 @@ function renderHud() {
     ftpW: runner?.ftpW ?? readFtp(),
     ride: ride && lastRide ? { snapshot: lastRide, climbM: climb.total } : undefined,
     workout: runner && lastWoState ? { workout: runner.workout, state: lastWoState, ftpW: runner.ftpW } : undefined,
+    message: runner ? lastWoState?.message : undefined,
     control: ergActive ? 'erg' : ride && trainer?.capabilities.simulation ? 'sim' : undefined,
     trainerConnected: roleState.trainer === 'connected',
     heartRateConnected: roleState.hr === 'connected',

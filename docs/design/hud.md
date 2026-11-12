@@ -1,6 +1,6 @@
 # HUD de la sortie
 
-Référence permanente du HUD affiché par-dessus la vue 3D (écran **Sortie**). Toute évolution du HUD part de ce fichier et le met à jour.
+Référence permanente du HUD affiché par-dessus la vue 3D (écran **Sortie**, voir [sortie.md](sortie.md) pour l'écran lui-même). Toute évolution du HUD part de ce fichier et le met à jour.
 
 - Code : [`src/ui/hud.ts`](../../src/ui/hud.ts) (affichage), [`src/ui/hud.css`](../../src/ui/hud.css) (style), [`src/ui/hud-model.ts`](../../src/ui/hud-model.ts) (calculs purs, testés).
 - Branchement : `renderHud()` dans [`src/main.ts`](../../src/main.ts), rafraîchi à 4 Hz tant que l'écran Sortie est affiché.
@@ -14,25 +14,27 @@ Référence permanente du HUD affiché par-dessus la vue 3D (écran **Sortie**).
 | 2026-11-11 | Puissance regroupée avec FC, cadence et vitesse dans un seul bloc en haut au centre ; puissance dominante ; altitude retirée. | Un seul endroit à regarder, juste au-dessus du cycliste. L'altitude n'aide pas à rouler ; le dénivelé cumulé et la pente suffisent. |
 | 2026-11-11 | Widgets réduits à 90 % (`--hud-k`). | Moins de scène masquée, lisibilité intacte. |
 | 2026-11-11 | Cartes de mesures sous la vue retirées ; HUD complet affiché dès l'écran Sortie ; téléphone en paysage uniquement. | Le HUD est l'affichage unique ; pas de saut de mise en page au départ de la sortie. |
+| 2026-11-12 | La sortie passe **plein écran** : le HUD couvre la fenêtre, sa scène 1280 × 720 est ajustée et centrée ; le message de la séance s'y affiche. | Voir [sortie.md](sortie.md). |
 | 2026-11-11 | **Verre dépoli** retenu pour la lisibilité, face à « Bandeau opaque » et « Clair adaptatif ». | Le gris translucide laissait passer le ciel clair : libellés gris clair autour de 2,5:1 devant les nuages (calcul à la main, à remesurer dans la planche « Lisibilité »). Le flou supprime les contours nets sous le texte ; la teinte plus dense et les libellés éclaircis remontent le contraste, sans changer l'esprit de la maquette. |
 
 ## Repère et mise en page
 
-Le HUD est mis en page dans une scène fixe de **1280 × 720 px**, puis mis à l'échelle de la vue (`--hud-s` = largeur de la vue / 1280). Les panneaux sont ensuite réduits à 90 % (`--hud-k`) autour de leur point d'ancrage, qui les garde collés à leur bord.
+Le HUD est mis en page dans une scène fixe de **1280 × 720 px**, puis ajustée à la fenêtre : `--hud-s` = le plus petit de largeur / 1280 et hauteur / 720, et la scène est centrée (`--hud-x`, `--hud-y`). Le HUD couvre toute la fenêtre hors zones sûres ; sur un écran plus large ou plus haut que 16:9, les panneaux restent à leur taille et gardent leurs marges. Les panneaux sont ensuite réduits à 90 % (`--hud-k`) autour de leur point d'ancrage, qui les garde collés à leur bord.
 
 | Panneau | Position (scène 1280 × 720) | Ancrage du 90 % | Contenu |
 |---|---|---|---|
 | Gauche | x 64, y 36, l 250 | haut gauche | Sortie libre : nom du parcours, temps, distance, dénivelé positif. Séance : palier (type, n° / total), compte à rebours, barre de progression, temps fait / durée, cadence visée. |
 | Centre | x 340, y 36, l 600 | haut centre | Puissance 3 s (76 px), séparateur, puis trois colonnes à 38 px : FC, cadence, vitesse (sortie libre) ou cible, FC, cadence (séance). Barre de zones. Ligne du bas : pastille de zone et % de la FTP, ou en séance pastille de zone, ERG, écart, plage cible ± 5 %. |
 | Bas | x 64, y 596, l 1152, h 90 | bas centre | Sortie libre : pente, profil du tour avec position, prochain sommet en pointillé, mode SIM ou ERG, état du trainer et de la ceinture. Séance : nom, temps fait / total, palier suivant, profil de la séance avec curseur, paliers passés atténués. |
-| Haut droit | libre | | Réservé à la liste du groupe (multijoueur). Le compteur de rendu (`view-stats`) y est posé en attendant. |
+| Message | x 340, y 214, l 600 | haut centre | Message de la séance en cours (consigne du fichier), sous le panneau central ; absent sans message. |
+| Haut droit | libre | | Bouton du menu de la sortie ; réservé en dessous à la liste du groupe (multijoueur). Le compteur de rendu (`view-stats`), masqué par défaut, s'y affiche si on le demande dans le menu. |
 
 États :
 
 - **Sortie libre**, y compris avant le départ : les trois panneaux, version sortie. Avant le départ, le parcours et la pente sont en « – », le profil montre le départ et le premier sommet ; le HUD ne change donc pas de forme au démarrage.
 - **Séance** : les trois panneaux, version séance ; la vitesse sort du bloc central pour laisser la place à la cible.
 
-Le HUD est le seul affichage des mesures : il n'y a plus de cartes sous la vue (retirées le 2026-11-11). Sous la vue ne restent que les commandes (sortie, séance, pilotage manuel, enregistrement).
+Le HUD est le seul affichage des mesures : il n'y a plus de cartes sous la vue (retirées le 2026-11-11), et depuis le 2026-11-12 plus rien sous la vue du tout : les commandes (sortie, séance, pilotage manuel, enregistrement) sont dans le menu contextuel de la sortie ([sortie.md](sortie.md)).
 
 Téléphone : application en **paysage uniquement**, pas de version portrait du HUD à prévoir.
 

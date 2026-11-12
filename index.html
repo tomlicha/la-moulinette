@@ -32,17 +32,6 @@
         <p id="fs-tip" class="rotate-tip" hidden>Sur iPhone : touche <strong>Partager</strong>, puis <strong>Sur l'écran d'accueil</strong> pour lancer l'application en plein écran.</p>
       </div>
     </div>
-    <header class="topbar">
-      <strong class="brand"><span class="logo" role="img" aria-label="La Moulinette"><span class="logo-la" aria-hidden="true">LA</span><span class="logo-word" aria-hidden="true">M<svg class="logo-o" viewBox="0 0 24 24" fill="none"><circle class="logo-teeth" cx="12" cy="12" r="11" /><circle class="logo-ring" cx="12" cy="12" r="8" /><path class="logo-spokes" d="M12 12V5.4M12 12l6.3-2M12 12l3.9 5.3M12 12l-3.9 5.3M12 12l-6.3-2" /><circle cx="12" cy="12" r="2.1" fill="currentColor" stroke="none" /></svg>ULINETTE</span></span></strong>
-      <nav aria-label="Écrans">
-        <a href="#accueil" data-nav="accueil"><svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Accueil</span></a>
-        <a href="#sortie" data-nav="sortie"><svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M10 8v8l6-4z"/></svg><span>Sortie</span></a>
-        <a href="#seances" data-nav="seances"><svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V13M9 20V6M14 20V10M19 20V4"/></svg><span>Séances</span></a>
-        <a href="#appareils" data-nav="appareils"><svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2.6"/><path d="M6 6a8.5 8.5 0 0 0 0 12M18 6a8.5 8.5 0 0 1 0 12M9 9a4.5 4.5 0 0 0 0 6M15 9a4.5 4.5 0 0 1 0 6"/></svg><span>Appareils</span></a>
-      </nav>
-      <span id="status-trainer" class="pill">trainer : déconnecté</span>
-      <span id="status-hr" class="pill">cardio : déconnecté</span>
-    </header>
 
     <main>
       <!-- Écran 1 : premier écran au lancement (docs/design/accueil-appareils.md, « Appareils : grille de l'accueil »).
@@ -233,86 +222,110 @@
         </div>
       </section>
 
-      <!-- Écran 3 : la sortie -->
+      <!-- Écran 3 : la sortie, plein écran (docs/design/sortie.md). Le rendu 3D occupe toute la fenêtre, le HUD est posé dessus ;
+           tout le reste (navigation, sortie, séance, pilotage manuel, enregistrement, rendu, journal) est dans un menu contextuel. -->
       <section data-view="sortie" hidden>
-        <p id="sortie-hint" class="hint-banner">
-          Aucun trainer connecté : la sortie et les séances en ont besoin pour avancer et piloter la résistance.
-          <a href="#appareils">Connecter le trainer</a>
-        </p>
-        <section class="view">
+        <h1 class="visually-hidden">Sortie</h1>
+        <div class="ride">
           <canvas id="view"></canvas>
           <div id="hud"></div>
-          <div id="view-stats" class="view-stats">rendu : initialisation…</div>
-          <p class="note">
-            Rendu : <a href="?renderer=webgl2">forcer WebGL2</a> · <a href="?">WebGPU si disponible</a> ·
-            <a href="?quality=low">qualité réduite</a> (recharge la page et repasse par les appareils)
-          </p>
-        </section>
+          <div id="view-stats" class="view-stats" hidden>rendu : initialisation…</div>
+          <button id="ride-menu-open" class="ride-menu-open" type="button" aria-haspopup="dialog" aria-controls="ride-menu" aria-label="Menu de la sortie">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+          </button>
 
-        <section>
-          <h2>Sortie virtuelle · parcours « Colline », 6 km en boucle</h2>
-          <div class="row">
-            <label for="mass">Masse cycliste + vélo</label>
+          <!-- Valeurs du coureur : elles se règlent dans la fiche de l'écran Appareils, ces champs en sont la source de vérité. -->
+          <div hidden>
             <input id="mass" type="number" min="30" max="200" step="1" value="80" />
-            <span>kg</span>
-            <button id="ride-toggle" disabled>Démarrer la sortie</button>
-          </div>
-          <p class="note">La puissance mesurée fait avancer le modèle physique ; la pente du parcours est envoyée au trainer en mode SIM.</p>
-        </section>
-
-        <section class="workout">
-          <h2>Séance structurée</h2>
-          <div class="row">
-            <label for="wo-select">Séance</label>
-            <select id="wo-select"></select>
-            <a href="#seances" class="note">Créer ou modifier</a>
-            <label for="wo-ftp">FTP</label>
             <input id="wo-ftp" type="number" min="50" max="600" step="5" value="200" />
-            <span>W</span>
           </div>
-          <p id="wo-name" class="note">Aucune séance choisie.</p>
-          <svg id="wo-profile" class="wo-profile" viewBox="0 0 1000 120" preserveAspectRatio="none" aria-label="Profil de la séance">
-            <g id="wo-shapes"></g>
-            <line id="wo-cursor" x1="0" y1="0" x2="0" y2="120" />
-          </svg>
-          <div class="row">
-            <button id="wo-start" disabled>Démarrer la séance</button>
-            <button id="wo-pause" class="secondary" disabled>Pause</button>
-            <button id="wo-skip" class="secondary" disabled>Palier suivant</button>
-            <button id="wo-stop" class="secondary" disabled>Arrêter</button>
-            <span class="spacer"></span>
-            <button id="wo-easier" class="secondary" disabled aria-label="Intensité moins 5 %">−5 %</button>
-            <span id="wo-intensity">100 %</span>
-            <button id="wo-harder" class="secondary" disabled aria-label="Intensité plus 5 %">+5 %</button>
-          </div>
-          <p id="wo-next" class="note"></p>
-          <p id="wo-message" class="wo-message" hidden></p>
-        </section>
 
-        <section class="controls">
-          <h2>Pilotage manuel</h2>
-          <div class="row">
-            <label for="erg">ERG, puissance cible</label>
-            <input id="erg" type="number" min="0" max="1000" step="5" value="150" />
-            <span>W</span>
-            <button id="erg-send" disabled>Engager l'ERG</button>
-          </div>
-          <div class="row">
-            <label for="grade">SIM, pente</label>
-            <input id="grade" type="range" min="-10" max="20" step="0.5" value="0" />
-            <output id="grade-out">0 %</output>
-            <button id="sim-send" disabled>Envoyer</button>
-          </div>
-        </section>
+          <dialog id="ride-menu" class="ride-menu" aria-labelledby="rm-title">
+            <div class="rm-card">
+              <header class="rm-head">
+                <h2 id="rm-title">Menu</h2>
+                <button id="ride-menu-close" class="rm-close" type="button" aria-label="Fermer le menu">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                </button>
+              </header>
 
-        <section>
-          <h2>Enregistrement</h2>
-          <div class="row">
-            <button id="export-fit" class="secondary" disabled>Exporter FIT</button>
-            <button id="export-strava" class="secondary" hidden>Envoyer à Strava</button>
-            <button id="export-intervals" class="secondary" hidden>Envoyer à intervals.icu</button>
-          </div>
-        </section>
+              <nav class="rm-nav" aria-label="Écrans">
+                <a href="#accueil"><svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Accueil</span></a>
+                <a href="#seances"><svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V13M9 20V6M14 20V10M19 20V4"/></svg><span>Séances</span></a>
+                <a href="#appareils"><svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2.6"/><path d="M6 6a8.5 8.5 0 0 0 0 12M18 6a8.5 8.5 0 0 1 0 12M9 9a4.5 4.5 0 0 0 0 6M15 9a4.5 4.5 0 0 1 0 6"/></svg><span>Appareils</span></a>
+              </nav>
+
+              <p id="sortie-hint" class="rm-hint">
+                Aucun trainer connecté : la sortie et les séances en ont besoin pour avancer et piloter la résistance.
+                <a href="#appareils">Connecter le trainer</a>
+              </p>
+
+              <section class="rm-sec" aria-labelledby="rm-ride-t">
+                <h3 id="rm-ride-t">Sortie</h3>
+                <p class="note">Parcours « Colline », 6 km en boucle. La puissance mesurée fait avancer le modèle physique ; la pente du parcours est envoyée au trainer en mode SIM.</p>
+                <div class="row"><button id="ride-toggle" type="button" disabled>Démarrer la sortie</button></div>
+              </section>
+
+              <section class="rm-sec" aria-labelledby="rm-wo-t">
+                <h3 id="rm-wo-t">Séance</h3>
+                <p id="wo-name" class="note">Aucune séance choisie : choisis-en une sur l'accueil.</p>
+                <div class="row">
+                  <button id="wo-start" type="button" disabled>Démarrer la séance</button>
+                  <button id="wo-pause" type="button" class="secondary" disabled>Pause</button>
+                  <button id="wo-skip" type="button" class="secondary" disabled>Palier suivant</button>
+                  <button id="wo-stop" type="button" class="secondary" disabled>Arrêter</button>
+                </div>
+                <div id="wo-intensity-row" class="rm-intensity">
+                  <span>Intensité</span>
+                  <button id="wo-easier" type="button" class="secondary" disabled aria-label="Intensité moins 5 %">−5 %</button>
+                  <output id="wo-intensity" aria-live="polite">100 %</output>
+                  <button id="wo-harder" type="button" class="secondary" disabled aria-label="Intensité plus 5 %">+5 %</button>
+                </div>
+              </section>
+
+              <section class="rm-sec" aria-labelledby="rm-rec-t">
+                <h3 id="rm-rec-t">Enregistrement</h3>
+                <div class="row">
+                  <button id="export-fit" type="button" class="secondary" disabled>Exporter FIT</button>
+                  <button id="export-strava" type="button" class="secondary" hidden>Envoyer à Strava</button>
+                  <button id="export-intervals" type="button" class="secondary" hidden>Envoyer à intervals.icu</button>
+                </div>
+              </section>
+
+              <details class="rm-sec rm-fold">
+                <summary>Pilotage manuel</summary>
+                <div class="row">
+                  <label for="erg">ERG, puissance cible</label>
+                  <input id="erg" type="number" min="0" max="1000" step="5" value="150" />
+                  <span>W</span>
+                  <button id="erg-send" type="button" disabled>Engager l'ERG</button>
+                </div>
+                <div class="row">
+                  <label for="grade">SIM, pente</label>
+                  <input id="grade" type="range" min="-10" max="20" step="0.5" value="0" />
+                  <output id="grade-out">0 %</output>
+                  <button id="sim-send" type="button" disabled>Envoyer</button>
+                </div>
+              </details>
+
+              <details class="rm-sec rm-fold">
+                <summary>Rendu 3D</summary>
+                <label class="rm-check"><input id="view-stats-toggle" type="checkbox" /> Afficher les statistiques de rendu</label>
+                <p class="note">
+                  <a href="?renderer=webgl2">Forcer WebGL2</a> · <a href="?">WebGPU si disponible</a> ·
+                  <a href="?quality=low">Qualité réduite</a><br />
+                  Recharge la page et repasse par les appareils.
+                </p>
+              </details>
+
+              <details class="rm-sec rm-fold">
+                <summary>Journal</summary>
+                <pre id="log"></pre>
+                <button id="copy-log" type="button" class="secondary">Copier le journal</button>
+              </details>
+            </div>
+          </dialog>
+        </div>
       </section>
 
       <!-- Écran 4 : séances, plein écran comme l'accueil (docs/design/seances.md, maquette D « Miroir de l'accueil »).
@@ -467,12 +480,6 @@
           </dialog>
         </div>
       </section>
-
-      <details class="log-panel">
-        <summary>Journal</summary>
-        <pre id="log"></pre>
-        <button id="copy-log" class="secondary">Copier le journal</button>
-      </details>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

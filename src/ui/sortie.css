@@ -1,0 +1,89 @@
+/*
+ * Écran Sortie : plein écran comme les autres. Référence : docs/design/sortie.md.
+ * Le rendu 3D occupe toute la fenêtre, le HUD (hud.css) est posé dessus, et tout le reste est dans un menu contextuel
+ * ouvert par le bouton en haut à droite : une feuille à droite, aux couleurs claires fixes des fiches (comme la fiche du coureur).
+ */
+main:has([data-view='sortie']:not([hidden])) { max-width: none; padding: 0; }
+html:has([data-view='sortie']:not([hidden])), body:has([data-view='sortie']:not([hidden])) { overflow: hidden; height: 100dvh; padding: 0; }
+
+[data-view='sortie'] { position: fixed; inset: 0; background: #bcd8f0; }
+.ride { position: absolute; inset: 0; --edge-t: max(12px, env(safe-area-inset-top)); --edge-r: max(12px, env(safe-area-inset-right)); }
+.ride canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; background: #bcd8f0; }
+
+/* Bouton du menu : même verre sombre que les panneaux du HUD, dans le coin libre en haut à droite. */
+.ride-menu-open {
+  position: absolute; z-index: 3; top: var(--edge-t); right: var(--edge-r); width: 44px; height: 44px; padding: 0; display: grid; place-items: center;
+  border: 1px solid rgb(255 255 255 / .14); border-radius: 14px; background: rgb(24 30 40 / .78); color: #fff; box-shadow: 0 8px 28px rgb(5 10 20 / .25);
+}
+.ride-menu-open:hover { background: rgb(24 30 40 / .92); }
+.ride-menu-open:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.ride-menu-open svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+/* Pastille quand il manque le trainer : la sortie ne peut pas démarrer, le menu dit pourquoi. */
+.ride-menu-open[data-alert]::after { content: ''; position: absolute; top: -4px; right: -4px; width: 12px; height: 12px; border-radius: 50%; background: #F08A3C; border: 2px solid #fff; }
+
+.view-stats { position: absolute; z-index: 2; right: var(--edge-r); top: calc(var(--edge-t) + 54px); width: 210px; text-align: right; padding: 4px 8px; border-radius: 6px; background: rgb(0 0 0 / .55); color: #fff; font: .75rem/1.3 ui-monospace, monospace; }
+
+/* --- Menu contextuel : une boîte de dialogue modale posée en feuille à droite (Échap ou toucher à côté pour fermer) --- */
+.ride-menu {
+  margin: 0 0 0 auto; padding: 0; border: 0; background: transparent; width: min(400px, 100vw); max-width: none; height: 100dvh; max-height: none;
+  color: #14171A; font-family: Barlow, system-ui, sans-serif;
+}
+.ride-menu::backdrop { background: rgb(20 23 26 / .38); }
+.ride-menu[open] .rm-card { animation: rm-in .22s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes rm-in { from { translate: 40px 0; opacity: 0; } to { translate: 0 0; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .ride-menu[open] .rm-card { animation: none; } }
+
+.rm-card {
+  height: 100%; box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 14px;
+  padding: 18px max(20px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) 20px; border-radius: 24px 0 0 24px; background: #fff; box-shadow: -10px 0 40px rgb(0 0 0 / .25);
+  /* Palette claire fixe, quel que soit le thème de la page. */
+  color-scheme: light; --fg: #14171A; --muted: #4F5865; --card: #fff; --raised: #fff; --line: rgb(90 60 30 / .16); --btn-line: #8B8478; --accent: #C2410C; --on-accent: #fff;
+}
+.rm-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.rm-head h2, .rm-sec h3, .rm-fold > summary { margin: 0; font: 700 1.4rem/1 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; letter-spacing: .01em; }
+.rm-head h2 { font-size: 2.2rem; }
+.rm-close { width: 40px; height: 40px; flex: none; padding: 0; display: grid; place-items: center; border-radius: 50%; background: rgb(90 60 30 / .07); color: var(--fg); }
+.rm-close:hover { background: rgb(90 60 30 / .14); }
+.rm-close svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+.ride-menu :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.rm-nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.rm-nav a { display: flex; align-items: center; justify-content: center; gap: 6px; height: 44px; min-width: 0; border-radius: 14px; background: rgb(90 60 30 / .07); color: var(--fg); font-size: .92rem; font-weight: 600; text-decoration: none; }
+.rm-nav a:hover { background: rgb(90 60 30 / .14); }
+
+.rm-hint { margin: 0; padding: 10px 14px; border-radius: 14px; font-size: .9rem; background: color-mix(in srgb, var(--accent) 12%, #fff); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); }
+.rm-hint a { display: inline-block; margin-top: 4px; font-weight: 700; }
+
+.rm-sec { display: flex; flex-direction: column; gap: 8px; padding-top: 14px; border-top: 1px solid var(--line); }
+.rm-sec .note { margin: 0; }
+.rm-sec .row { margin: 0; gap: 6px; }
+.rm-sec .row button { flex: 1 1 auto; min-height: 44px; border-radius: 14px; }
+.rm-sec .row label { flex: 1 1 100%; font-weight: 600; font-size: .9rem; }
+.rm-sec input[type='range'] { flex: 1 1 120px; min-width: 0; }
+.rm-intensity { display: flex; align-items: center; gap: 8px; }
+.rm-intensity > span { margin-right: auto; font-weight: 600; font-size: .9rem; }
+.rm-intensity output { min-width: 4.5ch; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rm-intensity button { min-width: 60px; min-height: 40px; border-radius: 12px; }
+.rm-check { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+
+/* Rubriques repliées : pilotage manuel, rendu, journal. */
+.rm-fold > summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; }
+.rm-fold > summary::-webkit-details-marker { display: none; }
+.rm-fold > summary::after { content: ''; width: 8px; height: 8px; margin-right: 4px; border: solid var(--muted); border-width: 0 2px 2px 0; rotate: 45deg; transition: rotate .15s; }
+.rm-fold[open] > summary::after { rotate: -135deg; }
+.rm-fold > :not(summary) { margin-top: 10px; }
+.rm-fold pre { height: 200px; margin-bottom: 0; background: rgb(90 60 30 / .06); }
+
+/* Téléphone en paysage : la hauteur est rare, la feuille se resserre. */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 600px) {
+  .ride-menu { width: min(360px, 62vw); }
+  .rm-card { gap: 10px; padding-top: 10px; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+  .rm-head h2 { font-size: 1.7rem; }
+  .rm-close { width: 34px; height: 34px; }
+  .rm-nav a { height: 38px; }
+  .rm-sec { gap: 6px; padding-top: 10px; }
+  .rm-sec .row button { min-height: 40px; }
+  .rm-fold pre { height: 120px; }
+  .ride-menu-open { width: 40px; height: 40px; }
+  .view-stats { top: calc(var(--edge-t) + 48px); }
+}

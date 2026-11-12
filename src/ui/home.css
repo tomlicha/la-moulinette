@@ -89,16 +89,12 @@ button.radar-core:focus-visible { outline: 3px solid var(--r-ink); outline-offse
 .logo-teeth { stroke-width: 2; stroke-dasharray: 2.2 1.64; }
 .logo-ring { stroke-width: 2.6; }
 .logo-spokes { stroke-width: 1.6; stroke-linecap: round; }
-.brand .logo { font-size: 1.5rem; }
-.brand .logo-la { color: var(--accent); }
 .home-brand .logo { font-size: 1em; }
 a:hover .logo-o, .home-brand:hover .logo-o { animation: logo-spin 1.2s linear infinite; transform-origin: center; }
 @keyframes logo-spin { to { rotate: 360deg; } }
 @media (prefers-reduced-motion: reduce) { .logo-o { animation: none !important; } }
 
 /* --- Écran Accueil : plein écran, la scène derrière, des cartes claires (bento) par-dessus, la navigation flottante en bas --- */
-body:has([data-view='accueil']:not([hidden])) .topbar,
-body:has([data-view='accueil']:not([hidden])) .log-panel { display: none; }
 main:has([data-view='accueil']:not([hidden])) { max-width: none; padding: 0; }
 .home, .dev {
   position: relative; box-sizing: border-box; overflow: hidden; min-height: 100vh; min-height: 100dvh; padding: 20px 32px 96px;
@@ -152,8 +148,6 @@ a.home-radar > div { width: 100%; }
 }
 
 /* --- Écran Appareils : plein écran comme l'accueil. Carte titre et tuile radar, puis une carte « Capteurs » unique. --- */
-body:has([data-view='appareils']:not([hidden])) .topbar,
-body:has([data-view='appareils']:not([hidden])) .log-panel { display: none; }
 main:has([data-view='appareils']:not([hidden])) { max-width: none; padding: 0; }
 .dev { grid-template-columns: minmax(0, 1fr) clamp(200px, 20vw, 250px); grid-template-rows: auto 1fr auto auto; }
 .dev .home-top { grid-column: 1 / -1; }

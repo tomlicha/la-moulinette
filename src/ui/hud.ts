@@ -23,6 +23,8 @@ export interface HudInput {
   ftpW: number;
   ride?: { snapshot: RideSnapshot; climbM: number };
   workout?: { workout: Workout; state: WorkoutState; ftpW: number };
+  /** Message de la séance en cours (consigne du fichier), s'il y en a un à cet instant. */
+  message?: string;
   /** Mode de résistance du trainer, s'il est piloté. */
   control?: 'erg' | 'sim';
   trainerConnected: boolean;
@@ -31,6 +33,7 @@ export interface HudInput {
 
 /** Repère de mise en page du HUD : tout est placé en pixels de cette scène, puis mis à l'échelle de la vue. */
 const REF_W = 1280;
+const REF_H = 720;
 /** Bout de la barre de zones, en fraction de FTP. */
 const ZBAR_MAX = 1.5;
 /** Plage cible affichée autour de la consigne ERG. */
@@ -106,6 +109,8 @@ const TEMPLATE = `
       <svg data-h="woSvg" width="${WO_W}" height="${WO_H}" viewBox="0 0 ${WO_W} ${WO_H}" role="img" aria-label="Profil de la séance"></svg>
     </div>
   </section>
+
+  <section class="hud-p hud-message" data-h="message" role="status" hidden></section>
 </div>`;
 
 const svgEl = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number>, parent?: Element) => {
@@ -181,8 +186,15 @@ export class RideHud {
       dot: svgEl('circle', { r: 5, class: 'dot' }, svg),
     };
 
-    // Le HUD est mis en page à 1280 px de large : on le ramène à la largeur réelle de la vue.
-    const fit = () => root.style.setProperty('--hud-s', String(root.clientWidth / REF_W));
+    // Le HUD est mis en page dans une scène de 1280 × 720 : on l'ajuste à la fenêtre (le plus grand 16:9 qui y tient) et on la centre.
+    const fit = () => {
+      const w = root.clientWidth;
+      const h = root.clientHeight;
+      const s = Math.min(w / REF_W, h / REF_H);
+      root.style.setProperty('--hud-s', String(s));
+      root.style.setProperty('--hud-x', `${(w - REF_W * s) / 2}px`);
+      root.style.setProperty('--hud-y', `${(h - REF_H * s) / 2}px`);
+    };
     new ResizeObserver(fit).observe(root);
     fit();
   }
@@ -222,6 +234,8 @@ export class RideHud {
       if (toSummit === undefined) this.route.summit.style.display = 'none';
       else this.line(this.route.summit, this.route.x((s.distanceM + toSummit) % this.routeDef.lengthM));
     }
+    this.text('message', i.workout ? (i.message ?? '') : '');
+    this.node('message').hidden = !i.workout || !i.message;
     this.text('control', i.control === 'erg' ? 'ERG' : i.control === 'sim' ? 'SIM' : '');
     this.node('control').hidden = !i.control;
     this.node('dotTrainer').classList.toggle('on', i.trainerConnected);

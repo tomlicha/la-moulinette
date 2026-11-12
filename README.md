@@ -85,7 +85,7 @@ L'application a trois écrans : **Appareils** (toujours le premier au lancement)
 
 ### HUD de la sortie
 
-Sur l'écran Sortie, les mesures sont posées sur la vue 3D : parcours ou palier en haut à gauche, puissance (moyenne 3 s), FC, cadence et vitesse en haut au centre, profil du parcours ou de la séance en bas. Panneaux en verre dépoli, police Barlow servie par l'application. `?quality=low` les passe sans flou. Spécification, décisions et jetons : [docs/design/hud.md](docs/design/hud.md).
+L'écran Sortie est plein écran : le rendu 3D occupe toute la fenêtre, un bouton en haut à droite ouvre un menu (navigation, sortie, séance, pilotage manuel, export, rendu, journal), et le premier coup de pédale démarre la séance chargée, ou la sortie libre ([docs/design/sortie.md](docs/design/sortie.md)). Les mesures sont posées sur la vue 3D : parcours ou palier en haut à gauche, puissance (moyenne 3 s), FC, cadence et vitesse en haut au centre, profil du parcours ou de la séance en bas. Panneaux en verre dépoli, police Barlow servie par l'application. `?quality=low` les passe sans flou. Spécification, décisions et jetons : [docs/design/hud.md](docs/design/hud.md).
 
 ### Journaux d'erreurs à distance
 

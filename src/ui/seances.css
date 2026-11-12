@@ -3,8 +3,6 @@
  * Référence : docs/design/seances.md (maquette D, « Miroir de l'accueil »). Mêmes scène, cartes claires, accent et polices
  * que l'accueil (home.css) ; les couleurs sont fixes, quel que soit le thème de la page, car l'écran est posé sur une image.
  */
-body:has([data-view='seances']:not([hidden])) .topbar,
-body:has([data-view='seances']:not([hidden])) .log-panel { display: none; }
 main:has([data-view='seances']:not([hidden])) { max-width: none; padding: 0; }
 
 .sea {

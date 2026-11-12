@@ -47,6 +47,9 @@ function fill(r: BlockReason) {
 function show(el: HTMLElement, pin: boolean) {
   const r = reasons.get(el);
   if (!r || !tip) return;
+  // Une boîte de dialogue modale passe au-dessus de tout le reste de la page : l'explication doit y entrer pour rester visible.
+  const host = el.closest('dialog[open]') ?? document.body;
+  if (tip.parentElement !== host) host.append(tip);
   owner?.removeAttribute('aria-describedby');
   owner = el;
   el.setAttribute('aria-describedby', tip.id);

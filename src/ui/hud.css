@@ -25,13 +25,13 @@
   --hud-num: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
   --hud-text: Barlow, system-ui, sans-serif;
 
-  /* Même boîte que le canevas (pleine largeur, 16:9), pas tout le bloc .view qui contient aussi la note en dessous. */
-  position: absolute; left: 0; top: 0; width: 100%; aspect-ratio: 16 / 9;
-  overflow: hidden; border-radius: 10px; pointer-events: none;
+  /* Toute la fenêtre (hors encoche et barre de gestes) : la scène 1280 × 720 y est ajustée et centrée par hud.ts (--hud-s, --hud-x, --hud-y). */
+  position: absolute; inset: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  overflow: hidden; pointer-events: none;
 }
 .hud-stage {
   position: absolute; left: 0; top: 0; width: 1280px; height: 720px;
-  transform-origin: 0 0; transform: scale(var(--hud-s, .5));
+  transform-origin: 0 0; transform: translate(var(--hud-x, 0px), var(--hud-y, 0px)) scale(var(--hud-s, .5));
   color: var(--hud-fg); font: 500 16px/1.25 var(--hud-text);
 }
 
@@ -50,6 +50,8 @@
 .hud-left { left: 64px; top: 36px; width: 250px; padding: 14px 16px; gap: 6px; transform-origin: 0 0; }
 .hud-center { left: 340px; top: 36px; width: 600px; padding: 14px 20px; gap: 10px; transform-origin: 50% 0; }
 .hud-bottom { left: 64px; top: 596px; width: 1152px; height: 90px; padding: 10px 20px; justify-content: center; transform-origin: 50% 100%; }
+/* Message de la séance (consigne écrite dans le fichier), sous le panneau central. */
+.hud-message { left: 340px; top: 214px; width: 600px; padding: 12px 20px; transform-origin: 50% 0; background: var(--hud-accent); color: var(--hud-ink); border-color: transparent; font-size: 24px; font-weight: 700; text-align: center; }
 
 /* Ce qui s'affiche selon l'état : sortie libre (ou pas encore démarrée), séance. */
 .hud:not([data-mode='ride']) [data-when='ride'],
