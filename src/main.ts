@@ -20,6 +20,7 @@ import { formatDuration } from './ui/duration';
 import { setBlocked, setupBlockedHints, type BlockReason } from './ui/blocked';
 import { setupRouter } from './ui/router';
 import { MASS_LIMITS, setupRiderProfile } from './ui/rider-profile';
+import { setupWheel } from './ui/wheel-picker';
 import { setupAppShell } from './ui/app-shell';
 import { setupWorkoutEditor } from './ui/workout-editor';
 import { RideHud } from './ui/hud';
@@ -714,6 +715,7 @@ const riderProfile = setupRiderProfile({
   readMass,
   summary: $('rider-summary'),
   dialog: $<HTMLDialogElement>('rider-dialog'),
+  wheel: setupWheel($<HTMLDialogElement>('wheel-dialog')),
   openers: [$('rider-open')],
 });
 // Le médaillon du radar ouvre la fiche du coureur ; sur l'accueil, la tuile reste un simple lien vers les appareils.
@@ -738,8 +740,9 @@ function renderDevices() {
     roleState.trainer === 'connected' && trainer?.name ? trainer.name : t ? `Connu : ${t.name}` : 'Aucun trainer connu.';
   $('hr-known').textContent =
     roleState.hr === 'connected' && hrMonitor?.name ? hrMonitor.name : h ? `Connue : ${h.name}` : 'Aucune ceinture connue. Facultatif.';
-  connectBle.textContent = t ? `Reconnecter ${t.name}` : 'Rechercher un trainer';
-  connectHr.textContent = h ? `Reconnecter ${h.name}` : 'Rechercher une ceinture';
+  // Le nom de l'appareil est déjà affiché au-dessus des boutons : le libellé reste court pour que la rangée tienne sur une ligne.
+  connectBle.textContent = t ? 'Reconnecter' : 'Rechercher un trainer';
+  connectHr.textContent = h ? 'Reconnecter' : 'Rechercher une ceinture';
   const bt = webBluetoothAvailable();
   const noBt = 'Le Bluetooth web n’existe que dans Chrome ou Edge, sur ordinateur ou Android. Ici, seul le trainer simulé est disponible.';
   const trainerBusy =
@@ -749,12 +752,20 @@ function renderDevices() {
   setBlocked(connectBle, !bt ? noBt : busyT ? trainerBusy : undefined);
   setBlocked(connectHr, !bt ? noBt : busyH ? hrBusy : undefined);
   setBlocked(connectSim, busyT ? trainerBusy : undefined);
-  $<HTMLButtonElement>('connect-ble-other').hidden = !t;
+  // Une rangée par appareil, limitée à ce qui est utile dans l'état courant : connecté, il ne reste que « Déconnecter ».
+  const liveT = roleState.trainer === 'connected';
+  const liveH = roleState.hr === 'connected';
+  connectBle.hidden = liveT;
+  connectSim.hidden = liveT;
+  disconnectBtn.hidden = !liveT;
+  connectHr.hidden = liveH;
+  disconnectHr.hidden = !liveH;
+  $<HTMLButtonElement>('connect-ble-other').hidden = !t || liveT;
   setBlocked($<HTMLButtonElement>('connect-ble-other'), !bt ? noBt : busyT ? trainerBusy : undefined);
-  $<HTMLButtonElement>('connect-hr-other').hidden = !h;
+  $<HTMLButtonElement>('connect-hr-other').hidden = !h || liveH;
   setBlocked($<HTMLButtonElement>('connect-hr-other'), !bt ? noBt : busyH ? hrBusy : undefined);
-  $<HTMLButtonElement>('forget-trainer').hidden = !t;
-  $<HTMLButtonElement>('forget-hr').hidden = !h;
+  $<HTMLButtonElement>('forget-trainer').hidden = !t || liveT;
+  $<HTMLButtonElement>('forget-hr').hidden = !h || liveH;
   setBlocked(disconnectHr, roleState.hr === 'connected' ? undefined : 'Aucune ceinture connectée.');
   setBlocked(
     $<HTMLButtonElement>('go-ride'),

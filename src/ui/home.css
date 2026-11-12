@@ -213,13 +213,12 @@ button.rider-chip:hover { background: #FBF6EF; }
 .rider-field label { font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .rider-field .note { margin: 0; font-size: .8rem; }
 .stepper { display: flex; align-items: center; height: 48px; overflow: hidden; border: 1px solid var(--btn-line); border-radius: 14px; background: #fff; }
-.stepper:focus-within { outline: 3px solid var(--accent); outline-offset: 1px; }
 .stepper button { width: 44px; height: 100%; flex: none; padding: 0; border: 0; border-radius: 0; background: rgb(90 60 30 / .06); color: var(--fg); font-size: 1.3rem; }
 .stepper button:hover:not(:disabled) { background: rgb(90 60 30 / .12); }
-.stepper input { flex: 1; min-width: 0; width: 100%; padding: 0 4px 0 0; border: 0; background: transparent; color: var(--fg); text-align: right; font: 700 1.25rem Barlow, system-ui, sans-serif; -moz-appearance: textfield; appearance: textfield; }
-.stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.stepper input:focus { outline: 0; }
-.stepper input:disabled { opacity: .5; }
+.stepper button.stepper-value { flex: 1; width: auto; min-width: 0; padding: 0 4px 0 0; background: transparent; color: var(--fg); text-align: right; font: 700 1.25rem Barlow, system-ui, sans-serif; }
+.stepper button.stepper-value:hover:not(:disabled) { background: rgb(90 60 30 / .06); }
+.stepper button.stepper-value:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+.stepper button:disabled { opacity: .5; cursor: not-allowed; }
 .stepper > span { padding: 0 8px 0 2px; color: var(--muted); font-size: .9rem; }
 .rider-zones { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
 .rider-zones li { display: flex; align-items: center; gap: 8px; font-size: .95rem; }
@@ -239,6 +238,24 @@ button.rider-chip:hover { background: #FBF6EF; }
   .sensor, .sensor:first-child, .sensor:last-child { padding: 0; border-left: 0; }
   .sensor + .sensor { padding-top: 14px; border-top: 1px solid var(--glass-line); }
 }
+
+/* Roulette de chiffres en surimpression (masse, FTP) : les valeurs défilent et s'accrochent au centre, sans clavier. */
+.wheel-dialog { border: 0; padding: 0; background: transparent; max-width: none; color: var(--fg); font-family: Barlow, system-ui, sans-serif; }
+.wheel-dialog::backdrop { background: rgb(20 23 26 / .5); backdrop-filter: blur(4px); }
+.wheel-card { --wh: 220px; width: min(300px, calc(100vw - 32px)); box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; border-radius: var(--radius-card); background: #fff; box-shadow: 0 18px 48px rgb(0 0 0 / .3); color-scheme: light; }
+.wheel-card h3 { margin: 0; font: 700 1.5rem/1 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; letter-spacing: .01em; }
+.wheel-wrap { position: relative; height: var(--wh); }
+.wheel-band { position: absolute; left: 0; right: 0; top: 50%; height: 40px; translate: 0 -50%; display: flex; align-items: center; justify-content: flex-end; padding-right: 14px; border-radius: 12px; background: rgb(194 65 12 / .1); border: 1px solid rgb(194 65 12 / .3); pointer-events: none; }
+.wheel-band span { color: var(--accent); font-weight: 700; }
+.wheel {
+  height: 100%; overflow-y: auto; overscroll-behavior: contain; scroll-snap-type: y mandatory; scrollbar-width: none; padding-block: calc((var(--wh) - 40px) / 2);
+  -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
+}
+.wheel::-webkit-scrollbar { display: none; }
+.wheel:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 12px; }
+.wheel-item { height: 40px; display: flex; align-items: center; justify-content: center; scroll-snap-align: center; scroll-snap-stop: always; color: var(--muted); font: 600 1.35rem Barlow, system-ui, sans-serif; font-variant-numeric: tabular-nums; cursor: pointer; user-select: none; }
+.wheel-item[aria-selected='true'] { color: var(--fg); font-weight: 700; font-size: 1.6rem; }
+.wheel-card .row { margin: 0; justify-content: flex-end; }
 
 /* Aide à la connexion du trainer, repliée par défaut. */
 .trainer-help { margin-top: 12px; }
@@ -263,15 +280,16 @@ button.rider-chip:hover { background: #FBF6EF; }
   .home-workout .row button { height: 44px; font-size: .95rem; }
   .home-workout .row a { font-size: .85rem; }
   /* Appareils : titre, résumé du coureur et bouton sur une ligne, capteurs dessous ; la page défile si besoin (aide, notes). */
-  .dev { min-height: 100dvh; padding: 10px max(16px, env(safe-area-inset-left)) 66px; gap: 6px 12px; grid-template-columns: minmax(0, 1fr) 104px; }
+  .dev { min-height: 100dvh; padding: 10px max(16px, env(safe-area-inset-left)) 72px; gap: 6px 12px; grid-template-columns: minmax(0, 1fr) 96px; }
   .dev-hero { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; padding: 8px 14px; gap: 4px 14px; }
   .dev-hero-txt { display: contents; }
   .dev-hero-txt .home-kicker, .dev-lede { display: none; }
   .dev-hero h1 { flex: 0 0 100%; font-size: 1.9rem; }
   .rider-chip b { display: none; }
-  button.rider-chip { order: 2; height: 38px; font-size: .9rem; padding: 0 10px; }
-  .dev-go { order: 3; gap: 4px 12px; }
-  button.dev-go-btn { height: 38px; padding: 0 16px; font-size: 1rem; box-shadow: none; }
+  button.rider-chip { order: 2; height: 38px; font-size: .85rem; padding: 0 9px; gap: 7px; }
+  .dev-go { order: 3; gap: 4px 10px; }
+  .dev-go a { font-size: .85rem; }
+  button.dev-go-btn { height: 38px; padding: 0 14px; font-size: .95rem; box-shadow: none; }
   .dev-sensors { padding: 8px 14px; gap: 4px; }
   .dev-sensors-head .home-kicker { display: none; }
   .dev-sensors-head:not(:has(.note:not(:empty))) { display: none; }
@@ -289,8 +307,9 @@ button.rider-chip:hover { background: #FBF6EF; }
   .sensor-ico svg { width: 18px; height: 18px; }
   .sensor h3 { font-size: 1.25rem; }
   .sensor-head > div { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
-  .sensor .row { gap: 6px; }
-  .sensor .row button { padding: 7px 10px; font-size: .85rem; }
+  /* Une seule ligne de boutons, qui se resserrent plutôt que de passer dessous : la carte ne grandit pas sous la navigation. */
+  .sensor .row { gap: 6px; flex-wrap: nowrap; }
+  .sensor .row button { flex: 0 1 auto; min-width: 0; padding: 7px 10px; font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sensor .note, .dev-radar .radar-tag { display: none; }
   .dev-radar .radar { --core: 46%; }
   .rider-card { padding: 14px 18px; gap: 8px; }
@@ -298,5 +317,6 @@ button.rider-chip:hover { background: #FBF6EF; }
   .rider-top h2 { font-size: 1.6rem; }
   .stepper { height: 40px; }
   .rider-zones { grid-template-columns: 1fr 1fr; gap: 3px 16px; }
+  .wheel-card { --wh: 160px; padding: 12px 16px; gap: 8px; }
   .rider-zones li { font-size: .85rem; }
 }

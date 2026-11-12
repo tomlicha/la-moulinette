@@ -154,7 +154,7 @@
                   <label for="rider-mass">Masse (coureur + vélo)</label>
                   <div class="stepper">
                     <button type="button" class="secondary" data-step="mass" data-dir="-1" aria-label="Masse moins 1 kg">−</button>
-                    <input id="rider-mass" type="number" inputmode="numeric" min="30" max="200" step="1" />
+                    <button type="button" id="rider-mass" class="stepper-value" aria-haspopup="dialog" aria-label="Masse en kilogrammes : choisir sur la roulette"></button>
                     <span>kg</span>
                     <button type="button" class="secondary" data-step="mass" data-dir="1" aria-label="Masse plus 1 kg">+</button>
                   </div>
@@ -164,7 +164,7 @@
                   <label for="rider-ftp">FTP</label>
                   <div class="stepper">
                     <button type="button" class="secondary" data-step="ftp" data-dir="-1" aria-label="FTP moins 5 W">−</button>
-                    <input id="rider-ftp" type="number" inputmode="numeric" min="50" max="600" step="5" />
+                    <button type="button" id="rider-ftp" class="stepper-value" aria-haspopup="dialog" aria-label="FTP en watts : choisir sur la roulette"></button>
                     <span>W</span>
                     <button type="button" class="secondary" data-step="ftp" data-dir="1" aria-label="FTP plus 5 W">+</button>
                   </div>
@@ -172,6 +172,20 @@
               </div>
               <ul id="rider-zones" class="rider-zones" aria-label="Zones de puissance"></ul>
               <div class="row"><button type="button" data-close>Terminé</button></div>
+            </div>
+          </dialog>
+
+          <dialog id="wheel-dialog" class="wheel-dialog" aria-labelledby="wheel-title">
+            <div class="wheel-card">
+              <h3 id="wheel-title"></h3>
+              <div class="wheel-wrap">
+                <div class="wheel-band" aria-hidden="true"><span id="wheel-unit"></span></div>
+                <div id="wheel" class="wheel" role="listbox" tabindex="0"></div>
+              </div>
+              <div class="row">
+                <button type="button" class="secondary" data-wheel-cancel>Annuler</button>
+                <button type="button" data-wheel-ok>OK</button>
+              </div>
             </div>
           </dialog>
         </div>
