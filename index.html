@@ -11,6 +11,8 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>La Moulinette</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Icône de l'application installée sur l'écran d'accueil d'un iPhone (iOS n'accepte pas le SVG). -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
@@ -29,7 +31,28 @@
         <h2 id="rotate-title">Mets ton téléphone à l'horizontale</h2>
         <p class="rotate-lede">La Moulinette se vit en paysage et en plein écran : toute la route sous les yeux.</p>
         <button id="fs-btn" type="button">Passer en plein écran</button>
-        <p id="fs-tip" class="rotate-tip" hidden>Sur iPhone : touche <strong>Partager</strong>, puis <strong>Sur l'écran d'accueil</strong> pour lancer l'application en plein écran.</p>
+      </div>
+    </div>
+
+    <!-- iPhone : aucun navigateur n'y laisse une page passer en plein écran. La seule voie est de lancer l'application
+         depuis l'écran d'accueil : on guide l'installation, dans les deux orientations (docs/design/accueil-appareils.md). -->
+    <div id="install-hint" role="dialog" aria-modal="true" aria-labelledby="install-title" hidden>
+      <div class="install-card">
+        <div class="install-head">
+          <img class="install-icon" src="/apple-touch-icon.png" alt="" width="60" height="60" />
+          <h2 id="install-title">Installe La Moulinette pour le plein écran</h2>
+          <p class="install-lede">Sur iPhone, le navigateur garde toujours ses barres autour d'une page. Lancée depuis l'écran d'accueil, La Moulinette occupe tout l'écran.</p>
+        </div>
+        <div class="install-body">
+          <ol class="install-steps">
+            <li>Touche <strong>Partager</strong>
+              <svg class="install-share" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m0 0L8 7m4-4 4 4" /><path d="M7 10H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1" /></svg>
+              dans la barre du navigateur. S'il n'y est pas, touche d'abord <strong>•••</strong>.</li>
+            <li>Fais défiler la liste et choisis <strong>Sur l'écran d'accueil</strong>, puis <strong>Ajouter</strong>.</li>
+            <li>Quitte le navigateur et ouvre <strong>La Moulinette</strong> depuis sa nouvelle icône.</li>
+          </ol>
+          <button id="install-skip" type="button">Continuer dans le navigateur</button>
+        </div>
       </div>
     </div>
 
