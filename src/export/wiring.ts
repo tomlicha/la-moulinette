@@ -20,8 +20,12 @@ interface Exported {
   samples: number;
 }
 
-function download(name: string, bytes: Uint8Array) {
-  const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/octet-stream' }));
+/** Lien vers le dernier fichier : révoqué quand un nouveau le remplace. */
+let lastUrl: string | undefined;
+
+function download(name: string, bytes: Uint8Array): string {
+  if (lastUrl) URL.revokeObjectURL(lastUrl);
+  const url = (lastUrl = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/octet-stream' })));
   const a = document.createElement('a');
   a.href = url;
   a.download = name;
@@ -30,7 +34,7 @@ function download(name: string, bytes: Uint8Array) {
   document.body.append(a);
   a.click();
   a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 30_000); // libérer tout de suite peut interrompre le téléchargement sur certains navigateurs
+  return url; // gardé jusqu'à l'export suivant : le lien de secours en dépend
 }
 
 /**
@@ -51,8 +55,25 @@ async function deliver(name: string, bytes: Uint8Array): Promise<'shared' | 'dow
       // Partage impossible (activation expirée, type refusé) : on retombe sur le téléchargement.
     }
   }
-  download(name, bytes);
+  lastDownloadUrl = download(name, bytes);
   return 'downloaded';
+}
+
+let lastDownloadUrl: string | undefined;
+
+/** Retour visible de l'export : un navigateur qui ignore le téléchargement ne doit jamais laisser croire que rien ne s'est passé. */
+function showStatus(el: HTMLElement | null, kind: 'ok' | 'error', text: string, link?: { href: string; name: string }) {
+  if (!el) return;
+  el.hidden = false;
+  el.dataset.kind = kind;
+  el.textContent = text;
+  if (link) {
+    const a = document.createElement('a');
+    a.href = link.href;
+    a.download = link.name;
+    a.textContent = 'Télécharger le fichier';
+    el.append(' ', a); // un clic direct sur un vrai lien passe partout, même si le téléchargement automatique a été bloqué
+  }
 }
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -66,6 +87,7 @@ export function setupExport(opts: {
   log: (msg: string) => void;
 }): ExportWiring {
   const { hub, button, stravaButton, intervalsButton, log } = opts;
+  const status = document.getElementById('export-status');
   const recorder = new RideRecorder();
   let exported: Exported | undefined;
   let strava: StravaStatus | undefined;
@@ -132,17 +154,24 @@ export function setupExport(opts: {
       const out = await prepare();
       if (!out) {
         log('export FIT : rien à exporter');
+        showStatus(status, 'error', 'Rien à exporter : aucune mesure du trainer n’a été enregistrée.');
         return;
       }
       const { fitFileName } = await import('./fit-activity');
       const how = await deliver(fitFileName(out.startMs), out.bytes);
+      const name = fitFileName(out.startMs);
+      const size = `${out.samples} s, ${Math.round(out.bytes.length / 1024)} Ko`;
       log(
         how === 'cancelled'
           ? 'export FIT : partage annulé, la sortie est gardée en mémoire'
           : `export FIT (${how === 'shared' ? 'partagé' : 'téléchargé'}) : ${out.samples} échantillons, ${Math.round(out.bytes.length / 1024)} Ko`,
       );
+      if (how === 'cancelled') showStatus(status, 'ok', 'Partage annulé. La sortie reste exportable.');
+      else if (how === 'shared') showStatus(status, 'ok', `${name} partagé (${size}).`);
+      else showStatus(status, 'ok', `${name} envoyé au navigateur (${size}). Rien dans vos téléchargements ?`, { href: lastDownloadUrl!, name });
     } catch (e) {
       log(`export FIT impossible : ${errMsg(e)}`);
+      showStatus(status, 'error', `Export impossible : ${errMsg(e)}`);
     } finally {
       busy = false;
       refreshButtons();

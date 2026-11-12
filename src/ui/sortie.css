@@ -58,6 +58,9 @@ html:has([data-view='sortie']:not([hidden])), body:has([data-view='sortie']:not(
 .rm-sec .note { margin: 0; }
 .rm-sec .row { margin: 0; gap: 6px; }
 .rm-sec .row button { flex: 1 1 auto; min-height: 44px; border-radius: 14px; }
+.rm-status { margin: 8px 0 0; padding: 8px 12px; border-radius: 12px; background: rgb(127 127 127 / .14); font-size: .88rem; line-height: 1.4; }
+.rm-status[data-kind='error'] { background: rgb(220 60 40 / .14); }
+.rm-status a { font-weight: 700; }
 .rm-sec .row label { flex: 1 1 100%; font-weight: 600; font-size: .9rem; }
 .rm-sec input[type='range'] { flex: 1 1 120px; min-width: 0; }
 .rm-intensity { display: flex; align-items: center; gap: 8px; }
