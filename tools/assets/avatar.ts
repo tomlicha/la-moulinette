@@ -14,7 +14,7 @@ import { BIND_CRANK, DEFAULT_BODY, footPitch, SKELETON, solvePose, solveTorsoAng
 import { bakeAo } from './ao.ts';
 import { BIKE_FIT } from './bike.ts';
 import { GlbWriter } from './gltf.ts';
-import { angleDiff, bumps, curve, inflate, keys, loop, MeshBuilder, oval, polyline, roundEnds, smooth, type Bump, type SectionPoint, type Skin } from './mesh.ts';
+import { angleDiff, bumps, buriedEnd, curve, inflate, keys, loop, MeshBuilder, oval, polyline, roundEnds, smooth, type Bump, type SectionPoint, type Skin } from './mesh.ts';
 import { buildHead, headFrame, type HeadOptions } from './head.ts';
 import { Body, Ellipsoid, ovalRadius, polygonize, simplify, smax, smin, splitRegions, Tube, type Shape, type TubeSpec } from './sdf.ts';
 
@@ -120,7 +120,6 @@ function legTube(pose: Pose, s: 'l' | 'r', mirror: 1 | -1): TubeSpec {
   const band = shortsEnd - 0.032;
   const sockTop = sa - 0.15;
   const r = profileRadius(prof);
-  const total = start.distanceTo(hip) + DEFAULT_BODY.thigh + DEFAULT_BODY.shin + 0.03;
   const skin = chainSkin(
     [bone('pelvis'), bone(`thigh_${s}`), bone(`shin_${s}`), bone(`foot_${s}`)],
     [{ s: sh + 0.02, w: 0.07 }, { s: sk, w: 0.05 }, { s: sa, w: 0.025 }],
@@ -132,7 +131,7 @@ function legTube(pose: Pose, s: 'l' | 'r', mirror: 1 | -1): TubeSpec {
     mirror,
     radius: (ss, th) =>
       (r(ss, th) * lerp(1.03, CHUNK.leg, smooth(sh, sh + 0.14, ss)) + plateau(ss, band, shortsEnd, 0.0012) + ridge(ss, shortsEnd - 0.002) + ridge(ss, sockTop + 0.002, 0.0015)) *
-      roundEnds(ss, 0, total, 0.035, 0),
+      buriedEnd(ss, 0, 0.04, 0.25),
     region: (ss, th) => {
       // Bande latérale de la couleur du maillot sur le cuissard, côté extérieur.
       if (ss > sh + 0.1 && ss < band && Math.abs(angleDiff(th, Math.PI / 2)) < 0.34) return REGION.jersey;
@@ -192,7 +191,7 @@ function torsoTube(pose: Pose): TubeSpec {
     blend: 0.06,
     front: vec(pose.bases.pelvis.z), // ventre
     // Le bas du buste s'arrondit sous les hanches : les fesses viennent des jambes, fondues dans le bassin.
-    radius: (s, th) => (r(s, th) * CHUNK.torso + spineFill(s, th) + ridge(s, hem + 0.003, 0.0012)) * roundEnds(s, 0.05, end, 0.07, 0.025),
+    radius: (s, th) => (r(s, th) * CHUNK.torso + spineFill(s, th) + ridge(s, hem + 0.003, 0.0012)) * buriedEnd(s, 0.025, 0.095) * roundEnds(s, 0, end, 0, 0.025),
     region: (s, th) => {
       if (s < hem) return REGION.shorts;
       // Bande claire bordée de deux filets sombres, sous les aisselles : elle fait le tour du buste et barre le dos,
@@ -245,7 +244,8 @@ function armTube(pose: Pose, s: 'l' | 'r', mirror: 1 | -1): TubeSpec {
     mirror,
     radius: (ss, th) =>
       (r(ss, th) * lerp(1, CHUNK.arm, smooth(s0 + 0.03, s0 + 0.15, ss)) + plateau(ss, sleeveEnd - 0.028, sleeveEnd, 0.001) + ridge(ss, sleeveEnd - 0.002) + ridge(ss, cuff + 0.002, 0.0015)) *
-      roundEnds(ss, 0, end, 0.03, 0.012),
+      buriedEnd(ss, 0, 0.03, 0.35) *
+      roundEnds(ss, 0, end, 0, 0.012),
     region: (ss) => {
       if (ss < sleeveEnd - 0.028) return REGION.jersey;
       if (ss < sleeveEnd) return REGION.jerseyAlt;
@@ -354,9 +354,13 @@ function collarRim(b: MeshBuilder, body: Body, head: Body, neck: Tube) {
   });
 }
 
+/** Épaisseur de matière ajoutée au milieu de l'arrière du bassin pour combler le sillon entre les fessiers, en m. */
+const SEAT_FILL = 0.02;
+
 /**
- * Bassin assis : une seule masse large, aplatie contre la selle, avec un sillon au milieu de l'arrière et un léger
- * galbe de chaque fessier. Les cuisses en sortent par l'avant ; le buste s'y pose par le haut.
+ * Bassin assis : une seule masse large et lisse. Les cuisses en sortent par l'avant ; le buste s'y pose par le
+ * haut. Style arcade : pas de sillon entre les fessiers. Les deux cuisses, fondues dans le bassin, en creusent un
+ * d'elles-mêmes ; un apport de matière au milieu de l'arrière le comble, et l'assise se lit comme un seul volume.
  */
 function pelvisMass(pose: Pose): Shape {
   const B = pose.bases.pelvis;
@@ -367,11 +371,11 @@ function pelvisMass(pose: Pose): Shape {
   return new Ellipsoid({
     center,
     axes: [x, y, z],
-    radii: [0.12, 0.1, 0.1],
+    // Allongé vers le bas : il descend entre les deux cuisses jusqu'à la selle, sans laisser d'entaille à leur départ.
+    radii: [0.12, 0.116, 0.1],
     shape: (lx, _ly, lz, d) => {
       const back = smooth(-0.02, -0.09, lz); // 0 devant, 1 à l'arrière
-      const cleft = 0.0012 * Math.exp(-((lx / 0.02) ** 2)) * back;
-      return d + cleft;
+      return d - SEAT_FILL * Math.exp(-((lx / 0.055) ** 2)) * back;
     },
     region: () => REGION.shorts,
     skin: { joints: [bone('pelvis')], weights: [1] },

@@ -414,4 +414,14 @@ export function roundEnds(s: number, s0: number, s1: number, len0: number, len1 
   return k;
 }
 
+/**
+ * Facteur de rayon d'une extrémité enfouie dans un autre volume (le haut de la cuisse dans le bassin, le départ du
+ * bras dans le buste). Le rayon part de `floor` au bout du tube et rejoint 1 sur `len` mètres, à pente nulle aux
+ * deux bouts : la distance au tube reste lisse de part et d'autre de son extrémité. L'arrondi de `roundEnds`, lui,
+ * part de zéro à pente infinie ; fondue dans un autre volume, cette cassure y dessinait un pli.
+ */
+export function buriedEnd(s: number, s0: number, len: number, floor = 0): number {
+  return floor + (1 - floor) * smooth(s0, s0 + len, s);
+}
+
 export { smooth };

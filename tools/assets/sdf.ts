@@ -108,10 +108,62 @@ export class Tube implements Shape {
     return { s: bs, theta: Math.atan2(mirror * b, a), dist: Math.sqrt(best) };
   }
 
+  /**
+   * Distance signée : la plus petite des distances aux deux segments de l'axe les plus proches, chacun avec son
+   * propre rayon. Ne retenir que le segment le plus proche ferait sauter la distance à l'intérieur d'un pli (derrière
+   * le genou, au creux du coude), là où le point le plus proche change de segment : la surface extraite y sortait
+   * en dents de scie.
+   */
   sdf(x: number, y: number, z: number): number {
-    const l = this.locate(x, y, z);
-    return l.dist - this.spec.radius(l.s, l.theta);
+    const pts = this.spec.points;
+    const mirror = this.spec.mirror ?? 1;
+    const f = this.frames;
+    const last = f.length / 6 - 1;
+    // Les deux segments les plus proches : distance à l'axe (au carré), abscisse, point de l'axe.
+    let d1 = Infinity;
+    let d2 = Infinity;
+    const near = this.near;
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1]!;
+      const b = pts[i]!;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const dz = b.z - a.z;
+      const len2 = dx * dx + dy * dy + dz * dz;
+      const t = Math.min(1, Math.max(0, ((x - a.x) * dx + (y - a.y) * dy + (z - a.z) * dz) / len2));
+      const px = a.x + dx * t;
+      const py = a.y + dy * t;
+      const pz = a.z + dz * t;
+      const dd = (x - px) ** 2 + (y - py) ** 2 + (z - pz) ** 2;
+      if (dd >= d2) continue;
+      const slot = dd < d1 ? 0 : 4;
+      if (slot === 0) {
+        near.copyWithin(4, 0, 4);
+        d2 = d1;
+        d1 = dd;
+      } else d2 = dd;
+      near[slot] = this.cum[i - 1]! + t * Math.sqrt(len2);
+      near[slot + 1] = px;
+      near[slot + 2] = py;
+      near[slot + 3] = pz;
+    }
+    let best = Infinity;
+    for (let n = 0; n < 2; n++) {
+      const dd = n === 0 ? d1 : d2;
+      if (dd === Infinity) break;
+      const o = n * 4;
+      const k = Math.min(last, Math.round(near[o]! / FRAME_STEP)) * 6;
+      const qx = x - near[o + 1]!;
+      const qy = y - near[o + 2]!;
+      const qz = z - near[o + 3]!;
+      const a = qx * f[k]! + qy * f[k + 1]! + qz * f[k + 2]!;
+      const b = qx * f[k + 3]! + qy * f[k + 4]! + qz * f[k + 5]!;
+      best = Math.min(best, Math.sqrt(dd) - this.spec.radius(near[o]!, Math.atan2(mirror * b, a)));
+    }
+    return best;
   }
+
+  private readonly near = new Float64Array(8);
 
   regionAt(p: Vector3): number {
     const l = this.locate(p.x, p.y, p.z);
