@@ -28,6 +28,8 @@ const FRAME_WINDOW = 240;
 const STATS_EVERY_MS = 500;
 /** Plafond du pas de temps d'animation : un onglet qui reprend ne doit pas téléporter le cycliste. */
 const MAX_DT_S = 0.1;
+/** Position latérale du coureur : voie de droite (le côté négatif de l'axe latéral), à côté de la ligne centrale. */
+const LANE_M = -1.6;
 
 const percentile = (sorted: number[], p: number) =>
   sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))]! : 0;
@@ -105,14 +107,15 @@ export class RideView {
 
   private readonly p = new THREE.Vector3();
   private readonly ahead = new THREE.Vector3();
+  private readonly lateral = new THREE.Vector3();
   private readonly fwd = new THREE.Vector3();
   private readonly camTarget = new THREE.Vector3();
   private readonly look = new THREE.Vector3();
 
   /** Pose le cycliste à la distance `d` sur la route, incliné par la pente. */
   private place(d: number) {
-    this.path.point(d, this.p);
-    this.path.point(d + 2, this.ahead);
+    this.path.point(d, this.p).addScaledVector(this.path.side(d, this.lateral), LANE_M);
+    this.path.point(d + 2, this.ahead).addScaledVector(this.path.side(d + 2, this.lateral), LANE_M);
     this.rider.group.position.set(this.p.x, this.p.y + 0.04, this.p.z);
     this.rider.group.lookAt(this.ahead.x, this.ahead.y + 0.04, this.ahead.z);
   }
@@ -120,9 +123,9 @@ export class RideView {
   private follow(dtS: number) {
     this.path.forward(this.dist, this.fwd);
     this.camTarget.set(
-      this.p.x - this.fwd.x * 5.2,
-      this.p.y + 2.0,
-      this.p.z - this.fwd.z * 5.2,
+      this.p.x - this.fwd.x * 4.4,
+      this.p.y + 1.85,
+      this.p.z - this.fwd.z * 4.4,
     );
     if (!this.cameraReady) {
       this.camera.position.copy(this.camTarget);
@@ -130,7 +133,7 @@ export class RideView {
     } else {
       this.camera.position.lerp(this.camTarget, 1 - Math.exp(-dtS * 7));
     }
-    this.look.set(this.p.x + this.fwd.x * 7, this.p.y + 0.95, this.p.z + this.fwd.z * 7);
+    this.look.set(this.p.x + this.fwd.x * 8, this.p.y + 1.05, this.p.z + this.fwd.z * 8);
     this.camera.lookAt(this.look);
     this.sky.position.copy(this.camera.position);
   }
