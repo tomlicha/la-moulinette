@@ -4,7 +4,7 @@
  * le reste suit le thème de la page. L'accent de ces deux écrans est celui du jeu (menthe).
  */
 [data-view='appareils'], [data-view='accueil'] { --accent: #5BE3C9; --on-accent: #0B1422; --pink: #FF5FA2; }
-main:has([data-view='appareils']:not([hidden])), main:has([data-view='accueil']:not([hidden])) { max-width: 1184px; }
+main:has([data-view='appareils']:not([hidden])) { max-width: 1184px; }
 [data-view='appareils'] h1, [data-view='accueil'] h2.home-title {
   font-family: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; font-weight: 700; line-height: 1; letter-spacing: .01em;
 }
@@ -89,28 +89,77 @@ main:has([data-view='appareils']:not([hidden])), main:has([data-view='accueil']:
   .dev-radar { max-width: 420px; }
 }
 
-/* --- Écran Accueil --- */
-.home { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 24px; align-items: stretch; }
-.home-hero { position: relative; min-height: 420px; border-radius: 18px; overflow: hidden; background: #3F86D0; color: #fff; font-family: Barlow, system-ui, sans-serif; }
-.home-scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.home-hero::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 60%; background: linear-gradient(180deg, rgba(11, 20, 34, 0), rgba(11, 20, 34, .88)); }
-.home-hero-body { position: absolute; z-index: 1; left: 28px; right: 28px; bottom: 24px; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 24px; }
-.home-kicker { font-size: .875rem; font-weight: 700; color: #5BE3C9; letter-spacing: .06em; text-transform: uppercase; }
-.home-hero h2.home-title { margin: 2px 0 4px; font-size: 4rem; }
-.home-hero p { margin: 0; font-size: 1.1rem; color: #D6E0EE; }
-button.home-ride { display: flex; align-items: center; gap: 12px; height: 64px; padding: 0 36px; border-radius: 14px; font-family: Barlow, system-ui, sans-serif; font-size: 1.5rem; font-weight: 700; }
-.home-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-a.home-radar { display: block; color: inherit; text-decoration: none; border-radius: 18px; }
-a.home-radar:focus-visible { outline: 3px solid #5BE3C9; outline-offset: 3px; }
-.home-workout { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 18px; border-radius: 18px; background: var(--card); }
-.home-workout .home-kicker { color: var(--muted); }
-.home-workout select { width: 100%; }
-.home-workout .wo-profile { height: 64px; background: transparent; margin: 0; }
-.home-workout-meta { margin: 0; color: var(--muted); font-size: .95rem; }
-.home-workout .row { margin-top: auto; }
-@media (max-width: 900px) {
-  .home { grid-template-columns: 1fr; }
-  .home-hero { min-height: 340px; }
-  .home-hero::after { height: 80%; }
-  .home-hero h2.home-title { font-size: 3rem; }
+/*
+ * --- Logo « La Moulinette » ---
+ * Mot en capitales condensées penchées, « LA » en petit au-dessus de la première lettre, et un plateau de pédalier
+ * (anneau denté, bras, moyeu) à la place du O. Taille : celle du texte parent (`font-size`), couleur du mot : `color`.
+ */
+.logo { display: inline-flex; align-items: flex-start; gap: .18em; font-family: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; font-weight: 700; line-height: 1; text-transform: uppercase; white-space: nowrap; }
+.logo-la { margin-top: .06em; font-size: .46em; letter-spacing: .14em; color: #5BE3C9; }
+.logo-word { display: inline-flex; align-items: center; letter-spacing: .07em; transform: skewX(-8deg); transform-origin: left bottom; }
+.logo-o { width: .78em; height: .78em; margin: 0 .05em 0 .02em; color: #5BE3C9; stroke: currentColor; overflow: visible; }
+.logo-teeth { stroke-width: 2; stroke-dasharray: 2.2 1.64; }
+.logo-ring { stroke-width: 2.6; }
+.logo-spokes { stroke-width: 1.6; stroke-linecap: round; }
+.brand .logo { font-size: 1.5rem; }
+.brand .logo-la { color: var(--accent); }
+.home-brand .logo { font-size: 1em; }
+a:hover .logo-o, .home-brand:hover .logo-o { animation: logo-spin 1.2s linear infinite; transform-origin: center; }
+@keyframes logo-spin { to { rotate: 360deg; } }
+@media (prefers-reduced-motion: reduce) { .logo-o { animation: none !important; } }
+
+/* --- Écran Accueil : plein écran, la scène derrière, des panneaux de verre par-dessus --- */
+body:has([data-view='accueil']:not([hidden])) .topbar,
+body:has([data-view='accueil']:not([hidden])) .log-panel { display: none; }
+main:has([data-view='accueil']:not([hidden])) { max-width: none; padding: 0; }
+.home {
+  position: relative; box-sizing: border-box; overflow: hidden; min-height: 100vh; min-height: 100dvh; padding: 24px 32px 32px;
+  display: grid; grid-template-columns: minmax(0, 1fr) 380px; grid-template-rows: auto 1fr; gap: 24px;
+  background: #3F86D0; color: #fff; font-family: Barlow, system-ui, sans-serif;
+  /* Panneaux et champs sont posés sur la scène : couleurs fixes, quel que soit le thème de la page. */
+  color-scheme: dark; --glass: rgba(11, 20, 34, .78); --glass-line: rgba(255, 255, 255, .14); --glass-muted: #D3DCE8;
 }
+.home-scenes { position: absolute; inset: 0; }
+/* Les scènes sont empilées ; celle qui est affichée (`data-on`) se fond dans la précédente. */
+.home-scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; transition: opacity 1.6s ease-in-out; }
+.home-scene[data-on] { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .home-scene { transition: none; } }
+.home-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(11, 20, 34, .5) 0%, rgba(11, 20, 34, 0) 24%, rgba(11, 20, 34, 0) 50%, rgba(11, 20, 34, .88) 100%); }
+.home > :not(.home-scenes):not(.home-shade) { position: relative; z-index: 1; }
+
+.home-top { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.home-brand { display: flex; align-items: center; height: 52px; padding: 0 18px; border-radius: 14px; background: var(--glass); border: 1px solid var(--glass-line); backdrop-filter: blur(16px) saturate(1.3); font: 700 1.9rem/1 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; letter-spacing: .02em; }
+.home-nav { display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: var(--glass); border: 1px solid var(--glass-line); backdrop-filter: blur(16px) saturate(1.3); }
+.home-nav a { display: flex; align-items: center; height: 44px; padding: 0 20px; border-radius: 10px; color: #fff; font-size: 1.06rem; font-weight: 600; text-decoration: none; }
+.home-nav a:hover { background: rgba(255, 255, 255, .12); }
+.home-nav a:focus-visible, a.home-radar:focus-visible { outline: 3px solid #5BE3C9; outline-offset: 2px; }
+
+.home-hero-body { align-self: end; justify-self: start; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; max-width: 640px; }
+.home-kicker { font-size: .875rem; font-weight: 700; color: #5BE3C9; letter-spacing: .06em; text-transform: uppercase; }
+.home h2.home-title { margin: 0; font-family: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; font-weight: 700; line-height: .95; font-size: clamp(4rem, 9vw, 7.5rem); }
+.home-hero-body p { margin: 0 0 16px; font-size: 1.2rem; color: #E3EAF3; }
+button.home-ride { display: flex; align-items: center; gap: 12px; height: 72px; padding: 0 44px; border-radius: 16px; font-family: Barlow, system-ui, sans-serif; font-size: 1.7rem; font-weight: 700; box-shadow: 0 0 40px rgba(91, 227, 201, .35); }
+
+.home-side { align-self: end; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+a.home-radar { display: block; color: inherit; text-decoration: none; border-radius: 18px; box-shadow: 0 8px 28px rgba(5, 10, 20, .3); }
+.home-workout { display: flex; flex-direction: column; gap: 10px; padding: 18px; border-radius: 18px; background: var(--glass); border: 1px solid var(--glass-line); backdrop-filter: blur(16px) saturate(1.3); box-shadow: 0 8px 28px rgba(5, 10, 20, .3); }
+.home-workout .home-kicker { color: var(--glass-muted); }
+.home-workout select { width: 100%; background: rgba(255, 255, 255, .1); color: #fff; border: 1px solid rgba(255, 255, 255, .3); border-radius: 8px; }
+.home-workout-meta { margin: 0; color: var(--glass-muted); font-size: .95rem; }
+.home-workout .wo-profile { height: 64px; background: transparent; margin: 0; }
+.home-workout .row { margin: 0; }
+.home-workout .row a { color: var(--glass-muted); font-size: .9rem; }
+
+@media (max-width: 900px) {
+  .home { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; padding: 16px; gap: 16px; }
+  .home-top { flex-wrap: wrap; }
+  .home-nav a { padding: 0 14px; }
+  .home-hero-body { padding-top: 72px; }
+}
+
+/* Aide à la connexion du trainer, repliée par défaut. */
+.trainer-help { margin-top: 12px; }
+.trainer-help summary { cursor: pointer; }
+.trainer-help ul { margin: 8px 0; padding-left: 1.2rem; display: grid; gap: 4px; }
+.trainer-help label { display: grid; gap: 4px; margin-top: 8px; }
+.trainer-help select { width: 100%; }

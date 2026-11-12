@@ -30,7 +30,12 @@ Deux variantes, mêmes proportions que la maquette : `full` (520 × 592, écran 
 
 ## Accueil
 
-Visuel du parcours (« Colline », le seul qui existe) avec le bouton **Rouler**, radar réduit, et la séance : choix dans la même liste que l'écran Sortie, profil par zones, **Démarrer la séance**.
+Écran **plein écran** : le visuel du parcours (« Colline », le seul qui existe) occupe toute la fenêtre, la barre du haut et le journal sont masqués. Par-dessus, en panneaux de verre : la marque et la navigation (Sortie, Séances, Appareils) en haut ; le nom du parcours et le bouton **Rouler** en bas à gauche ; en bas à droite le radar réduit (cliquable vers Appareils) et la séance (choix dans la même liste que l'écran Sortie, profil par zones, **Démarrer la séance**). L'accueil est le point de départ de la navigation ; les autres écrans gardent la barre du haut, où « Accueil » ramène ici. Sur téléphone, les blocs s'empilent et la page défile.
+
+### Fonds et logo
+
+- **Fonds** : trois scènes SVG ([`src/ui/home-scenes.ts`](../../src/ui/home-scenes.ts)) — Rive du lac (couchant), Quais de nuit, Col des Érables (automne) — qui se relaient **toutes les minutes** par fondu de 1,6 s ([`src/ui/home-background.ts`](../../src/ui/home-background.ts)), en repartant d'une scène tirée au hasard. Le titre et la description suivent l'image. Ils nomment l'ambiance : le seul parcours réellement roulé reste « Colline ». Sans mouvement si le système le demande.
+- **Logo** « La Moulinette » : capitales Barlow Condensed penchées, « LA » en petit en menthe, et un plateau de pédalier (anneau denté, bras, moyeu) à la place du O, qui tourne au survol. Balisage dans `index.html` (barre du haut et accueil), style `.logo` dans `home.css`, icône de l'onglet `public/favicon.svg`.
 
 ## Style
 

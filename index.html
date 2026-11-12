@@ -3,12 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>zwift-2</title>
+    <title>La Moulinette</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
     <header class="topbar">
-      <strong class="brand">zwift-2</strong>
+      <strong class="brand"><span class="logo" role="img" aria-label="La Moulinette"><span class="logo-la" aria-hidden="true">LA</span><span class="logo-word" aria-hidden="true">M<svg class="logo-o" viewBox="0 0 24 24" fill="none"><circle class="logo-teeth" cx="12" cy="12" r="11" /><circle class="logo-ring" cx="12" cy="12" r="8" /><path class="logo-spokes" d="M12 12V5.4M12 12l6.3-2M12 12l3.9 5.3M12 12l-3.9 5.3M12 12l-6.3-2" /><circle cx="12" cy="12" r="2.1" fill="currentColor" stroke="none" /></svg>ULINETTE</span></span></strong>
       <nav aria-label="Écrans">
         <a href="#accueil" data-nav="accueil">Accueil</a>
         <a href="#sortie" data-nav="sortie">Sortie</a>
@@ -66,43 +67,29 @@
         </div>
       </section>
 
-      <!-- Écran 2 : accueil -->
+      <!-- Écran 2 : accueil, plein écran. Point de départ de la navigation (la barre du haut est masquée ici) -->
       <section data-view="accueil" hidden>
         <h1 class="visually-hidden">Accueil</h1>
         <div class="home">
-          <div class="home-hero">
-            <svg class="home-scene" viewBox="0 0 800 420" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-              <defs>
-                <linearGradient id="home-sky" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0" stop-color="#3F86D0" /><stop offset="1" stop-color="#D6E9F6" />
-                </linearGradient>
-              </defs>
-              <rect width="800" height="420" fill="url(#home-sky)" />
-              <g fill="#fff" opacity=".95">
-                <ellipse cx="150" cy="70" rx="70" ry="24" /><ellipse cx="205" cy="58" rx="44" ry="22" />
-                <ellipse cx="560" cy="95" rx="80" ry="24" /><ellipse cx="620" cy="82" rx="46" ry="22" />
-              </g>
-              <path d="M0 250 L90 170 L160 225 L270 140 L380 235 L470 165 L590 230 L690 150 L800 240 V300 H0Z" fill="#8A8F97" />
-              <path d="M270 140 L296 166 L282 162 L268 178 L254 162 L242 166Z M690 150 L714 174 L702 170 L690 184 L678 170 L666 174Z" fill="#F3F6FA" />
-              <path d="M0 270 C120 220 260 240 400 262 C540 240 680 215 800 265 V420 H0Z" fill="#6C9E4C" />
-              <g fill="#357552">
-                <path d="M90 330 l26 -78 l26 78z" /><path d="M150 345 l20 -62 l20 62z" /><path d="M40 350 l22 -66 l22 66z" />
-                <path d="M640 325 l26 -78 l26 78z" /><path d="M700 345 l22 -66 l22 66z" /><path d="M590 345 l18 -56 l18 56z" />
-              </g>
-              <path d="M350 420 L388 262 L412 262 L580 420Z" fill="#4C505B" />
-              <path d="M388 262 L350 420 M412 262 L580 420" stroke="#fff" stroke-width="3" fill="none" />
-              <path d="M400 270 V290 M400 310 V340 M400 365 V420" stroke="#F2C230" stroke-width="5" fill="none" />
-            </svg>
-            <div class="home-hero-body">
-              <div>
-                <span class="home-kicker">Parcours</span>
-                <h2 class="home-title">Colline</h2>
-                <p>6 km en boucle, une montée à 5 % puis sa descente.</p>
-              </div>
-              <button id="home-ride" class="home-ride" type="button" disabled>
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12-7.5z" /></svg>Rouler
-              </button>
-            </div>
+            <div id="home-scenes" class="home-scenes" aria-hidden="true"></div>
+          <div class="home-shade"></div>
+
+          <header class="home-top">
+            <strong class="home-brand"><span class="logo" role="img" aria-label="La Moulinette"><span class="logo-la" aria-hidden="true">LA</span><span class="logo-word" aria-hidden="true">M<svg class="logo-o" viewBox="0 0 24 24" fill="none"><circle class="logo-teeth" cx="12" cy="12" r="11" /><circle class="logo-ring" cx="12" cy="12" r="8" /><path class="logo-spokes" d="M12 12V5.4M12 12l6.3-2M12 12l3.9 5.3M12 12l-3.9 5.3M12 12l-6.3-2" /><circle cx="12" cy="12" r="2.1" fill="currentColor" stroke="none" /></svg>ULINETTE</span></span></strong>
+            <nav class="home-nav" aria-label="Écrans">
+              <a href="#sortie" data-nav="sortie">Sortie</a>
+              <a href="#seances" data-nav="seances">Séances</a>
+              <a href="#appareils" data-nav="appareils">Appareils</a>
+            </nav>
+          </header>
+
+          <div class="home-hero-body">
+            <span class="home-kicker">Monde</span>
+            <h2 id="home-title" class="home-title"></h2>
+            <p id="home-desc"></p>
+            <button id="home-ride" class="home-ride" type="button" disabled>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12-7.5z" /></svg>Rouler
+            </button>
           </div>
 
           <aside class="home-side">
@@ -114,7 +101,7 @@
               <svg class="wo-profile" viewBox="0 0 1000 120" preserveAspectRatio="none" aria-hidden="true"><g id="home-wo-shapes"></g></svg>
               <div class="row">
                 <button id="home-wo-start" type="button" disabled>Démarrer la séance</button>
-                <a href="#seances" class="note">Créer ou modifier</a>
+                <a href="#seances">Créer ou modifier</a>
               </div>
             </section>
           </aside>

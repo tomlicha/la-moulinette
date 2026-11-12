@@ -21,6 +21,7 @@ import { setupRouter } from './ui/router';
 import { setupWorkoutEditor } from './ui/workout-editor';
 import { RideHud } from './ui/hud';
 import { createRadar } from './ui/radar';
+import { setupHomeBackground } from './ui/home-background';
 import { controlModes } from './ui/radar-model';
 import { ClimbCounter, PowerAverage } from './ui/hud-model';
 import type { RideSnapshot } from './sim/ride';
@@ -352,6 +353,8 @@ const homeShapes = $('home-wo-shapes');
 const homeSelect = $<HTMLSelectElement>('home-wo-select');
 const homeWoStart = $<HTMLButtonElement>('home-wo-start');
 const homeRideBtn = $<HTMLButtonElement>('home-ride');
+// Fond de l'accueil : trois scènes qui se relaient toutes les minutes.
+setupHomeBackground($('home-scenes'), $('home-title'), $('home-desc'));
 const PROFILE_W = 1000;
 const PROFILE_H = 120;
 const FTP_KEY = 'zwift2.ftp';
