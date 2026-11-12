@@ -25,8 +25,34 @@ function download(name: string, bytes: Uint8Array) {
   const a = document.createElement('a');
   a.href = url;
   a.download = name;
+  // Rattaché à la page : un lien détaché n'est pas activé par tous les navigateurs (Safari).
+  a.style.display = 'none';
+  document.body.append(a);
   a.click();
+  a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 30_000); // libérer tout de suite peut interrompre le téléchargement sur certains navigateurs
+}
+
+/**
+ * Remet le fichier à l'utilisateur. Sur téléphone, la feuille de partage du système (« Enregistrer dans Fichiers »,
+ * Strava, Garmin Connect…) : un téléchargement par lien n'y fait souvent rien, surtout dans l'application installée
+ * sur l'écran d'accueil, qui n'a pas de gestionnaire de téléchargements. Ailleurs, un téléchargement ordinaire.
+ * Résout `shared` ou `downloaded` ; une feuille de partage refusée par l'utilisateur est un choix, pas une erreur.
+ */
+async function deliver(name: string, bytes: Uint8Array): Promise<'shared' | 'downloaded' | 'cancelled'> {
+  const file = new File([bytes as BlobPart], name, { type: 'application/octet-stream' });
+  const touch = matchMedia('(pointer: coarse)').matches;
+  if (touch && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: name });
+      return 'shared';
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return 'cancelled';
+      // Partage impossible (activation expirée, type refusé) : on retombe sur le téléchargement.
+    }
+  }
+  download(name, bytes);
+  return 'downloaded';
 }
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -60,11 +86,24 @@ export function setupExport(opts: {
     recorder.update({ powerW: m.powerW, cadenceRpm: m.cadenceRpm, heartRateBpm: m.heartRateBpm }, Date.now());
   });
 
+  let preloaded = false;
   function refreshButtons() {
     const n = recorder.sampleCount;
+    // Le SDK FIT se charge dès le début de la sortie : au clic, rien ne doit s'attendre avant de partager ou télécharger,
+    // sans quoi le navigateur (iOS surtout) juge le geste trop ancien et ne fait rien.
+    if (n > 0 && !preloaded) {
+      preloaded = true;
+      void import('./fit-activity').catch(() => (preloaded = false));
+    }
     const nothing = 'Rien à exporter pour l’instant : l’enregistrement démarre dès qu’un trainer connecté envoie des mesures.';
-    setBlocked(button, busy ? 'Export en cours…' : n === 0 ? nothing : undefined);
-    button.textContent = n ? `Exporter FIT (${n} s${recorder.state === 'paused' ? ', en pause' : ''})` : 'Exporter FIT';
+    // Après un export, la sortie reste en mémoire : on peut la réexporter (partage annulé, fichier perdu) tant qu'une
+    // nouvelle sortie n'a pas commencé.
+    setBlocked(button, busy ? 'Export en cours…' : n === 0 && !exported ? nothing : undefined);
+    button.textContent = n
+      ? `Exporter FIT (${n} s${recorder.state === 'paused' ? ', en pause' : ''})`
+      : exported
+        ? 'Exporter de nouveau le FIT'
+        : 'Exporter FIT';
     stravaButton.hidden = !strava?.configured;
     setBlocked(stravaButton, busy ? 'Envoi en cours…' : n === 0 && !exported ? nothing : undefined);
     stravaButton.textContent = n === 0 && exported ? 'Réessayer l’envoi à Strava' : 'Envoyer à Strava';
@@ -96,8 +135,12 @@ export function setupExport(opts: {
         return;
       }
       const { fitFileName } = await import('./fit-activity');
-      download(fitFileName(out.startMs), out.bytes);
-      log(`export FIT : ${out.samples} échantillons, ${Math.round(out.bytes.length / 1024)} Ko`);
+      const how = await deliver(fitFileName(out.startMs), out.bytes);
+      log(
+        how === 'cancelled'
+          ? 'export FIT : partage annulé, la sortie est gardée en mémoire'
+          : `export FIT (${how === 'shared' ? 'partagé' : 'téléchargé'}) : ${out.samples} échantillons, ${Math.round(out.bytes.length / 1024)} Ko`,
+      );
     } catch (e) {
       log(`export FIT impossible : ${errMsg(e)}`);
     } finally {
