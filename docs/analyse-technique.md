@@ -392,7 +392,7 @@ Une seule interface DOM, pensée pour le tactile, la souris et la manette, et li
 - **Navigation au clavier et à la manette** : focus suivant l'ordre du DOM, quelques raccourcis ; plus besoin de bibliothèque de navigation spatiale pour télécommande.
 - **Empêcher la mise en veille** : Screen Wake Lock API (Chromium 84+, Firefox 126+, iOS 18.4+ en pleine prise en charge) ; plugin natif en repli dans l'enveloppe Capacitor.
 - **Plein écran** : Fullscreen API sur ordinateur et Android ; sur iPhone, mode autonome (PWA ou app native) car le plein écran d'élément n'y est pas disponible hors vidéo.
-- **Orientation** : paysage imposé sur téléphone via l'enveloppe native ; message d'invite sur le web.
+- **Orientation** : paysage imposé sur téléphone via l'enveloppe native ; sur le web, une invite translucide (carte de verre, bouton « Passer en plein écran », astuce « Sur l'écran d'accueil » sur iPhone) quand le téléphone est tenu en portrait.
 - **Audio** : Web Audio, démarré après un geste utilisateur (règles d'autoplay) ; volume musique, effets et annonces séparés.
 
 ### Règles de lisibilité à distance
