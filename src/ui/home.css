@@ -3,72 +3,79 @@
  * Les deux sont posés sur la scène, en cartes claires aux couleurs fixes (comme le HUD) ; le radar est une tuile sombre.
  * L'accent est l'orange brûlé du thème « Doux » (voir style.css).
  */
-[data-view='appareils'], [data-view='accueil'], [data-view='seances'] { --pink: #FF5FA2; }
+[data-view='appareils'], [data-view='accueil'], [data-view='seances'] { --pink: #FF5FA2; --radar-bg: radial-gradient(circle at 50% 50%, #FFFFFF 0%, #FFF8EE 55%, #F6E9D8 100%); }
 [data-view='accueil'] h2.home-title {
   font-family: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; font-weight: 700; line-height: 1; letter-spacing: .01em;
 }
 
-/* --- Radar : tuile carrée, médaillon au centre, trainer en haut à droite, cardio en bas à gauche --- */
+/* --- Radar : tuile carrée claire (thème « Doux »), médaillon au centre, trainer en haut à droite, cardio en bas à gauche ---
+   Les couleurs sont des jetons `--r-*` : l'état d'un appareil (vert, rose, gris, rouge) se lit sur la pastille, le trait et la bulle. */
 .radar {
+  --r-ink: #14171A; --r-muted: #4F5865; --r-card: #FFFFFF; --r-line: rgb(90 60 30 / .22);
+  --r-ring: rgb(90 60 30 / .14); --r-accent: #C2410C;
+  --r-ok: #2B8A3E; --r-busy: #C2257A; --r-off: #8B8478; --r-err: #C92A2A;
   position: relative; width: 100%; aspect-ratio: 1; overflow: hidden; box-sizing: border-box;
-  border-radius: 18px; border: 1px solid rgba(255, 255, 255, .1); color: #fff;
-  background: radial-gradient(circle at 50% 50%, #1A2D4D 0%, #0F1C31 55%, #0B1422 100%);
-  font-family: Barlow, system-ui, sans-serif;
+  border-radius: 18px; color: var(--r-ink); font-family: Barlow, system-ui, sans-serif;
   --tx: 74%; --ty: 31%; --hx: 26%; --hy: 69%;
   --t-right: 6%; --t-top: 6%; --h-left: 6%; --h-top: 74%;
   --core: 34%; --sweep: 92%; --ping: 34%;
 }
 .radar-rings { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; }
-.radar-ring { stroke: rgba(91, 227, 201, .3); stroke-width: 1.5; }
+.radar-ring { stroke: var(--r-ring); stroke-width: 1.5; }
+.radar-link { stroke-width: 2.5; stroke-linecap: round; }
+.radar-link[data-tone='ok'] { stroke: var(--r-ok); }
+.radar-link[data-tone='busy'] { stroke: var(--r-busy); stroke-dasharray: 5 5; }
+.radar-link[data-tone='off'] { stroke: var(--r-off); stroke-dasharray: 3 6; opacity: .7; }
+.radar-link[data-tone='error'] { stroke: var(--r-err); stroke-dasharray: 5 5; }
 .radar-sweep, .radar-ping, .radar-core { position: absolute; left: 50%; top: 50%; translate: -50% -50%; border-radius: 50%; aspect-ratio: 1; }
 .radar-sweep {
   width: var(--sweep);
-  background: conic-gradient(from 0deg, rgba(91, 227, 201, 0) 0%, rgba(91, 227, 201, 0) 74%, rgba(91, 227, 201, .32) 100%);
+  background: conic-gradient(from 0deg, rgb(194 65 12 / 0) 0%, rgb(194 65 12 / 0) 74%, rgb(194 65 12 / .16) 100%);
   animation: radar-sweep 4s linear infinite;
 }
-.radar-ping { width: var(--ping); box-sizing: border-box; border: 2px solid #5BE3C9; animation: radar-ping 2.6s ease-out infinite; }
+.radar-ping { width: var(--ping); box-sizing: border-box; border: 2px solid var(--r-accent); animation: radar-ping 2.6s ease-out infinite; }
 .radar-core {
-  width: var(--core); box-sizing: border-box; overflow: hidden; padding: 0; border: 3px solid #5BE3C9; background: #E2E4E7;
-  box-shadow: 0 0 36px rgba(91, 227, 201, .35);
+  width: var(--core); box-sizing: border-box; overflow: hidden; padding: 0; border: 3px solid var(--r-accent); background: #E2E4E7;
+  box-shadow: 0 6px 18px rgb(80 50 20 / .22), 0 0 0 5px rgb(194 65 12 / .12);
 }
 .radar-core img { display: block; width: 100%; height: 100%; object-fit: cover; }
 /* Écran Appareils : le médaillon est un bouton qui ouvre la fiche du coureur. */
 button.radar-core { cursor: pointer; transition: box-shadow .15s ease; }
-button.radar-core:hover { box-shadow: 0 0 0 5px rgba(91, 227, 201, .45), 0 0 36px rgba(91, 227, 201, .35); }
-button.radar-core:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
+button.radar-core:hover { box-shadow: 0 6px 18px rgb(80 50 20 / .22), 0 0 0 7px rgb(194 65 12 / .28); }
+button.radar-core:focus-visible { outline: 3px solid var(--r-ink); outline-offset: 4px; }
 @keyframes radar-sweep { to { rotate: 360deg; } }
-@keyframes radar-ping { from { scale: .5; opacity: .8; } to { scale: 1.9; opacity: 0; } }
+@keyframes radar-ping { from { scale: .5; opacity: .7; } to { scale: 1.9; opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .radar-sweep, .radar-ping { animation: none; } .radar-ping { opacity: 0; } }
 
 .radar-dot { position: absolute; box-sizing: border-box; width: 16px; height: 16px; border-radius: 50%; translate: -50% -50%; }
 .radar--large .radar-dot { width: 20px; height: 20px; }
 .radar-dot[data-role='trainer'] { left: var(--tx); top: var(--ty); }
 .radar-dot[data-role='hr'] { left: var(--hx); top: var(--hy); }
-.radar-dot[data-tone='ok'] { background: #5BE3C9; box-shadow: 0 0 18px #5BE3C9, 0 0 0 5px rgba(91, 227, 201, .25); }
-.radar-dot[data-tone='busy'] { border: 2px dashed #FF5FA2; background: rgba(255, 95, 162, .2); }
-.radar-dot[data-tone='off'] { border: 2px dashed rgba(255, 255, 255, .4); }
-.radar-dot[data-tone='error'] { border: 2px dashed #FF8A85; background: rgba(255, 138, 133, .2); }
+.radar-dot[data-tone='ok'] { background: var(--r-ok); box-shadow: 0 0 0 5px rgb(43 138 62 / .2); }
+.radar-dot[data-tone='busy'] { border: 2px dashed var(--r-busy); background: rgb(194 37 122 / .14); }
+.radar-dot[data-tone='off'] { border: 2px dashed var(--r-off); background: #fff; }
+.radar-dot[data-tone='error'] { border: 2px dashed var(--r-err); background: rgb(201 42 42 / .14); }
 
 .radar-tag {
   position: absolute; box-sizing: border-box; max-width: 66%; display: flex; flex-direction: column;
-  padding: 4px 10px; border-radius: 12px; line-height: 1.2; background: rgba(11, 20, 34, .94);
-  border: 1px solid rgba(91, 227, 201, .55);
+  padding: 4px 10px; border-radius: 12px; line-height: 1.2; background: var(--r-card);
+  border: 1px solid var(--r-ok); box-shadow: 0 2px 8px rgb(80 50 20 / .12);
 }
 .radar--large .radar-tag { padding: 6px 12px; }
 .radar-tag[data-role='trainer'] { right: var(--t-right); top: var(--t-top); }
 .radar-tag[data-role='hr'] { left: var(--h-left); top: var(--h-top); }
 .radar-tag .r { font-size: 14px; font-weight: 700; }
-.radar-tag .n { font-size: 11px; color: #D6E0EE; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.radar-tag .s { display: none; font-size: 12px; color: #5BE3C9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radar-tag .n { font-size: 11px; color: var(--r-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radar-tag .s { display: none; font-size: 12px; font-weight: 600; color: var(--r-ok); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .radar--large .radar-tag .r { font-size: 16px; }
 .radar--large .radar-tag .n { font-size: 13px; }
 .radar--large .radar-tag .s { display: block; font-size: 13px; }
-.radar-tag[data-tone='busy'] { border: 1px dashed rgba(255, 95, 162, .75); }
-.radar-tag[data-tone='busy'] .s { color: #FFB3D3; }
-.radar-tag[data-tone='off'] { border: 1px dashed rgba(255, 255, 255, .3); }
-.radar-tag[data-tone='off'] .s { color: #C9D3E0; }
-.radar-tag[data-tone='error'] { border: 1px dashed #FF8A85; }
-.radar-tag[data-tone='error'] .s { color: #FF8A85; }
+.radar-tag[data-tone='busy'] { border: 1px dashed var(--r-busy); }
+.radar-tag[data-tone='busy'] .s { color: var(--r-busy); }
+.radar-tag[data-tone='off'] { border: 1px dashed var(--r-off); }
+.radar-tag[data-tone='off'] .s { color: var(--r-muted); }
+.radar-tag[data-tone='error'] { border: 1px dashed var(--r-err); }
+.radar-tag[data-tone='error'] .s { color: var(--r-err); }
 
 /*
  * --- Logo « La Moulinette » ---
@@ -126,7 +133,7 @@ button.home-ride, button.dev-go-btn { display: flex; align-items: center; gap: 1
 /* Le radar est une tuile sombre (couleurs fixes, comme le HUD) : il donne l'état des appareils d'un coup d'œil. */
 .home-side { display: contents; }
 .home-side > * { position: relative; z-index: 1; } /* au-dessus de la scène, comme les autres enfants de .home */
-a.home-radar { grid-column: 2; display: flex; align-items: center; color: #fff; text-decoration: none; overflow: hidden; border-radius: var(--radius-card); background: radial-gradient(circle at 50% 50%, #1A2D4D 0%, #0F1C31 55%, #0B1422 100%); box-shadow: var(--shadow-card); }
+a.home-radar { grid-column: 2; display: flex; align-items: center; text-decoration: none; overflow: hidden; border-radius: var(--radius-card); background: var(--radar-bg); border: 1px solid var(--glass-line); box-shadow: var(--shadow-card); }
 a.home-radar > div { width: 100%; }
 .home-radar .radar { border: 0; border-radius: 0; background: transparent; }
 .home-workout { grid-column: 3; display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: var(--radius-card); background: var(--glass); border: 1px solid var(--glass-line); box-shadow: var(--shadow-card); backdrop-filter: blur(14px) saturate(1.2); }
@@ -168,7 +175,7 @@ button.rider-chip:hover { background: #FBF6EF; }
 .rider-ico, .rider-edit { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .rider-edit { color: var(--accent); }
 
-.dev-radar { grid-row: 3; grid-column: 2; display: flex; align-items: center; overflow: hidden; border-radius: var(--radius-card); background: radial-gradient(circle at 50% 50%, #1A2D4D 0%, #0F1C31 55%, #0B1422 100%); box-shadow: var(--shadow-card); }
+.dev-radar { grid-row: 3; grid-column: 2; display: flex; align-items: center; overflow: hidden; border-radius: var(--radius-card); background: var(--radar-bg); border: 1px solid var(--glass-line); box-shadow: var(--shadow-card); }
 .dev-radar > div { width: 100%; }
 .dev-radar .radar { border: 0; border-radius: 0; background: transparent; }
 
@@ -205,7 +212,7 @@ button.rider-chip:hover { background: #FBF6EF; }
 .rider-card { width: min(460px, calc(100vw - 32px)); max-height: calc(100dvh - 24px); overflow-y: auto; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px; padding: 22px 24px; border-radius: var(--radius-card); background: #fff; box-shadow: 0 18px 48px rgb(0 0 0 / .3); color-scheme: light; }
 .rider-top { display: flex; align-items: center; gap: 16px; }
 .rider-top h2 { margin: 0; font: 700 2.2rem/1 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; }
-.rider-avatar { width: 88px; height: 88px; flex: none; border-radius: 50%; object-fit: cover; border: 3px solid #5BE3C9; background: #E2E4E7; box-shadow: 0 0 0 4px rgba(91, 227, 201, .2); }
+.rider-avatar { width: 88px; height: 88px; flex: none; border-radius: 50%; object-fit: cover; border: 3px solid var(--accent); background: #E2E4E7; box-shadow: 0 0 0 4px rgb(194 65 12 / .12); }
 .rider-wkg { margin: 2px 0 0; color: var(--muted); font-weight: 600; }
 .rider-wkg b { color: var(--fg); font: 700 1.9rem/1 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; }
 .rider-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

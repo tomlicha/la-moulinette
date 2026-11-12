@@ -26,13 +26,6 @@ const GEOMETRY = {
   links: { trainer: [128, 78, 141, 68], hr: [72, 122, 59, 132] },
 } as const;
 
-const LINK_STYLE: Record<RadarTone, { stroke: string; dash: string }> = {
-  ok: { stroke: '#5BE3C9', dash: '' },
-  busy: { stroke: '#FF5FA2', dash: '5 5' },
-  off: { stroke: 'rgba(255,255,255,.35)', dash: '3 6' },
-  error: { stroke: '#FF8A85', dash: '5 5' },
-};
-
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?: HTMLElement) => {
   const e = document.createElement(tag);
   e.className = cls;
@@ -41,7 +34,7 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?:
 };
 
 /**
- * Radar des appareils : le coureur au centre, le trainer et la ceinture cardio sur les anneaux, reliés à lui.
+ * Radar des appareils : le coureur au centre, le trainer et le capteur cardio sur les anneaux, reliés à lui.
  * Chaque bulle donne le rôle (Trainer, Cardio) et, en plus petit, le nom réel de l'appareil.
  * Le navigateur ne donne pas la liste des appareils proches : le radar montre l'état des appareils connus.
  */
@@ -68,7 +61,8 @@ export function createRadar(root: HTMLElement, variant: RadarVariant, opts: Rada
   for (const role of ['trainer', 'hr'] as const) {
     const [x1, y1, x2, y2] = g.links[role];
     const l = document.createElementNS(SVG_NS, 'line');
-    for (const [k, v] of Object.entries({ x1, y1, x2, y2, 'stroke-width': 2.5, 'stroke-linecap': 'round' })) l.setAttribute(k, String(v));
+    for (const [k, v] of Object.entries({ x1, y1, x2, y2 })) l.setAttribute(k, String(v));
+    l.setAttribute('class', 'radar-link');
     svg.append(l);
     links[role] = l;
   }
@@ -114,10 +108,7 @@ export function createRadar(root: HTMLElement, variant: RadarVariant, opts: Rada
         p.name.textContent = t.name;
         p.status.textContent = t.status;
         p.dot.dataset.tone = p.tag.dataset.tone = t.tone;
-        const ls = LINK_STYLE[t.tone];
-        links[role].setAttribute('stroke', ls.stroke);
-        if (ls.dash) links[role].setAttribute('stroke-dasharray', ls.dash);
-        else links[role].removeAttribute('stroke-dasharray');
+        links[role].dataset.tone = t.tone;
         summary.push(`${t.role} : ${t.name}, ${t.status.toLowerCase()}`);
       }
       box.setAttribute('role', 'img');

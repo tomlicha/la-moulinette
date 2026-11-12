@@ -47,9 +47,9 @@ const noControl = (what: string): BlockReason => ({
   action: { label: 'Changer d’appareil', run: () => router.go('appareils') },
 });
 
-/** État affiché sur les cartes de l'écran Appareils ; l'accord suit l'appareil (le trainer, la ceinture). */
-const stateLabel = (s: ConnectionState, feminine: boolean) =>
-  s === 'connected' ? `Connecté${feminine ? 'e' : ''}` : s === 'connecting' ? 'Connexion…' : s === 'error' ? 'Erreur de connexion' : `Non connecté${feminine ? 'e' : ''}`;
+/** État affiché sur les cartes de l'écran Appareils. */
+const stateLabel = (s: ConnectionState) =>
+  s === 'connected' ? 'Connecté' : s === 'connecting' ? 'Connexion…' : s === 'error' ? 'Erreur de connexion' : 'Non connecté';
 const stateEl = $('state');
 const stateHrEl = $('state-hr');
 const connectHr = $<HTMLButtonElement>('connect-hr');
@@ -138,7 +138,7 @@ function setState(s: ConnectionState, detail?: string) {
   currentState = s;
   exporter.onTrainerState(s);
   stateEl.dataset.s = s;
-  stateEl.textContent = stateLabel(s, false);
+  stateEl.textContent = stateLabel(s);
   stateEl.title = detail ?? '';
   const connected = s === 'connected';
   const busy = s === 'connecting' || connected;
@@ -302,7 +302,7 @@ function newHeartRateMonitor(): HeartRateMonitor {
     if (hrMonitor !== m) return;
     roleState.hr = s;
     stateHrEl.dataset.s = s;
-    stateHrEl.textContent = stateLabel(s, true);
+    stateHrEl.textContent = stateLabel(s);
     stateHrEl.title = d ?? '';
     log(`cardio : ${s}${d ? ` (${d})` : ''}`);
     if (s === 'connected' && m.deviceId) registry.remember('hr', { id: m.deviceId, name: m.name });
@@ -739,16 +739,16 @@ function renderDevices() {
   $('trainer-known').textContent =
     roleState.trainer === 'connected' && trainer?.name ? trainer.name : t ? `Connu : ${t.name}` : 'Aucun trainer connu.';
   $('hr-known').textContent =
-    roleState.hr === 'connected' && hrMonitor?.name ? hrMonitor.name : h ? `Connue : ${h.name}` : 'Aucune ceinture connue. Facultatif.';
+    roleState.hr === 'connected' && hrMonitor?.name ? hrMonitor.name : h ? `Connu : ${h.name}` : 'Aucun capteur connu. Facultatif.';
   // Le nom de l'appareil est déjà affiché au-dessus des boutons : le libellé reste court pour que la rangée tienne sur une ligne.
   connectBle.textContent = t ? 'Reconnecter' : 'Rechercher un trainer';
-  connectHr.textContent = h ? 'Reconnecter' : 'Rechercher une ceinture';
+  connectHr.textContent = h ? 'Reconnecter' : 'Rechercher un capteur';
   const bt = webBluetoothAvailable();
   const noBt = 'Le Bluetooth web n’existe que dans Chrome ou Edge, sur ordinateur ou Android. Ici, seul le trainer simulé est disponible.';
   const trainerBusy =
     roleState.trainer === 'connected' ? 'Un trainer est déjà connecté : déconnecte-le d’abord pour en changer.' : 'Connexion du trainer en cours…';
   const hrBusy =
-    roleState.hr === 'connected' ? 'Une ceinture est déjà connectée : déconnecte-la d’abord pour en changer.' : 'Connexion de la ceinture en cours…';
+    roleState.hr === 'connected' ? 'Un capteur est déjà connecté : déconnecte-le d’abord pour en changer.' : 'Connexion du capteur en cours…';
   setBlocked(connectBle, !bt ? noBt : busyT ? trainerBusy : undefined);
   setBlocked(connectHr, !bt ? noBt : busyH ? hrBusy : undefined);
   setBlocked(connectSim, busyT ? trainerBusy : undefined);
@@ -766,7 +766,7 @@ function renderDevices() {
   setBlocked($<HTMLButtonElement>('connect-hr-other'), !bt ? noBt : busyH ? hrBusy : undefined);
   $<HTMLButtonElement>('forget-trainer').hidden = !t || liveT;
   $<HTMLButtonElement>('forget-hr').hidden = !h || liveH;
-  setBlocked(disconnectHr, roleState.hr === 'connected' ? undefined : 'Aucune ceinture connectée.');
+  setBlocked(disconnectHr, roleState.hr === 'connected' ? undefined : 'Aucun capteur connecté.');
   setBlocked(
     $<HTMLButtonElement>('go-ride'),
     roleState.trainer === 'connected' ? undefined : 'Connecte d’abord ton home trainer, ou choisis « Continuer sans trainer » juste à côté.',
