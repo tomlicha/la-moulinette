@@ -108,9 +108,9 @@ export const DEFAULT_BODY: Body = {
   head: 0.17,
   upperArm: 0.3,
   forearm: 0.27,
-  hand: 0.095,
+  hand: 0.105,
   hipHalfWidth: 0.088,
-  shoulderHalfWidth: 0.165,
+  shoulderHalfWidth: 0.176,
   shoulderDrop: 0.045,
   hipAboveSaddle: 0.09,
   hipAheadOfSaddle: 0.025,
@@ -165,11 +165,20 @@ const CHEST_EXTRA = -9 * DEG;
 /** Cou tendu vers l'avant et tête presque droite : le regard reste sur la route. */
 const NECK_ANGLE = 38 * DEG;
 const HEAD_ANGLE = 74 * DEG;
-/** Bras presque tendus : 94 % de leur longueur entre épaule et poignet. */
-const REACH = 0.94;
+/** Coudes nettement fléchis : 90 % de la longueur des bras entre épaule et poignet, le buste plus couché. */
+const REACH = 0.9;
+
+/**
+ * Déhanchement : le bassin bascule vers la jambe qui pousse, les épaules compensent un peu en sens inverse, la
+ * tête reste droite. Nul à l'angle de référence (manivelles à l'horizontale), où le modèle est lié au squelette.
+ */
+const PELVIS_ROCK = 4 * DEG;
+const CHEST_ROCK = -2.2 * DEG;
 
 const dirAt = (angle: number) => v3(0, Math.sin(angle), Math.cos(angle));
 const LEFT = v3(1, 0, 0);
+/** Axe « gauche » incliné de `roll` radians autour de l'axe du vélo (positif : le côté gauche monte). */
+const leftRolled = (roll: number) => v3(Math.cos(roll), Math.sin(roll), 0);
 
 /** Prise des mains : poignet un peu en arrière et au-dessus du point d'appui, phalanges juste devant. */
 function handTargets(hood: V3): { wrist: V3; knuckle: V3 } {
@@ -186,7 +195,7 @@ interface Torso {
   chest: Basis;
 }
 
-function torso(fit: BikeFit, body: Body, angle: number): Torso {
+function torso(fit: BikeFit, body: Body, angle: number, rock = 0): Torso {
   const root = offset(fit.saddle, [v3(0, 1, 0), body.hipAboveSaddle], [v3(0, 0, 1), body.hipAheadOfSaddle]);
   const lumbar = offset(root, [dirAt(angle + PELVIS_EXTRA), body.pelvis]);
   const thorax = offset(lumbar, [dirAt(angle + SPINE_EXTRA), body.spine]);
@@ -196,9 +205,9 @@ function torso(fit: BikeFit, body: Body, angle: number): Torso {
     lumbar,
     thorax,
     neckBase,
-    pelvis: aimBasis(sub(lumbar, root), LEFT),
+    pelvis: aimBasis(sub(lumbar, root), leftRolled(PELVIS_ROCK * rock)),
     spine: aimBasis(sub(thorax, lumbar), LEFT),
-    chest: aimBasis(sub(neckBase, thorax), LEFT),
+    chest: aimBasis(sub(neckBase, thorax), leftRolled(CHEST_ROCK * rock)),
   };
 }
 
@@ -228,7 +237,8 @@ export function solveTorsoAngle(fit: BikeFit, body: Body = DEFAULT_BODY): number
  * `torsoAngle` vient de {@link solveTorsoAngle}, calculé une fois par couple vélo et avatar.
  */
 export function solvePose(fit: BikeFit, crank: number, torsoAngle: number, body: Body = DEFAULT_BODY): Pose {
-  const t = torso(fit, body, torsoAngle);
+  // La jambe gauche est en haut à 0 : la hanche gauche est alors levée, elle retombe pendant la poussée.
+  const t = torso(fit, body, torsoAngle, Math.cos(crank));
   const neckDir = dirAt(NECK_ANGLE);
   const headBase = offset(t.neckBase, [neckDir, body.neck]);
   const headTop = offset(headBase, [dirAt(HEAD_ANGLE), body.head]);

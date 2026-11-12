@@ -165,6 +165,8 @@ export class MeshBuilder {
   readonly joints: number[] = [];
   readonly weights: number[] = [];
   readonly indices: number[] = [];
+  /** Occlusion ambiante par sommet (voir `ao.ts`) ; vide tant qu'elle n'est pas calculée : la pièce est alors dégagée. */
+  ao: number[] = [];
 
   get triangleCount() {
     return this.indices.length / 3;

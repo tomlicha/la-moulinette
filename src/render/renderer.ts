@@ -25,7 +25,8 @@ export async function createRenderer(canvas: HTMLCanvasElement, forceWebGL = fal
   });
   await renderer.init();
   renderer.library.addLight(SunLightNode, SunLight); // ombres en cascades
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  // Courbe « neutre » : elle garde les couleurs franches du décor et des maillots, là où une courbe de cinéma les ternit.
+  renderer.toneMapping = THREE.NeutralToneMapping;
   renderer.shadowMap.enabled = true;
   const backend: Backend = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend ? 'webgpu' : 'webgl2';
   return { renderer, backend };

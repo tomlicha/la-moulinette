@@ -8,6 +8,10 @@ import { footPitch, SKELETON, solvePose, solveTorsoAngle, type Basis, type BikeF
 /** Poses précalculées par tour de pédale : 5° d'écart, interpolées entre deux échantillons. */
 const SAMPLES = 72;
 const TAU = Math.PI * 2;
+/** Balancement du vélo d'un côté à l'autre à chaque coup de pédale, à pleine cadence, en radians. */
+const SWAY = (1.8 * Math.PI) / 180;
+/** Cadence à partir de laquelle le balancement est entier, en tours par minute. */
+const SWAY_FULL_RPM = 70;
 
 /**
  * Table de poses d'un couple vélo et avatar : rotation locale de chaque os et position du bassin, pour chaque angle
@@ -74,6 +78,9 @@ function buildTable(fit: BikeFit): PoseTable {
 export class Rider {
   readonly group = new THREE.Group();
   readonly material: RegionMaterial;
+  /** Vélo et avatar : penché autour de la ligne de contact des pneus, sans toucher au placement de `group`. */
+  private readonly rig = new THREE.Group();
+  private sway = 0;
   private crank = Math.PI / 2;
   private readonly frontWheel: THREE.Object3D;
   private readonly rearWheel: THREE.Object3D;
@@ -99,7 +106,8 @@ export class Rider {
         mesh.receiveShadow = true;
       });
     }
-    this.group.add(bike, avatar);
+    this.rig.add(bike, avatar);
+    this.group.add(this.rig);
 
     const find = (root: THREE.Object3D, name: string) => {
       const o = root.getObjectByName(name);
@@ -123,6 +131,10 @@ export class Rider {
   /** Fait tourner pédalier et roues : `cadenceRpm` en tours par minute, `speedMs` en m/s. */
   animate(dtS: number, cadenceRpm: number, speedMs: number) {
     this.crank = (this.crank + (cadenceRpm / 60) * TAU * dtS) % TAU;
+    // Le vélo penche à l'opposé de la jambe qui pousse ; à l'arrêt du pédalage, il se redresse en douceur.
+    const want = Math.min(1, cadenceRpm / SWAY_FULL_RPM);
+    this.sway += (want - this.sway) * Math.min(1, dtS * 4);
+    this.rig.rotation.z = -SWAY * this.sway * Math.sin(this.crank);
     const spin = (speedMs / this.wheelRadius) * dtS;
     this.frontWheel.rotation.x += spin;
     this.rearWheel.rotation.x += spin;

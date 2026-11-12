@@ -4,10 +4,14 @@
  * Chaque membre est une seule surface continue (hanche-genou-cheville, épaule-coude-poignet) aux sections
  * anatomiques : quadriceps et mollets galbés, tibia plus plat, deltoïdes, avant-bras effilés. Les vêtements sont
  * des couches à part, un peu plus larges, terminées par un ourlet : leur bord se voit, comme un vrai tissu.
+ *
+ * Style arcade : les cotes anatomiques sont grossies par les facteurs `CHUNK` (membres plus épais, mains et
+ * chaussures plus grandes), la tête par `HEAD_SCALE` ; la silhouette se lit ainsi de dos, à cinq mètres.
  */
 import { Matrix4, Quaternion, Vector3 } from 'three';
 import { REGION } from '../../src/render/asset-contract.ts';
 import { BIND_CRANK, DEFAULT_BODY, footPitch, SKELETON, solvePose, solveTorsoAngle, type Pose, type V3 } from '../../src/render/rider-pose.ts';
+import { bakeAo } from './ao.ts';
 import { BIKE_FIT } from './bike.ts';
 import { GlbWriter } from './gltf.ts';
 import { angleDiff, bumps, curve, inflate, keys, loop, MeshBuilder, oval, polyline, roundEnds, smooth, type Bump, type SectionPoint, type Skin } from './mesh.ts';
@@ -15,6 +19,9 @@ import { buildHead, headFrame, type HeadOptions } from './head.ts';
 import { Body, Ellipsoid, ovalRadius, polygonize, simplify, smax, smin, splitRegions, Tube, type Shape, type TubeSpec } from './sdf.ts';
 
 const vec = (p: V3) => new Vector3(p.x, p.y, p.z);
+
+/** Grossissement des volumes par rapport à l'anatomie réelle. */
+const CHUNK = { leg: 1.13, arm: 1.22, torso: 1.05, neck: 1.12, hand: 1.24, shoe: 1.18 };
 const BONE_INDEX = Object.fromEntries(SKELETON.map((b, i) => [b.bone, i])) as Record<string, number>;
 const bone = (name: string) => BONE_INDEX[name]!;
 
@@ -111,7 +118,7 @@ function legTube(pose: Pose, s: 'l' | 'r', mirror: 1 | -1): TubeSpec {
   };
   const shortsEnd = sh + 0.3;
   const band = shortsEnd - 0.032;
-  const sockTop = sa - 0.13;
+  const sockTop = sa - 0.15;
   const r = profileRadius(prof);
   const total = start.distanceTo(hip) + DEFAULT_BODY.thigh + DEFAULT_BODY.shin + 0.03;
   const skin = chainSkin(
@@ -124,9 +131,11 @@ function legTube(pose: Pose, s: 'l' | 'r', mirror: 1 | -1): TubeSpec {
     front: vec(pose.bases[`thigh_${s}`].z).negate(), // l'avant de la cuisse regarde vers le haut et l'avant
     mirror,
     radius: (ss, th) =>
-      (r(ss, th) + plateau(ss, band, shortsEnd, 0.0012) + ridge(ss, shortsEnd - 0.002) + ridge(ss, sockTop + 0.002, 0.0015)) *
+      (r(ss, th) * CHUNK.leg + plateau(ss, band, shortsEnd, 0.0012) + ridge(ss, shortsEnd - 0.002) + ridge(ss, sockTop + 0.002, 0.0015)) *
       roundEnds(ss, 0, total, 0.035, 0),
-    region: (ss) => {
+    region: (ss, th) => {
+      // Bande latérale de la couleur du maillot sur le cuissard, côté extérieur.
+      if (ss > sh + 0.1 && ss < band && Math.abs(angleDiff(th, Math.PI / 2)) < 0.34) return REGION.jersey;
       if (ss < band) return REGION.shorts;
       if (ss < shortsEnd) return REGION.shortsBand;
       if (ss < sockTop) return REGION.skin;
@@ -173,21 +182,25 @@ function torsoTube(pose: Pose): TubeSpec {
   const r = profileRadius(prof);
   const hem = TORSO_HEM;
   const yoke = sN - 0.07;
-  const side = (th: number) => Math.abs(Math.abs(th) - Math.PI / 2) < 0.42;
+  const hoop = sT - 0.062;
+  const side = (th: number) => Math.abs(Math.abs(th) - Math.PI / 2) < 0.24;
   const skin = chainSkin([bone('pelvis'), bone('spine'), bone('chest'), bone('neck')], [{ s: sL, w: 0.06 }, { s: sT, w: 0.07 }, { s: sN, w: 0.02 }]);
   return {
     points: [bottom, root, lumbar, thorax, neck, top],
     blend: 0.06,
     front: vec(pose.bases.pelvis.z), // ventre
     // Le bas du buste s'arrondit sous les hanches : les fesses viennent des jambes, fondues dans le bassin.
-    radius: (s, th) => (r(s, th) + ridge(s, hem + 0.003, 0.0012)) * roundEnds(s, 0.05, end, 0.07, 0.025),
+    radius: (s, th) => (r(s, th) * CHUNK.torso + ridge(s, hem + 0.003, 0.0012)) * roundEnds(s, 0.05, end, 0.07, 0.025),
     region: (s, th) => {
       if (s < hem) return REGION.shorts;
-      if (s > yoke && s < yoke + 0.008) return REGION.jerseyAccent;
-      if (s > yoke) return REGION.jerseyAlt;
+      // Bande claire bordée de deux filets sombres, sous les aisselles : elle fait le tour du buste et barre le dos,
+      // là où la caméra de poursuite regarde.
+      if (s > hoop && s < hoop + 0.058) return s < hoop + 0.009 || s > hoop + 0.049 ? REGION.jerseyAlt : REGION.jerseyAccent;
+      if (s > yoke) return REGION.jersey;
       if (Math.abs(th) < 0.025 && s > sN - 0.12) return REGION.jerseyAccent; // fermeture éclair
       if (s > pocketTop && s < pocketTop + 0.006 && Math.abs(angleDiff(th, Math.PI)) < 1.15) return REGION.jerseyAccent;
-      return side(th) ? REGION.jerseyAlt : REGION.jersey;
+      // Sous la bande, un panneau latéral étroit de la seconde couleur affine la taille.
+      return s < hoop && side(th) ? REGION.jerseyAlt : REGION.jersey;
     },
     skin,
   };
@@ -230,11 +243,11 @@ function armTube(pose: Pose, s: 'l' | 'r', mirror: 1 | -1): TubeSpec {
     front: new Vector3(0, 1, 0), // dessus du bras
     mirror,
     radius: (ss, th) =>
-      (r(ss, th) + plateau(ss, sleeveEnd - 0.028, sleeveEnd, 0.001) + ridge(ss, sleeveEnd - 0.002) + ridge(ss, cuff + 0.002, 0.0015)) *
+      (r(ss, th) * CHUNK.arm + plateau(ss, sleeveEnd - 0.028, sleeveEnd, 0.001) + ridge(ss, sleeveEnd - 0.002) + ridge(ss, cuff + 0.002, 0.0015)) *
       roundEnds(ss, 0, end, 0.03, 0.012),
     region: (ss) => {
-      if (ss < sleeveEnd - 0.028) return REGION.jerseyAlt;
-      if (ss < sleeveEnd) return REGION.jerseyAccent;
+      if (ss < sleeveEnd - 0.028) return REGION.jersey;
+      if (ss < sleeveEnd) return REGION.jerseyAlt;
       if (ss < cuff) return REGION.skin;
       return REGION.glove;
     },
@@ -273,11 +286,11 @@ function neckTube(pose: Pose, collar: boolean): TubeSpec {
       // Cou de sportif sec : 11 cm de large, plus profond vers la nuque ; pomme d'Adam devant, et les deux
       // sterno-cléido-mastoïdiens qui montent en biais du creux du sternum vers l'arrière des oreilles.
       const side = lerp(0.054, 0.05, t);
-      const bare = ovalRadius(th, lerp(0.05, 0.045, t), lerp(0.062, 0.055, t), side, side) + bumps(NECK_RELIEF(sn), s, th);
+      const bare = CHUNK.neck * ovalRadius(th, lerp(0.05, 0.045, t), lerp(0.062, 0.055, t), side, side) + bumps(NECK_RELIEF(sn), s, th);
       if (!collar) return bare;
       return bare + (s < collarTop ? 0.004 * smooth(collarTop, collarTop - 0.004, s) : 0) + ridge(s, collarTop - 0.002, 0.0015);
     },
-    region: (s) => (collar && s < collarTop ? REGION.jerseyAlt : REGION.skin),
+    region: (s) => (collar && s < collarTop ? REGION.jersey : REGION.skin),
     skin,
   };
 }
@@ -331,10 +344,10 @@ function collarRim(b: MeshBuilder, body: Body, head: Body, neck: Tube) {
   neck.path.at(sn, pos, tan);
   b.sweep({
     path,
-    ds: path.length / 120,
-    radial: 10,
+    ds: path.length / 64,
+    radial: 8,
     front: ring[0]!.clone().sub(pos).normalize(),
-    section: (_s, th) => oval(th, 0.0034, 0.0034, 0.0034, 0.0034),
+    section: (_s, th) => oval(th, 0.0042, 0.0042, 0.0042, 0.0042),
     region: REGION.jerseyAlt,
     skin: (_s, p) => neck.skinAt(p),
   });
@@ -374,8 +387,8 @@ function deltoid(pose: Pose, s: 'l' | 'r', mirror: 1 | -1): Shape {
   return new Ellipsoid({
     center: sh.clone().addScaledVector(ua, 0.028).addScaledVector(chestUp, 0.004),
     axes: [out, ua, out.clone().cross(ua).normalize()],
-    radii: [0.045, 0.068, 0.052],
-    region: () => REGION.jerseyAlt,
+    radii: [0.045 * CHUNK.arm, 0.068 * CHUNK.arm, 0.052 * CHUNK.arm],
+    region: () => REGION.jersey,
     skin: { joints: [bone(`upperarm_${s}`), bone('chest')], weights: [0.65, 0.35] },
   });
 }
@@ -392,8 +405,8 @@ function trapezius(pose: Pose): Shape {
   return new Ellipsoid({
     center: vec(pose.joints.neckBase).addScaledVector(up, -0.045).addScaledVector(front, -0.012),
     axes: [x, up, front],
-    radii: [DEFAULT_BODY.shoulderHalfWidth * 0.92, 0.05, 0.068],
-    region: () => REGION.jerseyAlt,
+    radii: [DEFAULT_BODY.shoulderHalfWidth * 0.92, 0.054, 0.072],
+    region: () => REGION.jersey,
     skin: { joints: [bone('chest')], weights: [1] },
   });
 }
@@ -421,7 +434,7 @@ async function body(b: MeshBuilder, pose: Pose) {
   const neckStub: Shape = {
     sdf: (x, y, z) => smax(collared.sdf(x, y, z), (x - cut.x) * neckDir.x + (y - cut.y) * neckDir.y + (z - cut.z) * neckDir.z, 0.004),
     // Tout ce que le corps garde du cou est du maillot : la peau du cou appartient à la tête.
-    regionAt: () => REGION.jerseyAlt,
+    regionAt: () => REGION.jersey,
     skinAt: (p) => collared.skinAt(p),
   };
   const neck = new Tube(neckTube(pose, false));
@@ -456,7 +469,7 @@ async function body(b: MeshBuilder, pose: Pose) {
   const dense = polygonize(implicit, min, max, 0.005);
   // Couleurs découpées sur le maillage dense (liserés fins compris), puis simplification à limites figées.
   const split = splitRegions(implicit, dense.positions, dense.indices);
-  const simple = await simplify(split.points, split.indices, 30000, 0.0008);
+  const simple = await simplify(split.points, split.indices, 18000, 0.0012);
   const g = new Vector3();
   b.addMesh(
     simple.points.map(({ p, r }) => ({ p, n: implicit.gradient(p, g).clone(), region: r, skin: implicit.skin(p, 0.045) })),
@@ -472,8 +485,9 @@ function shoe(b: MeshBuilder, pose: Pose, s: 'l' | 'r', mirror: 1 | -1) {
   const fwd = new Vector3(0, -Math.sin(pitch), Math.cos(pitch));
   const up = new Vector3(0, Math.cos(pitch), Math.sin(pitch));
   const ball = vec(pose.joints[`ball_${s}`]);
-  const heel = ball.clone().addScaledVector(fwd, -0.19).addScaledVector(up, 0.012);
-  const toe = ball.clone().addScaledVector(fwd, 0.095).addScaledVector(up, 0.012);
+  const S = CHUNK.shoe;
+  const heel = ball.clone().addScaledVector(fwd, -0.19 * S).addScaledVector(up, 0.012 * S);
+  const toe = ball.clone().addScaledVector(fwd, 0.095 * S).addScaledVector(up, 0.012 * S);
   const path = polyline([heel, toe]);
   const L = path.length;
   const top = keys([[0, 0.05], [0.12, 0.072], [0.32, 0.074], [0.55, 0.045], [0.8, 0.03], [1, 0.022]]);
@@ -481,22 +495,22 @@ function shoe(b: MeshBuilder, pose: Pose, s: 'l' | 'r', mirror: 1 | -1) {
   const solidSole = (th: number) => Math.cos(th) < -0.55;
   b.sweep({
     path,
-    ds: 0.008,
-    radial: 26,
+    ds: 0.014,
+    radial: 20,
     front: up,
     mirror,
     sCuts: [0.4 * L, 0.48 * L],
     thetaCuts: [Math.acos(-0.55), -Math.acos(-0.55)],
     section: (ss, th) => {
       const t = ss / L;
-      const k = roundEnds(ss, 0, L, 0.025, 0.03);
-      const w = width(t);
-      return oval(th, top(t) * Math.max(k, 0.25), 0.021 * k, w * k * 1.04, w * k, 2.6);
+      const k = roundEnds(ss, 0, L, 0.025 * S, 0.03 * S);
+      const w = width(t) * S;
+      return oval(th, top(t) * S * Math.max(k, 0.25), 0.021 * S * k, w * k * 1.04, w * k, 2.6);
     },
     region: (ss, th) => {
       const t = ss / L;
       if (solidSole(th)) return REGION.sole;
-      if (t > 0.4 && t < 0.48 && Math.cos(th) > -0.3) return REGION.jerseyAccent;
+      if (t > 0.4 && t < 0.48 && Math.cos(th) > -0.3) return REGION.jersey; // sangle de la couleur du maillot
       return REGION.shoe;
     },
     skin: rigid(bone(`foot_${s}`)),
@@ -504,14 +518,14 @@ function shoe(b: MeshBuilder, pose: Pose, s: 'l' | 'r', mirror: 1 | -1) {
     capEnd: 'pole',
   });
   // Molette de serrage sur le côté extérieur.
-  const dialC = ball.clone().addScaledVector(fwd, -0.065).addScaledVector(up, 0.06).add(new Vector3(mirror * 0.036, 0, 0));
+  const dialC = ball.clone().addScaledVector(fwd, -0.065 * S).addScaledVector(up, 0.06 * S).add(new Vector3(mirror * 0.036 * S, 0, 0));
   const out = new Vector3(mirror, 0, 0);
   b.sweep({
     path: polyline([dialC.clone().addScaledVector(out, -0.004), dialC.clone().addScaledVector(out, 0.008)]),
     ds: 0.02,
     radial: 14,
     front: up,
-    section: (_s, th) => oval(th, 0.011, 0.011, 0.011, 0.011),
+    section: (_s, th) => oval(th, 0.013, 0.013, 0.013, 0.013),
     region: REGION.eyewear,
     skin: rigid(bone(`foot_${s}`)),
     capEnd: 'flat',
@@ -528,18 +542,19 @@ function hand(b: MeshBuilder, pose: Pose, s: 'l' | 'r', mirror: 1 | -1) {
   // Dos de la main : vers le haut et un peu vers l'extérieur.
   const back = new Vector3(0, 1, 0).addScaledVector(out, 0.35).addScaledVector(d, -new Vector3(0, 1, 0).addScaledVector(out, 0.35).dot(d)).normalize();
   const skin = rigid(bone(`hand_${s}`));
+  const H = CHUNK.hand;
   const palmPath = polyline([wr.clone().addScaledVector(d, -0.005), kn.clone().addScaledVector(d, 0.012)]);
   const PL = palmPath.length;
   b.sweep({
     path: palmPath,
-    ds: 0.008,
-    radial: 22,
+    ds: 0.012,
+    radial: 18,
     front: back,
     mirror,
     section: (ss, th) => {
       const t = ss / PL;
       const k = roundEnds(ss, 0, PL, 0, 0.012);
-      return oval(th, 0.013 * Math.max(k, 0.5), 0.017 * Math.max(k, 0.5), lerp(0.03, 0.043, t) * k, lerp(0.028, 0.04, t) * k, 3);
+      return oval(th, 0.013 * H * Math.max(k, 0.5), 0.017 * H * Math.max(k, 0.5), lerp(0.03, 0.043, t) * H * k, lerp(0.028, 0.04, t) * H * k, 3);
     },
     region: REGION.glove,
     skin,
@@ -549,20 +564,20 @@ function hand(b: MeshBuilder, pose: Pose, s: 'l' | 'r', mirror: 1 | -1) {
   const k0 = kn.clone().addScaledVector(d, 0.004);
   const fingers = curve((t) => {
     const a = t * Math.PI * 0.62;
-    return k0.clone().addScaledVector(d, Math.sin(a) * 0.034).addScaledVector(back, (Math.cos(a) - 1) * 0.034);
+    return k0.clone().addScaledVector(d, Math.sin(a) * 0.034 * H).addScaledVector(back, (Math.cos(a) - 1) * 0.034 * H);
   }, 16);
   const FL = fingers.length;
   b.sweep({
     path: fingers,
-    ds: 0.006,
-    radial: 28,
+    ds: 0.009,
+    radial: 22,
     front: back,
     mirror,
     section: (ss, th) => {
       const k = roundEnds(ss, 0, FL, 0, 0.01);
-      const [a, bb] = oval(th, 0.0105, 0.0105, 0.041, 0.039, 4);
+      const [a, bb] = oval(th, 0.0105 * H, 0.0105 * H, 0.041 * H, 0.039 * H, 4);
       let groove = 0;
-      for (const bk of [-0.02, 0, 0.02]) groove += Math.exp(-(((bb - bk) / 0.0035) ** 2));
+      for (const bk of [-0.02 * H, 0, 0.02 * H]) groove += Math.exp(-(((bb - bk) / (0.0035 * H)) ** 2));
       return [a * (1 - 0.3 * groove) * Math.max(k, 0.4), bb * k];
     },
     region: REGION.skin,
@@ -570,19 +585,19 @@ function hand(b: MeshBuilder, pose: Pose, s: 'l' | 'r', mirror: 1 | -1) {
     capEnd: 'pole',
   });
   // Pouce, du côté intérieur.
-  const tb = wr.clone().addScaledVector(d, 0.028).addScaledVector(out, -0.03).addScaledVector(back, -0.008);
-  const thumb = polyline([tb, tb.clone().addScaledVector(d, 0.03).addScaledVector(back, -0.008), tb.clone().addScaledVector(d, 0.05).addScaledVector(back, -0.022)], 0.012);
+  const tb = wr.clone().addScaledVector(d, 0.028 * H).addScaledVector(out, -0.03 * H).addScaledVector(back, -0.008 * H);
+  const thumb = polyline([tb, tb.clone().addScaledVector(d, 0.03 * H).addScaledVector(back, -0.008 * H), tb.clone().addScaledVector(d, 0.05 * H).addScaledVector(back, -0.022 * H)], 0.012);
   b.sweep({
     path: thumb,
     ds: 0.007,
     radial: 14,
     front: back,
     section: (ss, th) => {
-      const r = 0.0105 * roundEnds(ss, 0, thumb.length, 0.008, 0.009);
+      const r = 0.0105 * H * roundEnds(ss, 0, thumb.length, 0.008, 0.009);
       return oval(th, r, r, r, r);
     },
-    region: (ss) => (ss < 0.022 ? REGION.glove : REGION.skin),
-    sCuts: [0.022],
+    region: (ss) => (ss < 0.022 * H ? REGION.glove : REGION.skin),
+    sCuts: [0.022 * H],
     skin,
     capStart: 'pole',
     capEnd: 'pole',
@@ -605,6 +620,9 @@ export async function buildAvatar(out: string, opts: HeadOptions = {}) {
   }
   const headStats = await buildHead(b, pose, implicit.neck, bone('head'), opts);
   collarRim(b, implicit.implicit, headStats.head, implicit.neck);
+  // Occlusion ambiante dans la pose de référence, du corps par lui-même. Le vélo n'y entre pas : la selle traverse
+  // le cuissard et y laisserait des taches.
+  bakeAo({ mesh: b }, [{ mesh: b }], { radius: 0.11 });
 
   const w = new GlbWriter();
   const doc = w.doc;

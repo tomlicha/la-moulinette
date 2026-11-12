@@ -1,10 +1,12 @@
 /**
- * Vélo de route aéro, taille M : géométrie réelle (angles, empattement, boîtier de pédalier), cadre en tubes
- * profilés, roues hautes à bandeau, freins à disque, transmission complète, cintre route avec cocottes.
+ * Vélo de route aéro, taille M, dans le style arcade du jeu : la géométrie est réelle (angles, empattement,
+ * boîtier de pédalier), mais les volumes sont grossis pour se lire de loin et de dos. Tubes profilés épais, pneus
+ * de 40 mm, jantes hautes à liseré de la couleur du cadre, douze rayons plats par roue, transmission simplifiée.
  */
 import { Vector3 } from 'three';
 import { BIKE_NODE, REGION } from '../../src/render/asset-contract.ts';
 import type { BikeFit } from '../../src/render/rider-pose.ts';
+import { bakeAo } from './ao.ts';
 import { GlbWriter } from './gltf.ts';
 import { circle, curve, keys, loop, MeshBuilder, oval, polyline, roundEnds, smooth, type SectionPoint } from './mesh.ts';
 
@@ -16,6 +18,7 @@ const Z = V(0, 0, 1);
 /* ---------- Géométrie (m) ---------- */
 
 const TIRE_R = 0.34; // rayon extérieur du pneu
+const TIRE_HALF = 0.02; // demi-largeur du pneu : 40 mm, bien plus qu'un pneu de route, pour qu'il se voie de dos
 const BB = V(0, 0.27, 0);
 const REAR_AXLE = V(0, TIRE_R, -0.405);
 const FRONT_AXLE = V(0, TIRE_R, 0.585);
@@ -99,7 +102,7 @@ function frame(): MeshBuilder {
   tube(b, [HEAD_TOP.clone().addScaledVector(STEER_UP, 0.012), HEAD_BOTTOM.clone().addScaledVector(STEER_UP, -0.012)], {
     front: STEER_FWD,
     region: REGION.frameAlt,
-    section: (_t, th) => airfoil(th, 0.024, 0.042, 0.021),
+    section: (_t, th) => airfoil(th, 0.031, 0.052, 0.028),
     ds: 0.02,
     radial: 22,
   });
@@ -108,7 +111,7 @@ function frame(): MeshBuilder {
     front: Y,
     region: (t) => (t > 0.78 && t < 0.86 ? REGION.frameAlt : REGION.frame),
     sCuts: [0.78, 0.86],
-    section: (t, th) => oval(th, lerp(0.02, 0.016, t), lerp(0.018, 0.015, t), lerp(0.017, 0.014, t), lerp(0.017, 0.014, t), 2.4),
+    section: (t, th) => oval(th, lerp(0.024, 0.019, t), lerp(0.022, 0.018, t), lerp(0.027, 0.021, t), lerp(0.027, 0.021, t), 2.6),
     ds: 0.03,
     radial: 18,
     caps: 'open',
@@ -120,7 +123,7 @@ function frame(): MeshBuilder {
     region: (t, th) => (t > 0.3 && t < 0.62 && Math.abs(Math.abs(th) - Math.PI / 2) < 0.75 ? REGION.decal : REGION.frame),
     sCuts: [0.3, 0.62],
     thetaCuts: [Math.PI / 2 - 0.75, Math.PI / 2 + 0.75, -Math.PI / 2 - 0.75, -Math.PI / 2 + 0.75],
-    section: (t, th) => airfoil(th, lerp(0.022, 0.026, t), lerp(0.03, 0.03, t), lerp(0.021, 0.027, t)),
+    section: (t, th) => airfoil(th, lerp(0.027, 0.03, t), lerp(0.04, 0.042, t), lerp(0.029, 0.035, t)),
     ds: 0.03,
     radial: 22,
     caps: 'open',
@@ -128,7 +131,7 @@ function frame(): MeshBuilder {
   // Tube de selle profilé, puis tige de selle en carbone.
   tube(b, [BB.clone().addScaledVector(SEAT_DIR, 0.02), SEAT_CLUSTER.clone().addScaledVector(SEAT_DIR, 0.015)], {
     region: REGION.frame,
-    section: (_t, th) => airfoil(th, 0.019, 0.026, 0.017),
+    section: (_t, th) => airfoil(th, 0.026, 0.03, 0.024),
     ds: 0.03,
     radial: 18,
     caps: 'open',
@@ -136,7 +139,7 @@ function frame(): MeshBuilder {
   tube(b, [SEAT_CLUSTER, SADDLE_CLAMP.clone().addScaledVector(SEAT_DIR, -0.01)], {
     region: (t) => (t < 0.08 ? REGION.frameAlt : REGION.carbon),
     sCuts: [0.08],
-    section: (_t, th) => airfoil(th, 0.014, 0.022, 0.0125),
+    section: (_t, th) => airfoil(th, 0.018, 0.028, 0.0165),
     ds: 0.03,
     radial: 16,
     caps: 'flat',
@@ -145,7 +148,7 @@ function frame(): MeshBuilder {
   tube(b, [V(0.044, BB.y, BB.z), V(-0.044, BB.y, BB.z)], {
     front: Z,
     region: REGION.frame,
-    section: (t, th) => oval(th, 0.026, 0.026, 0.026, 0.026, 2).map((v) => v * roundEnds(t, 0, 1, 0.1)) as SectionPoint,
+    section: (t, th) => oval(th, 0.037, 0.037, 0.037, 0.037, 2).map((v) => v * roundEnds(t, 0, 1, 0.1)) as SectionPoint,
     ds: 0.02,
     radial: 20,
     caps: 'pole',
@@ -153,30 +156,30 @@ function frame(): MeshBuilder {
 
   // Haubans et bases, par paires.
   for (const side of [1, -1]) {
-    const cs0 = V(side * 0.03, BB.y + 0.005, BB.z - 0.035);
-    const cs1 = V(side * 0.062, REAR_AXLE.y, REAR_AXLE.z + 0.012);
+    const cs0 = V(side * 0.043, BB.y + 0.004, BB.z - 0.03);
+    const cs1 = V(side * 0.066, REAR_AXLE.y, REAR_AXLE.z + 0.012);
     tube(b, [cs0, cs1], {
       front: Y,
       region: REGION.frame,
-      section: (t, th) => oval(th, lerp(0.016, 0.009, t), lerp(0.013, 0.008, t), lerp(0.01, 0.007, t), lerp(0.01, 0.007, t), 2.3),
+      section: (t, th) => oval(th, lerp(0.022, 0.014, t), lerp(0.018, 0.012, t), lerp(0.013, 0.0105, t), lerp(0.013, 0.0105, t), 2.5),
       ds: 0.04,
       radial: 14,
       caps: 'open',
     });
-    const ss0 = BB.clone().addScaledVector(SEAT_DIR, 0.43).add(V(side * 0.012, 0, 0));
-    const ss1 = V(side * 0.062, REAR_AXLE.y + 0.012, REAR_AXLE.z + 0.008);
+    const ss0 = BB.clone().addScaledVector(SEAT_DIR, 0.43).add(V(side * 0.02, 0, 0));
+    const ss1 = V(side * 0.066, REAR_AXLE.y + 0.012, REAR_AXLE.z + 0.008);
     tube(b, [ss0, ss1], {
       region: REGION.frame,
-      section: (t, th) => airfoil(th, lerp(0.009, 0.007, t), lerp(0.013, 0.009, t), lerp(0.0085, 0.0065, t)),
+      section: (t, th) => airfoil(th, lerp(0.014, 0.011, t), lerp(0.02, 0.014, t), lerp(0.012, 0.0095, t)),
       ds: 0.04,
       radial: 14,
       caps: 'open',
     });
     // Pattes arrière.
-    tube(b, [V(side * 0.064, REAR_AXLE.y + 0.02, REAR_AXLE.z + 0.02), V(side * 0.064, REAR_AXLE.y - 0.008, REAR_AXLE.z - 0.004)], {
+    tube(b, [V(side * 0.068, REAR_AXLE.y + 0.024, REAR_AXLE.z + 0.022), V(side * 0.068, REAR_AXLE.y - 0.01, REAR_AXLE.z - 0.005)], {
       front: Z,
       region: REGION.frameAlt,
-      section: (t, th) => oval(th, 0.016, 0.016, 0.005, 0.005, 3).map((v) => v * roundEnds(t, 0, 1, 0.25)) as SectionPoint,
+      section: (t, th) => oval(th, 0.02, 0.02, 0.007, 0.007, 3).map((v) => v * roundEnds(t, 0, 1, 0.25)) as SectionPoint,
       ds: 0.01,
       radial: 12,
       caps: 'pole',
@@ -184,18 +187,18 @@ function frame(): MeshBuilder {
   }
 
   // Fourche : tête large, fourreaux profilés et cintrés vers l'avant (déport).
-  tube(b, [HEAD_BOTTOM.clone().add(V(0.058, -0.012, 0.004)), HEAD_BOTTOM.clone().add(V(-0.058, -0.012, 0.004))], {
+  tube(b, [HEAD_BOTTOM.clone().add(V(0.07, -0.014, 0.004)), HEAD_BOTTOM.clone().add(V(-0.07, -0.014, 0.004))], {
     front: STEER_FWD,
     region: REGION.carbon,
-    section: (t, th) => airfoil(th, 0.024, 0.04, 0.026).map((v) => v * roundEnds(t, 0, 1, 0.12)) as SectionPoint,
+    section: (t, th) => airfoil(th, 0.03, 0.05, 0.03).map((v) => v * roundEnds(t, 0, 1, 0.12)) as SectionPoint,
     ds: 0.012,
     radial: 18,
     caps: 'pole',
   });
   for (const side of [1, -1]) {
-    const top = HEAD_BOTTOM.clone().add(V(side * 0.048, -0.02, 0.006));
+    const top = HEAD_BOTTOM.clone().add(V(side * 0.054, -0.02, 0.006));
     const bladePath = curve((t) => {
-      const p = top.clone().lerp(V(side * 0.05, FRONT_AXLE.y + 0.004, FRONT_AXLE.z), t);
+      const p = top.clone().lerp(V(side * 0.056, FRONT_AXLE.y + 0.004, FRONT_AXLE.z), t);
       p.z += Math.sin(t * Math.PI) * 0.006 + t * t * 0.0; // léger galbe
       return p;
     }, 24);
@@ -206,7 +209,7 @@ function frame(): MeshBuilder {
       front: STEER_FWD,
       section: (s, th) => {
         const t = s / bladePath.length;
-        return airfoil(th, lerp(0.013, 0.008, t), lerp(0.022, 0.012, t), lerp(0.011, 0.0065, t));
+        return airfoil(th, lerp(0.02, 0.013, t), lerp(0.032, 0.018, t), lerp(0.0155, 0.01, t));
       },
       region: REGION.carbon,
       capStart: 'open',
@@ -236,14 +239,14 @@ function frame(): MeshBuilder {
   tube(b, [HEAD_TOP.clone().addScaledVector(STEER_UP, 0.01), STEM_BASE.clone().addScaledVector(STEER_UP, 0.012)], {
     front: STEER_FWD,
     region: REGION.carbon,
-    section: (_t, th) => airfoil(th, 0.02, 0.03, 0.018),
+    section: (_t, th) => airfoil(th, 0.025, 0.036, 0.023),
     ds: 0.01,
     radial: 18,
   });
   tube(b, [STEM_BASE.clone().add(V(0, 0, -0.015)), BAR_CENTER.clone().add(V(0, 0, 0.012))], {
     front: Y,
     region: REGION.carbon,
-    section: (_t, th) => oval(th, 0.019, 0.017, 0.016, 0.016, 3.2),
+    section: (_t, th) => oval(th, 0.022, 0.02, 0.022, 0.022, 3.2),
     ds: 0.02,
     radial: 18,
   });
@@ -282,14 +285,14 @@ function bar(b: MeshBuilder) {
   const flat = (s: number) => smooth(topA - 0.03, topA + 0.01, s) * (1 - smooth(topB - 0.01, topB + 0.03, s));
   b.sweep({
     path,
-    ds: 0.012,
-    radial: 14,
+    ds: 0.018,
+    radial: 12,
     front: Y,
     sCuts: [topA - 0.035, topB + 0.035],
     section: (s, th) => {
       const k = flat(s);
       // Sur le dessus, la section s'aplatit en aile (corde le long du vélo, épaisseur verticale).
-      return oval(th, lerp(0.0118, 0.0075, k), lerp(0.0118, 0.0075, k), lerp(0.0118, 0.02, k), lerp(0.0118, 0.016, k), lerp(2, 2.4, k));
+      return oval(th, lerp(0.0155, 0.01, k), lerp(0.0155, 0.01, k), lerp(0.0155, 0.026, k), lerp(0.0155, 0.021, k), lerp(2, 2.4, k));
     },
     region: (s) => (s > topA - 0.035 && s < topB + 0.035 ? REGION.carbon : REGION.tape),
     capStart: 'flat',
@@ -309,9 +312,9 @@ function hood(b: MeshBuilder, side: 1 | -1) {
     section: (s, th) => {
       const t = s / L;
       const k = roundEnds(s, 0, L, 0.008, 0.012);
-      const up = keys([[0, 0.016], [0.5, 0.02], [0.82, 0.026], [1, 0.02]])(t);
-      const half = keys([[0, 0.0145], [0.6, 0.0135], [1, 0.011]])(t);
-      return oval(th, up * k, 0.018 * k, half * k, half * k, 2.6);
+      const up = keys([[0, 0.019], [0.5, 0.024], [0.82, 0.032], [1, 0.024]])(t);
+      const half = keys([[0, 0.018], [0.6, 0.017], [1, 0.014]])(t);
+      return oval(th, up * k, 0.021 * k, half * k, half * k, 2.6);
     },
     region: REGION.rubber,
     capStart: 'pole',
@@ -324,7 +327,7 @@ function hood(b: MeshBuilder, side: 1 | -1) {
     ds: 0.01,
     radial: 10,
     front: Z,
-    section: (s, th) => oval(th, 0.0045, 0.0045, 0.008, 0.008, 2.4).map((v) => v * roundEnds(s, 0, lever.length, 0, 0.006)) as SectionPoint,
+    section: (s, th) => oval(th, 0.006, 0.006, 0.011, 0.011, 2.4).map((v) => v * roundEnds(s, 0, lever.length, 0, 0.006)) as SectionPoint,
     region: REGION.carbon,
     capStart: 'open',
     capEnd: 'pole',
@@ -335,7 +338,7 @@ function saddle(b: MeshBuilder) {
   const top = SADDLE_CLAMP.y + 0.035;
   const path = polyline([V(0, top - 0.004, -0.06), V(0, top - 0.012, -0.335)]);
   const L = path.length;
-  const width = keys([[0, 0.012], [0.25, 0.022], [0.55, 0.06], [0.78, 0.072], [1, 0.06]]);
+  const width = keys([[0, 0.016], [0.25, 0.027], [0.55, 0.064], [0.78, 0.076], [1, 0.064]]);
   b.sweep({
     path,
     ds: 0.008,
@@ -346,7 +349,7 @@ function saddle(b: MeshBuilder) {
       const t = s / L;
       const k = roundEnds(s, 0, L, 0.012, 0.02);
       const w = width(t);
-      return oval(th, 0.012 * k, 0.013 * k, w * k, w * k, 3.2);
+      return oval(th, 0.016 * k, 0.016 * k, w * k, w * k, 3.2);
     },
     region: (s, th) => (s / L > 0.84 && Math.cos(th) > -0.2 ? REGION.frame : REGION.saddle),
     thetaCuts: [Math.acos(-0.2), -Math.acos(-0.2)],
@@ -358,9 +361,9 @@ function saddle(b: MeshBuilder) {
     tube(b, [V(side * 0.004, top - 0.012, -0.085), V(side * 0.022, top - 0.03, -0.17), V(side * 0.03, top - 0.028, -0.29)], {
       front: Y,
       region: REGION.alloy,
-      section: (_t, th) => oval(th, 0.0035, 0.0035, 0.0035, 0.0035),
+      section: (_t, th) => oval(th, 0.0045, 0.0045, 0.0045, 0.0045),
       ds: 0.03,
-      radial: 8,
+      radial: 6,
       caps: 'open',
     });
   }
@@ -391,7 +394,7 @@ function derailleurs(b: MeshBuilder) {
   tube(b, [hanger, V(x, REAR_AXLE.y - 0.06, REAR_AXLE.z - 0.035), V(x, REAR_AXLE.y - 0.075, REAR_AXLE.z - 0.012)], {
     front: X,
     region: REGION.carbon,
-    section: (t, th) => oval(th, 0.009, 0.009, 0.013, 0.013, 3).map((v) => v * roundEnds(t, 0, 1, 0.06)) as SectionPoint,
+    section: (t, th) => oval(th, 0.012, 0.012, 0.016, 0.016, 3).map((v) => v * roundEnds(t, 0, 1, 0.06)) as SectionPoint,
     ds: 0.012,
     radial: 12,
     caps: 'pole',
@@ -400,16 +403,16 @@ function derailleurs(b: MeshBuilder) {
     tube(b, [V(x - 0.004, y, z), V(x + 0.004, y, z)], {
       front: Z,
       region: REGION.alloy,
-      section: (_t, th) => oval(th, 0.016, 0.016, 0.016, 0.016),
+      section: (_t, th) => oval(th, 0.019, 0.019, 0.019, 0.019),
       ds: 0.01,
-      radial: 18,
+      radial: 12,
     });
   }
   const [[ya, za], [yb, zb]] = PULLEYS;
   tube(b, [V(x - 0.008, ya + 0.004, za), V(x - 0.008, yb - 0.004, zb)], {
     front: X,
     region: REGION.carbon,
-    section: (t, th) => oval(th, 0.002, 0.002, 0.016, 0.016, 4).map((v) => v * roundEnds(t, 0, 1, 0.15)) as SectionPoint,
+    section: (t, th) => oval(th, 0.003, 0.003, 0.018, 0.018, 4).map((v) => v * roundEnds(t, 0, 1, 0.15)) as SectionPoint,
     ds: 0.01,
     radial: 12,
     caps: 'pole',
@@ -420,11 +423,11 @@ const PULLEYS: [number, number][] = [
   [REAR_AXLE.y - 0.072, REAR_AXLE.z - 0.012],
   [REAR_AXLE.y - 0.14, REAR_AXLE.z + 0.002],
 ];
-const RING_OUTER_R = 0.104;
-const COG_R = 0.034;
+const RING_OUTER_R = 0.106;
+const COG_R = 0.036;
 const CHAIN_X = -0.072;
 
-/** Chaîne : boucle plateau, pignon, galets ; maillons en alternance de couleur, au pas d'un demi-pouce. */
+/** Chaîne : boucle plateau, pignon, galets ; maillons épais en alternance de couleur, au pas d'un pouce. */
 function chain(b: MeshBuilder) {
   const arc = (c: Vector3, r: number, a0: number, a1: number, n: number) =>
     Array.from({ length: n + 1 }, (_, i) => {
@@ -434,13 +437,13 @@ function chain(b: MeshBuilder) {
   const [[ya, za], [yb, zb]] = PULLEYS;
   const pts = [
     ...arc(BB, RING_OUTER_R, 0, Math.PI * 0.95, 14), // demi-tour avant du plateau, de haut en bas
-    V(CHAIN_X, yb - 0.018, zb + 0.004), // vers le galet inférieur
-    ...arc(V(0, yb, zb), 0.018, Math.PI, Math.PI * 1.5, 4),
-    ...arc(V(0, ya, za), 0.018, Math.PI * 0.5, 0, 4).slice(1), // remonte vers le galet supérieur
+    V(CHAIN_X, yb - 0.021, zb + 0.004), // vers le galet inférieur
+    ...arc(V(0, yb, zb), 0.021, Math.PI, Math.PI * 1.5, 4),
+    ...arc(V(0, ya, za), 0.021, Math.PI * 0.5, 0, 4).slice(1), // remonte vers le galet supérieur
     ...arc(REAR_AXLE, COG_R, Math.PI * 1.15, Math.PI * 2, 8), // enroule le pignon par l'arrière
   ];
   const path = loop(pts, 0.006);
-  const pitch = 0.0127 / 2;
+  const pitch = 0.0254 / 2;
   const cuts: number[] = [];
   for (let s = pitch; s < path.length; s += pitch) cuts.push(s);
   b.sweep({
@@ -449,7 +452,7 @@ function chain(b: MeshBuilder) {
     sCuts: cuts,
     radial: 6,
     front: Y,
-    section: (_s, th) => oval(th, 0.0042, 0.0042, 0.0036, 0.0036, 5),
+    section: (_s, th) => oval(th, 0.0058, 0.0058, 0.0048, 0.0048, 5),
     region: (s) => (Math.floor(s / pitch) % 2 === 0 ? REGION.chain : REGION.steel),
   });
 }
@@ -460,44 +463,46 @@ function wheel(rear: boolean): MeshBuilder {
   const b = new MeshBuilder();
   const O = V(0, 0, 0);
   // Pneu.
-  const tireC = TIRE_R - 0.0135;
+  const tireC = TIRE_R - TIRE_HALF;
   b.sweep({
     path: circle(O, X, Y, tireC),
-    ds: (2 * Math.PI * tireC) / 88,
+    ds: (2 * Math.PI * tireC) / 72,
     radial: 12,
     front: Y,
-    section: (_s, th) => oval(th, 0.0135, 0.012, 0.0125, 0.0125, 2.2),
+    section: (_s, th) => oval(th, TIRE_HALF, TIRE_HALF * 0.85, TIRE_HALF, TIRE_HALF, 2.2),
     region: REGION.rubber,
   });
-  // Jante haute (50 mm) : profil en U arrondi, bandeau clair et marquage en blocs sur les flancs.
-  const rimC = 0.29;
+  // Jante haute (64 mm) : profil en U arrondi, liseré de la couleur du cadre près du pneu, marquage en blocs clairs.
+  const rimC = 0.284;
+  const depth = 0.032;
   const L = 2 * Math.PI * rimC;
-  const halfW = keys([[-0.025, 0.006], [-0.012, 0.011], [0.008, 0.0138], [0.025, 0.0108]]);
-  const band = (c: number) => c > 0.4 && c < 0.56;
+  const halfW = keys([[-depth, 0.007], [-0.014, 0.0135], [0.01, 0.018], [depth, 0.0145]]);
+  const band = (c: number) => c > 0.46 && c < 0.74;
   const blocks: [number, number][] = [];
-  for (const start of [0.08, 0.58]) for (let k = 0; k < 5; k++) blocks.push([(start + k * 0.033) * L, (start + k * 0.033 + 0.027) * L]);
-  const logo = (s: number, c: number) => c > -0.42 && c < 0.24 && blocks.some(([a, z]) => s >= a && s <= z);
+  for (const start of [0.07, 0.57]) for (let k = 0; k < 4; k++) blocks.push([(start + k * 0.044) * L, (start + k * 0.044 + 0.034) * L]);
+  const logo = (s: number, c: number) => c > -0.5 && c < 0.2 && blocks.some(([a, z]) => s >= a && s <= z);
   const thetaFor = (c: number) => Math.acos(c);
   b.sweep({
     path: circle(O, X, Y, rimC),
-    ds: L / 120,
+    ds: L / 96,
     sCuts: blocks.flat(),
-    radial: 16,
-    thetaCuts: [0.4, 0.56, -0.42, 0.24].flatMap((c) => [thetaFor(c), -thetaFor(c)]),
+    radial: 14,
+    thetaCuts: [0.46, 0.74, -0.5, 0.2].flatMap((c) => [thetaFor(c), -thetaFor(c)]),
     front: Y,
     section: (_s, th) => {
       const c = Math.cos(th);
-      const a = 0.025 * c;
+      const a = depth * c;
       return [a, halfW(a) * Math.sign(Math.sin(th)) * Math.pow(Math.abs(Math.sin(th)), 0.7)];
     },
     region: (s, th) => {
       const c = Math.cos(th);
-      return band(c) || logo(s, c) ? REGION.decal : REGION.carbon;
+      if (band(c)) return REGION.frame;
+      return logo(s, c) ? REGION.decal : REGION.carbon;
     },
   });
   // Moyeu.
   const hubLen = rear ? 0.072 : 0.05;
-  const hub = keys([[0, 0.009], [0.08, 0.016], [0.16, 0.024], [0.22, 0.016], [0.78, 0.016], [0.84, 0.024], [0.92, 0.016], [1, 0.009]]);
+  const hub = keys([[0, 0.011], [0.08, 0.02], [0.16, 0.03], [0.22, 0.02], [0.78, 0.02], [0.84, 0.03], [0.92, 0.02], [1, 0.011]]);
   tube(b, [V(hubLen, 0, 0), V(-hubLen, 0, 0)], {
     front: Y,
     region: REGION.carbon,
@@ -505,21 +510,21 @@ function wheel(rear: boolean): MeshBuilder {
       const r = hub(t);
       return oval(th, r, r, r, r);
     },
-    ds: 0.006,
-    radial: 16,
+    ds: 0.008,
+    radial: 14,
   });
-  // Rayons droits, alternés d'un flasque à l'autre.
-  const n = rear ? 24 : 20;
+  // Douze rayons plats, alternés d'un flasque à l'autre : assez larges pour se lire, assez peu pour ne pas scintiller.
+  const n = 12;
   const flange = hubLen * 0.68;
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2;
     const side = i % 2 === 0 ? 1 : -1;
     const dir = V(0, Math.cos(a), Math.sin(a));
-    const tangentialOffset = V(0, -Math.sin(a), Math.cos(a)).multiplyScalar(side * 0.008);
-    tube(b, [dir.clone().multiplyScalar(0.022).add(V(side * flange, 0, 0)).add(tangentialOffset), dir.clone().multiplyScalar(0.266).add(V(side * 0.002, 0, 0))], {
+    const tangentialOffset = V(0, -Math.sin(a), Math.cos(a)).multiplyScalar(side * 0.006);
+    tube(b, [dir.clone().multiplyScalar(0.026).add(V(side * flange, 0, 0)).add(tangentialOffset), dir.clone().multiplyScalar(0.256).add(V(side * 0.003, 0, 0))], {
       front: X,
       region: REGION.carbon,
-      section: (_t, th) => oval(th, 0.0011, 0.0011, 0.0026, 0.0026),
+      section: (_t, th) => oval(th, 0.002, 0.002, 0.0062, 0.0062, 2.6),
       ds: 1,
       radial: 6,
       caps: 'open',
@@ -527,30 +532,30 @@ function wheel(rear: boolean): MeshBuilder {
   }
   // Disque de frein côté gauche, et son araignée.
   const rotorX = 0.052;
-  const rotorC = 0.0775;
+  const rotorC = 0.08;
   const RL = 2 * Math.PI * rotorC;
   const holes: number[] = [];
-  for (let k = 0; k < 18; k++) holes.push(((k + 0.25) / 18) * RL, ((k + 0.62) / 18) * RL);
+  for (let k = 0; k < 12; k++) holes.push(((k + 0.25) / 12) * RL, ((k + 0.62) / 12) * RL);
   b.sweep({
     path: circle(V(rotorX, 0, 0), X, Y, rotorC),
-    ds: RL / 72,
+    ds: RL / 48,
     sCuts: holes,
     radial: 8,
     thetaCuts: [Math.PI / 2 - 0.5, Math.PI / 2 + 0.5, -Math.PI / 2 - 0.5, -Math.PI / 2 + 0.5],
     front: Y,
-    section: (_s, th) => oval(th, 0.0075, 0.0075, 0.001, 0.001, 8),
+    section: (_s, th) => oval(th, 0.009, 0.009, 0.0016, 0.0016, 8),
     region: (s, th) => {
-      const k = ((s / RL) * 18) % 1;
+      const k = ((s / RL) * 12) % 1;
       return k > 0.25 && k < 0.62 && Math.abs(Math.cos(th)) < Math.cos(0.5 + 0.0001) ? REGION.carbon : REGION.steel;
     },
   });
   for (let k = 0; k < 6; k++) {
     const a = (k / 6) * Math.PI * 2;
     const d = V(0, Math.cos(a), Math.sin(a));
-    tube(b, [d.clone().multiplyScalar(0.018).add(V(rotorX - 0.002, 0, 0)), d.clone().multiplyScalar(0.072).add(V(rotorX, 0, 0))], {
+    tube(b, [d.clone().multiplyScalar(0.022).add(V(rotorX - 0.002, 0, 0)), d.clone().multiplyScalar(0.073).add(V(rotorX, 0, 0))], {
       front: X,
       region: REGION.alloy,
-      section: (t, th) => oval(th, 0.0018, 0.0018, lerp(0.006, 0.004, t), lerp(0.006, 0.004, t), 3),
+      section: (t, th) => oval(th, 0.0024, 0.0024, lerp(0.008, 0.0055, t), lerp(0.008, 0.0055, t), 3),
       ds: 1,
       radial: 8,
       caps: 'open',
@@ -560,12 +565,12 @@ function wheel(rear: boolean): MeshBuilder {
   return b;
 }
 
-/** Cassette 11 pignons, côté droit, solidaire de la roue arrière. */
+/** Cassette de sept pignons épais, côté droit, solidaire de la roue arrière. */
 function cassette(b: MeshBuilder) {
-  const radii = [0.05, 0.046, 0.042, 0.038, 0.034, 0.031, 0.028, 0.026, 0.024, 0.022, 0.02];
+  const radii = [0.052, 0.046, 0.041, 0.036, 0.032, 0.028, 0.024];
   const x0 = -0.034;
-  const step = 0.0034;
-  const thick = 0.0018;
+  const step = 0.0054;
+  const thick = 0.003;
   const len = radii.length * step;
   const cuts: number[] = [];
   radii.forEach((_, k) => cuts.push(k * step, k * step + 0.0002, k * step + thick, k * step + thick + 0.0002));
@@ -577,11 +582,11 @@ function cassette(b: MeshBuilder) {
       const s = t * len;
       const k = Math.min(radii.length - 1, Math.floor(s / step));
       const inCog = s - k * step >= 0.0001 && s - k * step <= thick + 0.0001;
-      const r = inCog ? radii[k]! : radii[k]! - 0.008;
+      const r = inCog ? radii[k]! : radii[k]! - 0.009;
       return oval(th, r, r, r, r);
     },
     ds: 0.01,
-    radial: 28,
+    radial: 20,
   });
 }
 
@@ -590,8 +595,8 @@ function cassette(b: MeshBuilder) {
 function crankset(): MeshBuilder {
   const b = new MeshBuilder();
   const O = V(0, 0, 0);
-  // Plateaux 52 et 36 dents : faces noires, denture claire.
-  for (const [x, rMid, w, teeth] of [[-0.071, 0.094, 0.022, 52], [-0.064, 0.064, 0.016, 36]] as const) {
+  // Deux plateaux à grosses dents (une sur deux d'un vrai plateau) : faces noires, denture claire.
+  for (const [x, rMid, w, teeth] of [[-0.072, 0.094, 0.024, 26], [-0.063, 0.064, 0.018, 18]] as const) {
     const L = 2 * Math.PI * rMid;
     b.sweep({
       path: circle(V(x, 0, 0), X, Y, rMid),
@@ -602,8 +607,8 @@ function crankset(): MeshBuilder {
       section: (s, th) => {
         const t = ((s / L) * teeth) % 1;
         const tooth = Math.max(0, 1 - Math.abs(t - 0.5) * 2.6);
-        const [a, bb] = oval(th, w / 2, w / 2, 0.0019, 0.0019, 8);
-        return [a + (Math.cos(th) > 0.5 ? 0.0045 * tooth : 0), bb];
+        const [a, bb] = oval(th, w / 2, w / 2, 0.003, 0.003, 8);
+        return [a + (Math.cos(th) > 0.5 ? 0.006 * tooth : 0), bb];
       },
       region: (_s, th) => (Math.abs(th) < 0.55 ? REGION.alloy : REGION.carbon),
     });
@@ -615,7 +620,7 @@ function crankset(): MeshBuilder {
     tube(b, [d.clone().multiplyScalar(0.012).add(V(-0.07, 0, 0)), d.clone().multiplyScalar(0.088).add(V(-0.068, 0, 0))], {
       front: X,
       region: REGION.carbon,
-      section: (t, th) => oval(th, 0.004, 0.004, lerp(0.012, 0.007, t), lerp(0.012, 0.007, t), 3),
+      section: (t, th) => oval(th, 0.0055, 0.0055, lerp(0.016, 0.01, t), lerp(0.016, 0.01, t), 3),
       ds: 0.03,
       radial: 10,
       caps: 'pole',
@@ -636,7 +641,7 @@ function crankset(): MeshBuilder {
       section: (s, th) => {
         const t = s / L;
         const k = roundEnds(s, 0, L, 0.014, 0.012);
-        return oval(th, lerp(0.02, 0.013, t) * k, lerp(0.02, 0.013, t) * k, lerp(0.011, 0.008, t) * k, lerp(0.011, 0.008, t) * k, 2.4);
+        return oval(th, lerp(0.025, 0.017, t) * k, lerp(0.025, 0.017, t) * k, lerp(0.013, 0.0105, t) * k, lerp(0.013, 0.0105, t) * k, 2.4);
       },
       region: REGION.carbon,
       capStart: 'pole',
@@ -658,7 +663,7 @@ function pedal(side: 1 | -1): MeshBuilder {
     front: Y,
     section: (s, th) => {
       const k = roundEnds(s, 0, body.length, 0.01, 0.012);
-      return oval(th, 0.009 * k, 0.007 * k, 0.034 * k, 0.034 * k, 3.5);
+      return oval(th, 0.011 * k, 0.009 * k, 0.04 * k, 0.04 * k, 3.5);
     },
     region: (s) => (s > body.length * 0.7 ? REGION.alloy : REGION.carbon),
     sCuts: [body.length * 0.7],
@@ -683,10 +688,20 @@ export async function buildBike(out: string) {
     parent.addChild(node);
     return node;
   };
-  add('frame', frame(), V(0, 0, 0));
-  add(BIKE_NODE.frontWheel, wheel(false), FRONT_AXLE);
-  add(BIKE_NODE.rearWheel, wheel(true), REAR_AXLE);
-  const cs = add(BIKE_NODE.crankset, crankset(), BB);
+  const frameMesh = frame();
+  const front = wheel(false);
+  const rear = wheel(true);
+  const cranks = crankset();
+  // Occlusion ambiante : le cadre est assombri par lui-même et par les roues ; les pièces qui tournent ne le sont
+  // que par elles-mêmes, pour que leur ombrage reste juste à tout angle.
+  bakeAo({ mesh: frameMesh }, [{ mesh: frameMesh }, { mesh: front, offset: FRONT_AXLE }, { mesh: rear, offset: REAR_AXLE }]);
+  bakeAo({ mesh: front }, [{ mesh: front }]);
+  bakeAo({ mesh: rear }, [{ mesh: rear }]);
+  bakeAo({ mesh: cranks }, [{ mesh: cranks }]);
+  add('frame', frameMesh, V(0, 0, 0));
+  add(BIKE_NODE.frontWheel, front, FRONT_AXLE);
+  add(BIKE_NODE.rearWheel, rear, REAR_AXLE);
+  const cs = add(BIKE_NODE.crankset, cranks, BB);
   add(BIKE_NODE.pedalL, pedal(1), V(PEDAL_X, CRANK, 0), cs);
   add(BIKE_NODE.pedalR, pedal(-1), V(-PEDAL_X, -CRANK, 0), cs);
   for (const [name, p] of [[BIKE_NODE.saddle, BIKE_FIT.saddle], [BIKE_NODE.hoodL, BIKE_FIT.hoodL], [BIKE_NODE.hoodR, BIKE_FIT.hoodR]] as const) {

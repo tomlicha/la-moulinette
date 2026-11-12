@@ -39,6 +39,7 @@ export class GlbWriter {
       .setAttribute('NORMAL', acc('VEC3', new Float32Array(b.normals)))
       .setAttribute('COLOR_0', acc('VEC3', colors))
       .setAttribute('_REGION', acc('SCALAR', new Float32Array(b.regions)))
+      .setAttribute('_AO', acc('SCALAR', b.ao.length === n ? new Float32Array(b.ao) : new Float32Array(n).fill(1)))
       .setIndices(acc('SCALAR', n > 65535 ? new Uint32Array(b.indices) : new Uint16Array(b.indices)));
     if (skinned) {
       prim.setAttribute('JOINTS_0', acc('VEC4', new Uint16Array(b.joints)));
@@ -52,7 +53,7 @@ export class GlbWriter {
     await MeshoptEncoder.ready;
     await doc.transform(
       reorder({ encoder: MeshoptEncoder }),
-      // `_REGION` reste en flottant : quantifié, il deviendrait un entier normalisé que le moteur lirait mal.
+      // `_REGION` et `_AO` restent en flottant : quantifiés, ils deviendraient des entiers normalisés que le moteur lirait mal.
       quantize({ pattern: /^(POSITION|NORMAL|COLOR_0|JOINTS_0|WEIGHTS_0)$/, quantizationVolume: 'mesh' }),
     );
     doc.createExtension(KHRMeshQuantization).setRequired(true);

@@ -13,6 +13,9 @@
  * tableau ci-dessous ; le moteur y applique la palette du coureur (maillot, vélo…). `COLOR_0` contient la palette
  * par défaut pour les visionneuses glTF ordinaires.
  *
+ * Relief : chaque sommet porte aussi `_AO`, l'occlusion ambiante précalculée, de 0 (creux enfoui) à 1 (dégagé).
+ * Un modèle fait à la main doit la fournir (bake d'occlusion par sommet), ou la laisser à 1 partout.
+ *
  * Ce fichier n'importe rien : le script de génération (Node) l'importe tel quel.
  */
 
@@ -103,8 +106,8 @@ export const DEFAULT_FINISH: Record<RegionName, Finish> = {
   shorts: f(0x16181d, 0.6),
   shortsBand: f(0xf4f4f0, 0.5),
   sock: f(0x5be3c9, 0.7),
-  shoe: f(0x1d2026, 0.35),
-  sole: f(0x0d0e10, 0.5),
+  shoe: f(0xf4f4f0, 0.35),
+  sole: f(0x15171a, 0.5),
   glove: f(0x16181d, 0.65),
   helmet: f(0xf4f4f0, 0.3),
   helmetAlt: f(0x5be3c9, 0.3),

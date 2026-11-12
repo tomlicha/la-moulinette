@@ -21,13 +21,21 @@ import { Body, polygonize, simplify, smax, smin, splitRegions, Tube, type Shape 
 
 const vec = (p: { x: number; y: number; z: number }) => new Vector3(p.x, p.y, p.z);
 
+/**
+ * Agrandissement de la tête (visage, casque, lunettes) par rapport aux cotes d'un adulte : le style arcade veut
+ * une tête un peu grosse, qui se lit de loin. Les cotes de ce fichier restent celles d'une tête réelle ; seul le
+ * passage du repère de la tête au monde applique ce facteur.
+ */
+export const HEAD_SCALE = 1.14;
+const K = HEAD_SCALE;
+
 /** Repère de la tête dans la pose de référence. */
 export function headFrame(pose: Pose) {
   const base = vec(pose.joints.headBase);
   const axis = vec(pose.joints.headTop).sub(base).normalize();
   const face = new Vector3(0, 0, 1).addScaledVector(axis, -axis.z).normalize();
   const left = axis.clone().cross(face).normalize();
-  const origin = base.clone().addScaledVector(axis, 0.035);
+  const origin = base.clone().addScaledVector(axis, 0.035 * K);
   return { origin, axis, face, left, base };
 }
 
@@ -380,57 +388,107 @@ function hair(x: number, y: number, z: number): number {
 
 /* ---------- Casque ---------- */
 
-const HELMET_C: V3 = [0, 0.044, -0.012];
-const HELMET_R: V3 = [0.097, 0.107, 0.126];
-/** Bord du casque : plan incliné, au-dessus des sourcils devant, sur l'occiput derrière. */
-const rimCut = (y: number, z: number) => 0.052 + 0.36 * (z - 0.1) - y;
+/**
+ * Casque de route aéro moderne : coque basse et allongée, plus pleine qu'une ellipse (front droit, flancs
+ * verticaux), dont la ligne de dessus descend vers un arrière tronqué net. Peu d'ouvertures, mais grandes : trois
+ * prises d'air à l'avant, deux canaux sur le dessus, une fente au-dessus de chaque oreille et une sortie large sur
+ * le pan arrière. Le bord suit le visage : au-dessus des sourcils, relevé autour de l'oreille, bas sur la nuque.
+ */
+const HELMET_C: V3 = [0, 0.042, -0.018];
+/** Demi-largeur, demi-hauteur, demi-longueurs vers l'avant et vers l'arrière. */
+const HELMET_R = { x: 0.098, y: 0.103, front: 0.134, back: 0.152 };
+/** Exposant de la super-ellipse : 2 pour une ellipse, plus pour des épaules de coque marquées. */
+const HELMET_N = 2.35;
+/** Pan arrière : la coque est coupée par un plan à peine incliné, comme une queue de Kamm. */
+const TAIL_Z = -0.143;
+const tailZ = (y: number) => TAIL_Z + 0.12 * (y - 0.03);
 
-function onHelmet(dx: number, dy: number, dz: number): V3 {
-  const n = len3(dx / HELMET_R[0], dy / HELMET_R[1], dz / HELMET_R[2]);
-  return [HELMET_C[0] + dx / n, HELMET_C[1] + dy / n, HELMET_C[2] + dz / n];
+function shell(x: number, y: number, z: number) {
+  const rear = smooth(-0.02, -0.16, z); // 0 jusqu'aux oreilles, 1 au bout de la queue
+  const width = HELMET_R.x * (1 - 0.15 * rear) * (1 - 0.05 * smooth(0.04, 0.13, z));
+  const height = HELMET_R.y * (1 - 0.2 * rear);
+  const lz = z - HELMET_C[2];
+  const a = Math.abs((x - HELMET_C[0]) / width);
+  const b = Math.abs((y - HELMET_C[1]) / height);
+  const c = Math.abs(lz / (lz > 0 ? HELMET_R.front : HELMET_R.back));
+  return (Math.pow(Math.pow(a, HELMET_N) + Math.pow(b, HELMET_N) + Math.pow(c, HELMET_N), 1 / HELMET_N) - 1) * HELMET_R.x;
 }
 
-/** Évents : des fentes creusées le long de la coque, d'avant en arrière. */
-const VENTS: [V3, V3][] = [];
+/** Hauteur du bord de la coque selon la position d'avant en arrière. */
+const RIM = keys([
+  [-0.17, -0.034],
+  [-0.1, -0.032], // nuque, sous l'occiput
+  [-0.045, -0.004],
+  [0, 0.018], // au-dessus de l'oreille
+  [0.05, 0.037],
+  [0.105, 0.05], // au-dessus des sourcils
+  [0.15, 0.056],
+]);
+const rimCut = (y: number, z: number) => RIM(z) + 0.007 * Math.exp(-(((z + 0.006) / 0.032) ** 2)) - y;
+
+/** Point de la coque dans la direction donnée (en fractions des demi-axes) depuis son centre. */
+function onHelmet(dx: number, dy: number, dz: number): V3 {
+  const dir: V3 = [dx * HELMET_R.x, dy * HELMET_R.y, dz * (dz > 0 ? HELMET_R.front : HELMET_R.back)];
+  let lo = 0;
+  let hi = 2;
+  for (let i = 0; i < 30; i++) {
+    const t = (lo + hi) / 2;
+    if (shell(HELMET_C[0] + dir[0] * t, HELMET_C[1] + dir[1] * t, HELMET_C[2] + dir[2] * t) < 0) lo = t;
+    else hi = t;
+  }
+  return [HELMET_C[0] + dir[0] * lo, HELMET_C[1] + dir[1] * lo, HELMET_C[2] + dir[2] * lo];
+}
+
+/** Ouvertures : segments arrondis creusés dans la coque, plus larges à l'entrée de l'air qu'à sa sortie. */
+const VENTS: [V3, V3, number, number][] = [
+  [onHelmet(0, 0.36, 1), onHelmet(0, 0.86, 0.72), 0.0125, 0.009], // prise d'air centrale
+  [[0.03, 0.04, tailZ(0.04)], [-0.03, 0.04, tailZ(0.04)], 0.0105, 0.0105], // sortie large sur le pan arrière
+];
 for (const s of [1, -1]) {
-  VENTS.push([onHelmet(s * 0.22, 0.25, 1), onHelmet(s * 0.2, 0.75, 0.75)]);
-  VENTS.push([onHelmet(s * 0.5, 0.75, 0.45), onHelmet(s * 0.5, 0.85, -0.3)]);
-  VENTS.push([onHelmet(s * 0.3, 0.6, -0.75), onHelmet(s * 0.26, 0.22, -1)]);
-  VENTS.push([onHelmet(s * 0.75, 0.3, 0.55), onHelmet(s * 0.8, 0.45, -0.1)]);
+  VENTS.push([onHelmet(s * 0.46, 0.34, 0.92), onHelmet(s * 0.42, 0.8, 0.58), 0.0115, 0.0085]); // prises d'air latérales
+  VENTS.push([onHelmet(s * 0.34, 1, 0.3), onHelmet(s * 0.3, 1, -0.5), 0.0085, 0.0065]); // canaux du dessus
+  VENTS.push([onHelmet(s * 1, 0.42, 0.42), onHelmet(s * 1, 0.5, -0.12), 0.008, 0.006]); // fentes au-dessus des oreilles
 }
 
 function vents(x: number, y: number, z: number) {
   let d = Infinity;
-  for (const [a, b] of VENTS) d = Math.min(d, capsule(x, y, z, a, b, 0.0078));
+  for (const [a, b, ra, rb] of VENTS) d = Math.min(d, capsule(x, y, z, a, b, ra, rb));
   return d;
 }
 
 function helmet(x: number, y: number, z: number): number {
-  let d = ellipsoid(x, y, z, HELMET_C, HELMET_R);
-  d = smin(d, ellipsoid(x, y, z, [0, 0.03, -0.1], [0.06, 0.05, 0.06]), 0.04); // queue profilée
+  let d = shell(x, y, z);
+  d = smax(d, tailZ(y) - z, 0.005); // pan arrière
   d = smax(d, rimCut(y, z), 0.006);
   return carve(d, vents(x, y, z), 0.003);
+}
+
+/** Zone de couleur de la coque : ouvertures et bord sombres, pan arrière et bas de la nuque de la seconde couleur. */
+function helmetRegion(x: number, y: number, z: number) {
+  if (vents(x, y, z) < 0.0025 || rimCut(y, z) > -0.004) return REGION.liner;
+  if (z < -0.098 - 0.55 * (y - 0.02)) return REGION.helmetAlt;
+  return REGION.helmet;
 }
 
 /* ---------- Assemblage ---------- */
 
 const toLocal = (F: Frame, px: number, py: number, pz: number): V3 => {
-  const dx = px - F.origin.x;
-  const dy = py - F.origin.y;
-  const dz = pz - F.origin.z;
+  const dx = (px - F.origin.x) / K;
+  const dy = (py - F.origin.y) / K;
+  const dz = (pz - F.origin.z) / K;
   return [dx * F.left.x + dy * F.left.y + dz * F.left.z, dx * F.axis.x + dy * F.axis.y + dz * F.axis.z, dx * F.face.x + dy * F.face.y + dz * F.face.z];
 };
 
 /** Forme exprimée dans le repère de la tête. */
 function localShape(F: Frame, sdf: (x: number, y: number, z: number) => number, region: (x: number, y: number, z: number) => number, skin: Skin): Shape {
   return {
-    sdf: (px, py, pz) => sdf(...toLocal(F, px, py, pz)),
+    sdf: (px, py, pz) => K * sdf(...toLocal(F, px, py, pz)),
     regionAt: (p) => region(...toLocal(F, p.x, p.y, p.z)),
     skinAt: () => skin,
   };
 }
 
-const toWorld = (F: Frame, l: V3) => F.origin.clone().addScaledVector(F.left, l[0]).addScaledVector(F.axis, l[1]).addScaledVector(F.face, l[2]);
+const toWorld = (F: Frame, l: V3) => F.origin.clone().addScaledVector(F.left, K * l[0]).addScaledVector(F.axis, K * l[1]).addScaledVector(F.face, K * l[2]);
 
 /** Boîte englobante (monde) d'une boîte du repère local. */
 function worldBox(F: Frame, lo: V3, hi: V3) {
@@ -499,7 +557,7 @@ export async function buildHead(b: MeshBuilder, pose: Pose, neck: Tube, headBone
   };
   // Fusion tête-cou : large à la nuque, serrée sous le menton pour garder l'angle entre la gorge et la mâchoire.
   const head = new Body([headShape, neckShape], ([dh, dn], x, y, z) => {
-    const lz = (x - F.origin.x) * F.face.x + (y - F.origin.y) * F.face.y + (z - F.origin.z) * F.face.z;
+    const lz = ((x - F.origin.x) * F.face.x + (y - F.origin.y) * F.face.y + (z - F.origin.z) * F.face.z) / K;
     return smin(dh!, dn!, 0.03 - 0.021 * smooth(-0.025, 0.035, lz));
   });
   const skinOf = (p: Vector3): Skin => {
@@ -507,22 +565,19 @@ export async function buildHead(b: MeshBuilder, pose: Pose, neck: Tube, headBone
     const dn = neckShape.sdf(p.x, p.y, p.z);
     return dh <= dn ? headSkin : neck.skinAt(p);
   };
-  const headTris = await extract(head, F, [-0.11, -0.19, -0.15], [0.11, 0.15, 0.15], 0.0009, 28000, 0.00015, b, skinOf);
+  // Visage extrait à 1,5 mm : il n'est vu de près que sur le portrait (512 px), jamais en course.
+  const headTris = await extract(head, F, [-0.11, -0.19, -0.15], [0.11, 0.15, 0.15], 0.0015, 12000, 0.0004, b, skinOf);
 
   if (opts.bare) return { headTris, helmetTris: 0, head };
 
   const helmetShape = localShape(
     F,
     helmet,
-    (x, y, z) => {
-      if (vents(x, y, z) < 0.0025 || rimCut(y, z) > -0.004) return REGION.liner;
-      if (Math.abs(x) < 0.013 && y > 0.06) return REGION.helmetAlt;
-      return REGION.helmet;
-    },
+    helmetRegion,
     headSkin,
   );
   const helmetBody = new Body([helmetShape], ([d]) => d!);
-  const helmetTris = await extract(helmetBody, F, [-0.12, -0.06, -0.2], [0.12, 0.17, 0.16], 0.0025, 6000, 0.0015, b, () => headSkin);
+  const helmetTris = await extract(helmetBody, F, [-0.12, -0.06, -0.19], [0.12, 0.17, 0.14], 0.002, 6000, 0.0012, b, () => headSkin);
 
   straps(b, F, head, headBone);
   glasses(b, F, face, headBone);
@@ -563,7 +618,7 @@ function straps(b: MeshBuilder, F: Frame, head: Body, headBone: number) {
         ds: 0.006,
         radial: 6,
         front: F.face,
-        section: (_s, th) => oval(th, 0.0012, 0.0012, 0.0052, 0.0052, 6),
+        section: (_s, th) => oval(th, 0.0014 * K, 0.0014 * K, 0.006 * K, 0.006 * K, 6),
         region: REGION.liner,
         skin,
       });
@@ -621,8 +676,8 @@ function glasses(b: MeshBuilder, F: Frame, faceSdf: (x: number, y: number, z: nu
   const phiAt = (s: number) => -span + (2 * span * s) / L;
   b.sweep({
     path: mid,
-    ds: L / 90,
-    radial: 16,
+    ds: L / 48,
+    radial: 12,
     front: radialAt(-span),
     // Le long d'un arc autour de la tête, le côté de la section (avant × tangente) pointe vers le haut de la tête.
     section: (s, th) => {
@@ -644,12 +699,12 @@ function glasses(b: MeshBuilder, F: Frame, faceSdf: (x: number, y: number, z: nu
   const rim = arc((phi) => top(phi) - 0.0012);
   b.sweep({
     path: rim,
-    ds: rim.length / 90,
-    radial: 10,
+    ds: rim.length / 48,
+    radial: 8,
     front: radialAt(-span),
     section: (s, th) => {
       const k = roundEnds(s, 0, rim.length, 0.004);
-      return oval(th, 0.0022 * k, 0.0018 * k, 0.0027 * k, 0.0022 * k, 3);
+      return oval(th, 0.0028 * K * k, 0.0022 * K * k, 0.0034 * K * k, 0.0028 * K * k, 3);
     },
     region: REGION.eyewear,
     skin,
@@ -688,7 +743,7 @@ function glasses(b: MeshBuilder, F: Frame, faceSdf: (x: number, y: number, z: nu
       front: F.axis,
       section: (ss, th) => {
         const k = roundEnds(ss, 0, path.length, 0, 0.004);
-        return oval(th, 0.0036 * Math.max(k, 0.4), 0.0036 * Math.max(k, 0.4), 0.0014, 0.0014, 4);
+        return oval(th, 0.0044 * K * Math.max(k, 0.4), 0.0044 * K * Math.max(k, 0.4), 0.0018 * K, 0.0018 * K, 4);
       },
       region: REGION.eyewear,
       skin,
