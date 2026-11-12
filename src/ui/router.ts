@@ -3,12 +3,12 @@ const VIEWS: View[] = ['appareils', 'accueil', 'sortie', 'seances'];
 
 /**
  * Trois écrans dans une seule page, choisis par l'ancre de l'URL. Une page rechargée perd ses connexions
- * Bluetooth : l'application repart donc toujours de l'écran des appareils.
+ * Bluetooth : l'application repart donc toujours de l'accueil ; les appareils connus sont reconnectés en arrière-plan.
  */
 export function setupRouter(onChange: (v: View) => void) {
   const current = (): View => {
     const v = location.hash.slice(1) as View;
-    return VIEWS.includes(v) ? v : 'appareils';
+    return VIEWS.includes(v) ? v : 'accueil';
   };
   const apply = () => {
     const v = current();
@@ -19,7 +19,7 @@ export function setupRouter(onChange: (v: View) => void) {
     });
     onChange(v);
   };
-  history.replaceState(null, '', '#appareils');
+  history.replaceState(null, '', '#accueil');
   addEventListener('hashchange', apply);
   apply();
   return {
