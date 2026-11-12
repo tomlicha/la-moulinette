@@ -34,7 +34,7 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?:
 };
 
 /**
- * Radar des appareils : le coureur au centre, le trainer et le capteur cardio sur les anneaux, reliés à lui.
+ * Radar des appareils : le coureur au centre, le trainer et le capteur cardiaque sur les anneaux, reliés à lui.
  * Chaque bulle donne le rôle (Trainer, Cardio) et, en plus petit, le nom réel de l'appareil.
  * Le navigateur ne donne pas la liste des appareils proches : le radar montre l'état des appareils connus.
  */

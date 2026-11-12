@@ -309,7 +309,8 @@ button.rider-chip:hover { background: #FBF6EF; }
   button.dev-go-btn { height: 38px; padding: 0 14px; font-size: .95rem; box-shadow: none; }
   .dev-sensors { padding: 8px 14px; gap: 4px; }
   .dev-sensors-head .home-kicker { display: none; }
-  .dev-sensors-head:not(:has(.note:not(:empty))) { display: none; }
+  /* La ligne d'information (« Première utilisation… », « Reconnexion… ») disparaît : pas la place, et elle recouvrait le lien « Aide ? ». Les boutons et les pastilles disent déjà l'état. */
+  .dev-sensors-head { display: none; }
   .dev .home-brand { height: 36px; }
   /* L'aide se replie en lien « Aide ? » dans le coin de la carte ; ouverte, elle reprend sa place sous les capteurs (la page défile). */
   .dev-sensors-foot { position: absolute; top: 8px; right: 14px; z-index: 3; }
