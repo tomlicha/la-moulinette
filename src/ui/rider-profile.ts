@@ -46,7 +46,7 @@ export function setupRiderProfile(o: {
   const q = <T extends HTMLElement>(sel: string) => d.querySelector<T>(sel)!;
   const fields: Record<'mass' | 'ftp', Field> = {
     mass: { button: q('#rider-mass'), source: o.massSource, ...MASS_LIMITS, step: 1, label: 'Masse', unit: 'kg' },
-    ftp: { button: q('#rider-ftp'), source: o.ftpSource, ...FTP_LIMITS, step: 5, label: 'FTP', unit: 'W' },
+    ftp: { button: q('#rider-ftp'), source: o.ftpSource, ...FTP_LIMITS, step: 1, label: 'FTP', unit: 'W' },
   };
   const current = (k: 'mass' | 'ftp') => (k === 'mass' ? o.readMass() : o.readFtp());
   const wkgOut = q('#rider-wkg');
