@@ -6,7 +6,7 @@ import '@fontsource/barlow-condensed/700.css';
 import './home.css';
 import { radarTag, type RadarDevice, type RadarRole, type RadarTone } from './radar-model';
 
-export type RadarVariant = 'full' | 'mini' | 'compact';
+export type RadarVariant = 'full' | 'mini';
 
 export interface Radar {
   update(devices: Record<RadarRole, RadarDevice>): void;
@@ -20,19 +20,12 @@ const GEOMETRY = {
     w: 520, h: 592, rings: [130, 180, 230],
     links: { trainer: [347, 235, 399, 198], hr: [169, 349, 113, 381] },
   },
+  // Tuile carrée de l'accueil : médaillon centré, pastilles sur l'anneau de 68, étiquettes dans les coins (jamais sur le médaillon).
   mini: {
-    w: 380, h: 270, rings: [84, 120, 158],
-    links: { trainer: [240, 108, 268, 91], hr: [141, 161, 116, 176] },
-  },
-  // Téléphone en paysage : la hauteur manque, on aplatit le radar au lieu de le rogner (médaillon centré, pastilles sur l'anneau de 60).
-  compact: {
-    w: 380, h: 170, rings: [44, 60, 80],
-    links: { trainer: [223, 62, 229, 57], hr: [157, 108, 150, 113] },
+    w: 200, h: 200, rings: [46, 68, 92],
+    links: { trainer: [128, 78, 141, 68], hr: [72, 122, 59, 132] },
   },
 } as const;
-
-/** Mêmes critères que la disposition « téléphone en paysage » de l'accueil (home.css). */
-const COMPACT_QUERY = '(pointer: coarse) and (orientation: landscape) and (max-height: 600px)';
 
 const LINK_STYLE: Record<RadarTone, { stroke: string; dash: string }> = {
   ok: { stroke: '#5BE3C9', dash: '' },
@@ -54,19 +47,6 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?:
  * Le navigateur ne donne pas la liste des appareils proches : le radar montre l'état des appareils connus.
  */
 export function createRadar(root: HTMLElement, variant: RadarVariant): Radar {
-  if (variant !== 'mini') return mountRadar(root, variant);
-  // Le radar de l'accueil bascule sur la variante compacte quand le téléphone passe en paysage (et inversement).
-  const compact = matchMedia(COMPACT_QUERY);
-  let last: Record<RadarRole, RadarDevice> | undefined;
-  let current = mountRadar(root, compact.matches ? 'compact' : 'mini');
-  compact.addEventListener('change', () => {
-    current = mountRadar(root, compact.matches ? 'compact' : 'mini');
-    if (last) current.update(last);
-  });
-  return { update(devices) { last = devices; current.update(devices); } };
-}
-
-function mountRadar(root: HTMLElement, variant: RadarVariant): Radar {
   const g = GEOMETRY[variant];
   root.replaceChildren();
   const box = el('div', `radar radar--${variant}`, root);

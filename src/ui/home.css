@@ -1,9 +1,9 @@
 /*
  * Écrans Appareils et Accueil. Référence : docs/design/accueil-appareils.md (maquette B1, « Médaillon »).
  * Le radar et le visuel d'accueil sont des panneaux de scène, aux couleurs fixes comme le HUD ;
- * le reste suit le thème de la page. L'accent de ces deux écrans est celui du jeu (menthe).
+ * le reste suit le thème de la page. L'accent est l'orange brûlé du thème « Doux » (voir style.css).
  */
-[data-view='appareils'], [data-view='accueil'], [data-view='seances'] { --accent: #5BE3C9; --on-accent: #0B1422; --pink: #FF5FA2; }
+[data-view='appareils'], [data-view='accueil'], [data-view='seances'] { --pink: #FF5FA2; }
 main:has([data-view='appareils']:not([hidden])) { max-width: 1184px; }
 [data-view='appareils'] h1, [data-view='accueil'] h2.home-title {
   font-family: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; font-weight: 700; line-height: 1; letter-spacing: .01em;
@@ -20,26 +20,14 @@ main:has([data-view='appareils']:not([hidden])) { max-width: 1184px; }
   --t-left: auto; --t-right: 4.6%; --t-top: 16.2%; --h-left: 4.6%; --h-top: 69.3%;
   --core: 38.5%; --sweep: 88.5%; --ping: 46.2%;
 }
+/* Tuile carrée de l'accueil : médaillon au centre, trainer en haut à droite, cardio en bas à gauche. */
 .radar--mini {
-  aspect-ratio: 380 / 270;
-  --tx: 72.6%; --ty: 32.2%; --hx: 28.7%; --hy: 67.4%;
-  --t-left: auto; --t-right: 3.2%; --t-top: 37%; --h-left: 3.7%; --h-top: 75.6%;
-  --core: 31.6%; --sweep: 63.2%; --ping: 31.6%;
+  aspect-ratio: 1;
+  --tx: 74%; --ty: 31%; --hx: 26%; --hy: 69%;
+  --t-left: auto; --t-right: 6%; --t-top: 6%; --h-left: 6%; --h-top: 74%;
+  --core: 34%; --sweep: 92%; --ping: 34%;
 }
 .radar-rings { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; }
-/* Compact (accueil, téléphone en paysage) : plat, médaillon au centre, trainer en haut à droite et cardio en bas à gauche. */
-.radar--compact {
-  aspect-ratio: 380 / 170; border-radius: 16px;
-  --tx: 62.9%; --ty: 29.8%; --hx: 37.1%; --hy: 70.2%;
-  --t-left: auto; --t-right: 3.2%; --t-top: 17%; --h-left: 3.2%; --h-top: 56%;
-  --core: 20%; --sweep: 50%; --ping: 20%;
-}
-.radar--compact .radar-core { border-width: 2px; box-shadow: 0 0 22px rgba(91, 227, 201, .35); }
-.radar--compact .radar-dot { width: 15px; height: 15px; }
-.radar--compact .radar-tag { max-width: 30.5%; padding: 3px 8px; border-radius: 9px; line-height: 1.2; }
-.radar--compact .radar-tag .r { font-size: 13px; }
-.radar--compact .radar-tag .n { font-size: 11px; }
-.radar--compact .radar-tag .s { display: none; }
 .radar-ring { stroke: rgba(91, 227, 201, .3); stroke-width: 1.5; }
 .radar-sweep, .radar-ping, .radar-core { position: absolute; left: 50%; top: 50%; translate: -50% -50%; border-radius: 50%; aspect-ratio: 1; }
 .radar-sweep {
@@ -58,7 +46,7 @@ main:has([data-view='appareils']:not([hidden])) { max-width: 1184px; }
 @media (prefers-reduced-motion: reduce) { .radar-sweep, .radar-ping { animation: none; } .radar-ping { opacity: 0; } }
 
 .radar-dot { position: absolute; box-sizing: border-box; width: 22px; height: 22px; border-radius: 50%; translate: -50% -50%; }
-.radar--mini .radar-dot { width: 18px; height: 18px; }
+.radar--mini .radar-dot { width: 16px; height: 16px; }
 .radar-dot[data-role='trainer'] { left: var(--tx); top: var(--ty); }
 .radar-dot[data-role='hr'] { left: var(--hx); top: var(--hy); }
 .radar-dot[data-tone='ok'] { background: #5BE3C9; box-shadow: 0 0 18px #5BE3C9, 0 0 0 5px rgba(91, 227, 201, .25); }
@@ -71,7 +59,9 @@ main:has([data-view='appareils']:not([hidden])) { max-width: 1184px; }
   padding: 6px 14px; border-radius: 12px; line-height: 1.25; background: rgba(11, 20, 34, .94);
   border: 1px solid rgba(91, 227, 201, .55);
 }
-.radar--mini .radar-tag { padding: 3px 10px; }
+.radar--mini .radar-tag { max-width: 66%; padding: 4px 10px; line-height: 1.2; }
+.radar--mini .radar-tag .r { font-size: 14px; }
+.radar--mini .radar-tag .n { font-size: 11px; }
 .radar-tag[data-role='trainer'] { left: var(--t-left); right: var(--t-right); top: var(--t-top); }
 .radar-tag[data-role='hr'] { left: var(--h-left); top: var(--h-top); }
 .radar-tag .r { font-size: 16px; font-weight: 700; }
@@ -91,9 +81,9 @@ main:has([data-view='appareils']:not([hidden])) { max-width: 1184px; }
 @media (min-width: 861px), (orientation: landscape) { .dev-radar { position: sticky; top: 72px; } }
 .dev-side { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .dev-side .device-cards { grid-template-columns: 1fr; gap: 14px; margin: 10px 0; }
-.dev-side .device-card { border: 1.5px solid transparent; border-radius: 18px; padding: 18px 20px; }
+.dev-side .device-card { border: 1.5px solid transparent; border-radius: var(--radius-card); padding: 18px 20px; }
 .dev-side .device-card h2 { font-size: 1.35rem; margin-bottom: .3rem; }
-.dev-side .device-card[data-s='connected'] { border-color: rgba(91, 227, 201, .6); }
+.dev-side .device-card[data-s='connected'] { border-color: var(--ok); }
 .dev-side .device-card[data-s='connecting'] { border-style: dashed; border-color: var(--pink); }
 .dev-side .device-card[data-s='error'] { border-style: dashed; border-color: var(--err); }
 .dev-lede { margin: 0 0 4px; color: var(--muted); }
@@ -108,9 +98,9 @@ main:has([data-view='appareils']:not([hidden])) { max-width: 1184px; }
  * (anneau denté, bras, moyeu) à la place du O. Taille : celle du texte parent (`font-size`), couleur du mot : `color`.
  */
 .logo { display: inline-flex; align-items: flex-start; gap: .18em; font-family: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; font-weight: 700; line-height: 1; text-transform: uppercase; white-space: nowrap; }
-.logo-la { margin-top: .06em; font-size: .46em; letter-spacing: .14em; color: #5BE3C9; }
+.logo-la { margin-top: .06em; font-size: .46em; letter-spacing: .14em; color: var(--accent); }
 .logo-word { display: inline-flex; align-items: center; letter-spacing: .07em; transform: skewX(-8deg); transform-origin: left bottom; }
-.logo-o { width: .78em; height: .78em; margin: 0 .05em 0 .02em; color: #5BE3C9; stroke: currentColor; overflow: visible; }
+.logo-o { width: .78em; height: .78em; margin: 0 .05em 0 .02em; color: var(--accent); stroke: currentColor; overflow: visible; }
 .logo-teeth { stroke-width: 2; stroke-dasharray: 2.2 1.64; }
 .logo-ring { stroke-width: 2.6; }
 .logo-spokes { stroke-width: 1.6; stroke-linecap: round; }
@@ -121,55 +111,58 @@ a:hover .logo-o, .home-brand:hover .logo-o { animation: logo-spin 1.2s linear in
 @keyframes logo-spin { to { rotate: 360deg; } }
 @media (prefers-reduced-motion: reduce) { .logo-o { animation: none !important; } }
 
-/* --- Écran Accueil : plein écran, la scène derrière, des panneaux de verre par-dessus --- */
+/* --- Écran Accueil : plein écran, la scène derrière, des cartes claires (bento) par-dessus, la navigation flottante en bas --- */
 body:has([data-view='accueil']:not([hidden])) .topbar,
 body:has([data-view='accueil']:not([hidden])) .log-panel { display: none; }
 main:has([data-view='accueil']:not([hidden])) { max-width: none; padding: 0; }
 .home {
-  position: relative; box-sizing: border-box; overflow: hidden; min-height: 100vh; min-height: 100dvh; padding: 24px 32px 32px;
-  display: grid; grid-template-columns: minmax(0, 1fr) 380px; grid-template-rows: auto 1fr; gap: 24px;
-  background: #3F86D0; color: #fff; font-family: Barlow, system-ui, sans-serif;
-  /* Panneaux et champs sont posés sur la scène : couleurs fixes, quel que soit le thème de la page. */
-  color-scheme: dark; --glass: rgba(11, 20, 34, .78); --glass-line: rgba(255, 255, 255, .14); --glass-muted: #D3DCE8;
+  position: relative; box-sizing: border-box; overflow: hidden; min-height: 100vh; min-height: 100dvh; padding: 20px 32px 96px;
+  display: grid; grid-template-columns: minmax(0, 1fr) clamp(240px, 24vw, 340px) clamp(240px, 24vw, 340px); grid-template-rows: auto 1fr auto; gap: 16px 20px;
+  background: #3F86D0; color: var(--fg); font-family: Barlow, system-ui, sans-serif;
+  /* Les cartes sont posées sur la scène : palette claire fixe, quel que soit le thème de la page. */
+  color-scheme: light; --fg: #14171A; --muted: #4F5865; --card: #fff; --raised: #fff; --line: rgb(90 60 30 / .16); --btn-line: #8B8478;
+  --accent: #C2410C; --on-accent: #fff; --err: #C92A2A; --ok: #2B8A3E; --kicker: #B8470B;
+  --glass: rgba(255, 255, 255, .94); --glass-line: rgb(90 60 30 / .12); --glass-muted: #4F5865;
 }
 .home-scenes { position: absolute; inset: 0; }
 /* Les scènes sont empilées ; celle qui est affichée (`data-on`) se fond dans la précédente. */
 .home-scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; transition: opacity 1.6s ease-in-out; }
 .home-scene[data-on] { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .home-scene { transition: none; } }
-.home-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(11, 20, 34, .5) 0%, rgba(11, 20, 34, 0) 24%, rgba(11, 20, 34, 0) 50%, rgba(11, 20, 34, .88) 100%); }
+/* Voile crème : la scène reste visible, les cartes se détachent. */
+.home-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(255, 246, 235, .38) 0%, rgba(255, 246, 235, .08) 45%, rgba(255, 246, 235, .3) 100%); }
 .home > :not(.home-scenes):not(.home-shade) { position: relative; z-index: 1; }
 
-.home-top { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.home-brand { display: flex; align-items: center; height: 52px; padding: 0 18px; border-radius: 14px; background: var(--glass); border: 1px solid var(--glass-line); backdrop-filter: blur(16px) saturate(1.3); font: 700 1.9rem/1 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; letter-spacing: .02em; }
-.home-nav { display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: var(--glass); border: 1px solid var(--glass-line); backdrop-filter: blur(16px) saturate(1.3); }
-.home-nav a { display: flex; align-items: center; height: 44px; padding: 0 20px; border-radius: 10px; color: #fff; font-size: 1.06rem; font-weight: 600; text-decoration: none; }
-.home-nav a:hover { background: rgba(255, 255, 255, .12); }
-/* Sur les écrans autres que l'accueil, la navigation marque l'écran courant. */
-.home-nav a[aria-current='page'] { background: #5BE3C9; color: #0B1422; }
-.home-nav a:focus-visible, a.home-radar:focus-visible { outline: 3px solid #5BE3C9; outline-offset: 2px; }
+.home-top { grid-column: 1 / -1; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.home-brand { display: flex; align-items: center; height: 48px; padding: 0 20px 0 14px; border-radius: 999px; background: var(--glass); border: 1px solid var(--glass-line); box-shadow: var(--shadow-card); backdrop-filter: blur(14px) saturate(1.2); color: var(--fg); font: 700 1.7rem/1 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; letter-spacing: .02em; }
+.home-nav a:focus-visible, a.home-radar:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }
 
-.home-hero-body { align-self: end; justify-self: start; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; max-width: 640px; }
-.home-kicker { font-size: .875rem; font-weight: 700; color: #5BE3C9; letter-spacing: .06em; text-transform: uppercase; }
-.home h2.home-title { margin: 0; font-family: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; font-weight: 700; line-height: .95; font-size: clamp(4rem, 9vw, 7.5rem); }
-.home-hero-body p { margin: 0 0 16px; font-size: 1.2rem; color: #E3EAF3; }
-button.home-ride { display: flex; align-items: center; gap: 12px; height: 72px; padding: 0 44px; border-radius: 16px; font-family: Barlow, system-ui, sans-serif; font-size: 1.7rem; font-weight: 700; box-shadow: 0 0 40px rgba(91, 227, 201, .35); }
+.home-kicker { font-size: .875rem; font-weight: 700; color: var(--kicker, #B8470B); letter-spacing: .08em; text-transform: uppercase; }
+.home-hero-body, a.home-radar, .home-workout { grid-row: 3; }
+.home-hero-body { grid-column: 1; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 4px; padding: 20px 24px; border-radius: var(--radius-card); background: var(--glass); border: 1px solid var(--glass-line); box-shadow: var(--shadow-card); backdrop-filter: blur(14px) saturate(1.2); }
+.home h2.home-title { margin: 0; font-family: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; font-weight: 700; line-height: .95; font-size: clamp(2.8rem, 5.4vw, 5rem); color: var(--fg); }
+.home-hero-body p { margin: 4px 0 14px; font-size: 1.05rem; line-height: 1.35; color: #434C57; }
+button.home-ride { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 32px 0 24px; border-radius: 18px; font-family: Barlow, system-ui, sans-serif; font-size: 1.35rem; font-weight: 700; box-shadow: 0 8px 20px rgb(194 65 12 / .35); }
 
-.home-side { align-self: end; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-a.home-radar { display: block; color: inherit; text-decoration: none; border-radius: 18px; box-shadow: 0 8px 28px rgba(5, 10, 20, .3); }
-.home-workout { display: flex; flex-direction: column; gap: 10px; padding: 18px; border-radius: 18px; background: var(--glass); border: 1px solid var(--glass-line); backdrop-filter: blur(16px) saturate(1.3); box-shadow: 0 8px 28px rgba(5, 10, 20, .3); }
-.home-workout .home-kicker { color: var(--glass-muted); }
-.home-workout select { width: 100%; background: rgba(255, 255, 255, .1); color: #fff; border: 1px solid rgba(255, 255, 255, .3); border-radius: 8px; }
-.home-workout-meta { margin: 0; color: var(--glass-muted); font-size: .95rem; }
-.home-workout .wo-profile { height: 64px; background: transparent; margin: 0; }
-.home-workout .row { margin: 0; }
-.home-workout .row a { color: var(--glass-muted); font-size: .9rem; }
+/* Le radar est une tuile sombre (couleurs fixes, comme le HUD) : il donne l'état des appareils d'un coup d'œil. */
+.home-side { display: contents; }
+.home-side > * { position: relative; z-index: 1; } /* au-dessus de la scène, comme les autres enfants de .home */
+a.home-radar { grid-column: 2; display: flex; align-items: center; color: #fff; text-decoration: none; overflow: hidden; border-radius: var(--radius-card); background: radial-gradient(circle at 50% 50%, #1A2D4D 0%, #0F1C31 55%, #0B1422 100%); box-shadow: var(--shadow-card); }
+a.home-radar > div { width: 100%; }
+.home-radar .radar { border: 0; border-radius: 0; background: transparent; }
+.home-workout { grid-column: 3; display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: var(--radius-card); background: var(--glass); border: 1px solid var(--glass-line); box-shadow: var(--shadow-card); backdrop-filter: blur(14px) saturate(1.2); }
+.home-workout select { width: 100%; height: 44px; padding: 0 12px; background: #fff; color: var(--fg); border: 1px solid var(--btn-line); border-radius: 14px; font-weight: 600; }
+.home-workout-meta { margin: 0; color: var(--muted); font-size: .95rem; }
+.home-workout .wo-profile { height: 56px; background: transparent; margin: 0; }
+.home-workout .row { margin: auto 0 0; flex-wrap: wrap; gap: 6px 12px; }
+.home-workout .row button { flex: 1 1 auto; height: 48px; padding: 0 12px; background: #14171A; color: #fff; white-space: nowrap; }
+.home-workout .row a { color: var(--muted); font-size: .9rem; font-weight: 600; }
 
+/* Portrait étroit (tablette, fenêtre étroite) : les trois cartes s'empilent. */
 @media (max-width: 900px) and (orientation: portrait) {
-  .home { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; padding: 16px; gap: 16px; }
-  .home-top { flex-wrap: wrap; }
-  .home-nav a { padding: 0 14px; }
-  .home-hero-body { padding-top: 72px; }
+  .home { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto auto auto; padding: 16px 16px 96px; }
+  .home-hero-body, a.home-radar, .home-workout { grid-column: 1; }
+  .home-hero-body { grid-row: 3; } a.home-radar { grid-row: 4; max-width: 420px; } .home-workout { grid-row: 5; }
 }
 
 /* Aide à la connexion du trainer, repliée par défaut. */
@@ -179,20 +172,21 @@ a.home-radar { display: block; color: inherit; text-decoration: none; border-rad
 .trainer-help label { display: grid; gap: 4px; margin-top: 8px; }
 .trainer-help select { width: 100%; }
 
-/* Téléphone en paysage : l'accueil et les appareils gardent la disposition du bureau, réduite. */
+/* Téléphone en paysage : l'accueil garde ses trois cartes sur une ligne, la navigation flottante en dessous. */
 @media (pointer: coarse) and (orientation: landscape) and (max-height: 600px) {
-  .home { padding: 10px max(16px, env(safe-area-inset-left)) 12px; gap: 10px; grid-template-columns: minmax(0, 1fr) 300px; }
-  .home-brand { height: 40px; padding: 0 12px; font-size: 1.5rem; }
-  .home-nav a { height: 34px; padding: 0 12px; font-size: .95rem; }
-  .home h2.home-title { font-size: clamp(2.6rem, 11vh, 4rem); }
-  .home-hero-body p { font-size: 1rem; margin-bottom: 8px; }
-  button.home-ride { height: 52px; padding: 0 28px; font-size: 1.3rem; }
-  .home { height: 100dvh; min-height: 0; }
-  .home-side { gap: 8px; min-height: 0; }
-  .home-radar { max-height: 38dvh; overflow: hidden; }
-  .home-workout-meta, .home-workout .wo-profile { display: none; }
-  .home-kicker { font-size: .75rem; }
-  .home-workout { padding: 10px; gap: 6px; }
+  .home { height: 100dvh; min-height: 0; padding: 10px max(16px, env(safe-area-inset-left)) 66px; gap: 8px 14px; grid-template-columns: minmax(0, 1fr) 200px 190px; }
+  .home-brand { height: 40px; padding: 0 14px 0 10px; font-size: 1.4rem; }
+  .home-hero-body { padding: 14px 18px; }
+  .home h2.home-title { font-size: clamp(2.2rem, 11vh, 3.4rem); }
+  .home-hero-body p { font-size: .95rem; margin: 2px 0 10px; }
+  button.home-ride { height: 48px; padding: 0 24px 0 18px; font-size: 1.2rem; }
+  .home-kicker { font-size: .72rem; }
+  .home-workout { padding: 12px; gap: 5px; }
+  .home-workout select { height: 40px; padding: 0 8px; font-size: .9rem; }
+  .home-workout-meta { display: none; }
+  .home-workout .wo-profile { height: 34px; }
+  .home-workout .row button { height: 44px; font-size: .95rem; }
+  .home-workout .row a { font-size: .85rem; }
   .dev-layout { gap: 12px 20px; grid-template-columns: minmax(200px, 38%) minmax(0, 1fr); }
   .dev-radar { top: 8px !important; }
   .dev-side .device-card { padding: 10px 14px; }
