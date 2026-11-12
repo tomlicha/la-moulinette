@@ -9,12 +9,20 @@ export function setupAppShell() {
   const btn = document.getElementById('fs-btn') as HTMLButtonElement | null;
   const standalone = () => matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches;
 
+  const tip = document.getElementById('fs-tip');
+  const canFullscreen = !!document.documentElement.requestFullscreen;
+
   const update = () => {
     if (hint) hint.hidden = !(touch.matches && portrait.matches);
+    // Le bouton n'a de sens que si le plein écran est possible et pas déjà actif ; sinon (iOS Safari) on explique l'alternative.
+    const already = standalone() || !!document.fullscreenElement;
+    if (btn) btn.hidden = !canFullscreen || already;
+    if (tip) tip.hidden = canFullscreen || already;
   };
   update();
   portrait.addEventListener('change', update);
   touch.addEventListener('change', update);
+  document.addEventListener('fullscreenchange', update);
 
   const lockLandscape = () => {
     const o = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };

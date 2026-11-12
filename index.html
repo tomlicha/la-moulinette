@@ -15,10 +15,22 @@
   </head>
   <body>
     <!-- Mobile en portrait : on invite à tourner l'appareil (l'application est conçue en paysage). -->
-    <div id="rotate-hint" role="alert" hidden>
-      <div class="rotate-icon" aria-hidden="true">⟳</div>
-      <p>Tourne ton téléphone en mode paysage</p>
-      <button id="fs-btn" type="button">Plein écran</button>
+    <div id="rotate-hint" role="dialog" aria-modal="true" aria-labelledby="rotate-title" hidden>
+      <div class="rotate-card">
+        <div class="rotate-icon" aria-hidden="true">
+          <svg viewBox="0 0 64 64" fill="none">
+            <g class="rotate-phone">
+              <rect x="20" y="8" width="24" height="48" rx="5" />
+              <path d="M28 13h8" />
+              <circle cx="32" cy="50" r="1.6" fill="currentColor" stroke="none" />
+            </g>
+          </svg>
+        </div>
+        <h2 id="rotate-title">Mets ton téléphone à l'horizontale</h2>
+        <p class="rotate-lede">La Moulinette se vit en paysage et en plein écran : toute la route sous les yeux, sans barre de navigateur.</p>
+        <button id="fs-btn" type="button">Passer en plein écran</button>
+        <p id="fs-tip" class="rotate-tip" hidden>Sur iPhone : touche <strong>Partager</strong>, puis <strong>Sur l'écran d'accueil</strong> pour lancer l'application en plein écran.</p>
+      </div>
     </div>
     <header class="topbar">
       <strong class="brand"><span class="logo" role="img" aria-label="La Moulinette"><span class="logo-la" aria-hidden="true">LA</span><span class="logo-word" aria-hidden="true">M<svg class="logo-o" viewBox="0 0 24 24" fill="none"><circle class="logo-teeth" cx="12" cy="12" r="11" /><circle class="logo-ring" cx="12" cy="12" r="8" /><path class="logo-spokes" d="M12 12V5.4M12 12l6.3-2M12 12l3.9 5.3M12 12l-3.9 5.3M12 12l-6.3-2" /><circle cx="12" cy="12" r="2.1" fill="currentColor" stroke="none" /></svg>ULINETTE</span></span></strong>
