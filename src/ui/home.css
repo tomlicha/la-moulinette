@@ -249,9 +249,10 @@ button.rider-chip:hover { background: #FBF6EF; }
 .wheel-band span { color: var(--accent); font-weight: 700; }
 .wheel-cols { display: flex; gap: 6px; height: 100%; }
 /* Trois chiffres : colonnes étroites et serrées, groupe centré, l'unité juste à droite (pas d'écart entre les chiffres). */
-.wheel-cols--digits { gap: 0; padding-right: 28px; }
-.wheel-cols--digits .wheel { flex: 0 0 64px; }
-.wheel-wrap:has(.wheel-cols--digits) { width: 220px; margin-inline: auto; }
+.wheel-cols--digits { gap: 0; padding-right: 26px; }
+.wheel-cols--digits .wheel { flex: 0 0 38px; }
+.wheel-wrap:has(.wheel-cols--digits) { width: 140px; margin-inline: auto; }
+.wheel-card:has(.wheel-cols--digits) { width: min(230px, calc(100vw - 32px)); }
 .wheel {
   flex: 1; min-width: 0; height: 100%; overflow-y: auto; overscroll-behavior: contain; scroll-snap-type: y mandatory; scrollbar-width: none; padding-block: calc((var(--wh) - 40px) / 2);
   -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
