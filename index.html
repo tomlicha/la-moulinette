@@ -178,9 +178,10 @@
           <dialog id="wheel-dialog" class="wheel-dialog" aria-labelledby="wheel-title">
             <div class="wheel-card">
               <h3 id="wheel-title"></h3>
+              <div id="wheel-heads" class="wheel-heads" aria-hidden="true" hidden></div>
               <div class="wheel-wrap">
                 <div class="wheel-band" aria-hidden="true"><span id="wheel-unit"></span></div>
-                <div id="wheel" class="wheel" role="listbox" tabindex="0"></div>
+                <div id="wheel-cols" class="wheel-cols"></div>
               </div>
               <div class="row">
                 <button type="button" class="secondary" data-wheel-cancel>Annuler</button>

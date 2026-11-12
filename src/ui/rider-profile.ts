@@ -81,7 +81,7 @@ export function setupRiderProfile(o: {
 
   for (const [key, f] of Object.entries(fields) as ['mass' | 'ftp', Field][]) {
     f.button.addEventListener('click', () =>
-      o.wheel.open({ title: f.label, unit: f.unit, min: f.min, max: f.max, step: f.step, value: current(key), onPick: (v) => commit(f, v) }),
+      o.wheel.open({ title: f.label, unit: f.unit, min: f.min, max: f.max, step: f.step, value: current(key), digits: key === 'ftp', onPick: (v) => commit(f, v) }),
     );
     d.querySelectorAll<HTMLButtonElement>(`[data-step="${key}"]`).forEach((b) =>
       b.addEventListener('click', () => commit(f, clampValue(current(key) + Number(b.dataset.dir) * f.step, f.min, f.max, f.min))),
