@@ -4,7 +4,7 @@ Référence permanente de l'écran **Séances** : bibliothèque et éditeur sur 
 
 - Code : [`src/ui/workout-editor.ts`](../../src/ui/workout-editor.ts) (bibliothèque et éditeur), [`src/ui/seances.css`](../../src/ui/seances.css) (style), balisage dans [`index.html`](../../index.html) (`data-view="seances"`), branchement dans [`src/main.ts`](../../src/main.ts) (`setupWorkoutEditor`).
 - Logique pure, testée : [`src/workout/`](../../src/workout/) (`blocks.ts`, `block-ops.ts`, `history.ts`, `zones.ts`, `library.ts`), inchangée par la refonte.
-- Maquettes (claude.ai), dans l'ordre : [tour 1, propositions A, B, C](https://claude.ai/artifact/2EYqkdcgcbfVNsmUkBJfLr) ; [tour 2, fusions D, E, F](https://claude.ai/artifact/9RCni2a8hDKeM26PUyM62Y) ; [tour 3, téléphone en paysage, G, H, I](https://claude.ai/artifact/TDiP7b83DzsLPigxce9kPE) ; [tour 4, commandes sur le bloc, J, K, L](https://claude.ai/artifact/FS16DyG1wruUcz99zDuHTX). Retenue pour l'ordinateur : **D · Miroir de l'accueil**. Pour le téléphone : choix en attente (voir « Téléphone en paysage »).
+- Maquettes (claude.ai), dans l'ordre : [tour 1, propositions A, B, C](https://claude.ai/artifact/2EYqkdcgcbfVNsmUkBJfLr) ; [tour 2, fusions D, E, F](https://claude.ai/artifact/9RCni2a8hDKeM26PUyM62Y) ; [tour 3, téléphone en paysage, G, H, I](https://claude.ai/artifact/TDiP7b83DzsLPigxce9kPE) ; [tour 4, commandes sur le bloc, J, K, L](https://claude.ai/artifact/FS16DyG1wruUcz99zDuHTX). Retenue pour l'ordinateur : **D · Miroir de l'accueil**. Pour le téléphone en paysage : **J · Dans la barre** (voir « Téléphone en paysage »), livrée le 12 novembre 2026.
 
 ## Décisions
 
@@ -14,6 +14,7 @@ Référence permanente de l'écran **Séances** : bibliothèque et éditeur sur 
 | 2026-11-12 | Proposition **B** (accueil d'une séance : titre géant, Rouler) fusionnée avec l'édition tout-en-un de **C** (plus de bascule Modifier / Terminé) et la bibliothèque complète ; variante **D · Miroir de l'accueil** retenue face à E (étagère en bas) et F (rail de vignettes, dock). | D reprend la grille de l'accueil à l'identique : titre et Rouler en bas à gauche, colonne de verre à droite, navigation en haut à droite. C'est la moins coûteuse et la plus familière. |
 | 2026-11-12 | Choisir une séance dans la bibliothèque l'**ouvre aussitôt** dans l'éditeur et en fait la séance choisie de l'application (accueil, sortie). À l'arrivée sur l'écran, on ouvre la séance choisie, sauf si un brouillon modifié est en cours. | Une seule séance « courante » dans toute l'application. |
 | 2026-11-12 | Un **modèle** s'ouvre en lecture seule (on peut le parcourir et le rouler) ; « Dupliquer pour modifier » en fait une copie non enregistrée. | On ne modifie jamais un modèle livré avec l'application. |
+| 2026-11-12 | Téléphone en paysage : piste **J · Dans la barre** (tour 4). L'écran tient dans la fenêtre, sans défilement ; les commandes du bloc sélectionné sont dessinées sur ses barres. | Le retour demandait de simplifier l'écran et de poser les commandes sur le bloc graphique ; J est la plus directe. |
 | 2026-11-12 | **Rouler** enregistre la séance si besoin, la choisit, va sur la sortie et la démarre. Il attend un trainer connecté avec ERG, comme « Démarrer la séance » de l'accueil, et le dit au clic. Il remplace « Utiliser ». | Un geste pour rouler ; sans trainer, la séance reste choisissable depuis l'accueil. |
 
 ## Pistes étudiées et écartées
@@ -53,7 +54,7 @@ Sur D, une recommandation a pesé : c'est la seule piste qui reprend la grille d
 | H · Deux volets à onglets | Profil à gauche (440 × 150 px), volet de droite à trois onglets : Séances, Bloc, Séance. | Rien ne se superpose ; de grands boutons pour les réglages. | Profil étroit ; changer de séance puis régler un bloc demande un changement d'onglet ; la liste défile dans son panneau ; barre du haut de 36 px. |
 | I · Profil à manipuler | Poignées sur le profil pour la puissance et la durée, une barre contextuelle, navigation derrière le logo, bibliothèque en feuille de cartes. | Le plus grand profil (environ 720 × 180 px) ; réglage en tirant. | Gestes tactiles à soigner (pas de 5 % et 15 s, cibles de 44 px) ; navigation à un tap de plus ; récupération et répétitions dans un menu « ⋯ ». |
 
-Choix pour le téléphone : **en attente de la décision**. Recommandation : G ; H si le profil de 120 px est trop petit ; I en seconde étape.
+Tour 3 : aucune des trois pistes n'a été retenue telle quelle ; le retour (simplifier l'écran, commandes sur le bloc) a conduit au tour 4. Recommandation de l'époque : G ; H si le profil de 120 px est trop petit ; I en seconde étape.
 
 ### Tour 4 : écran simplifié, commandes sur le bloc
 
@@ -67,7 +68,7 @@ Planche : [tour 4, J, K, L](https://claude.ai/artifact/FS16DyG1wruUcz99zDuHTX), 
 | K · Bulle sur le bloc | Bulle posée sur le haut du bloc sélectionné, tous les réglages de l'intervalle sur deux lignes ; profil tracé à une échelle plus basse pour laisser de la place. | La plus simple à réaliser ; les cinq champs sous la main, boutons de 32 px. | Barres plus basses ; la bulle couvre le haut du bloc et masque le niveau réglé ; juste de place à 120 % de la FTP. |
 | L · Zoom sur une répétition | Toucher un intervalle zoome le profil sur une répétition (effort puis récupération) ; les barres, devenues larges, portent leurs commandes à l'horizontale (puissance et durée) ; badge de répétitions ; la bande de blocs reste la vue d'ensemble. | Cibles de 32 à 36 px sur tout bloc, même court (il est agrandi) ; les cinq champs sur le bloc ; bonne échelle de détail. | Perte de la vue d'ensemble pendant l'édition ; le plus de travail (fenêtre de zoom, transitions, repères) ; changement d'échelle à chaque bloc touché. |
 
-Recommandation : **L**, ou **K** pour aller vite. Choix en attente de la décision.
+Recommandation : **L**, ou **K** pour aller vite. **Retenue : J** (12 novembre 2026), contre cette recommandation : c'est la plus directe et la plus légère à l'œil ; ses limites (colonnes étroites, bloc très court) sont traitées dans la réalisation, voir ci-dessous.
 
 ## Écran
 
@@ -88,10 +89,15 @@ Grille de l'accueil : une colonne principale, une colonne de verre de 380 px à 
 - Quand la FTP change, un modèle en watts (`.erg`, `.mrc`) est relu avec la nouvelle valeur.
 - Chaque champ de puissance du bloc affiche, à côté du pourcentage, la valeur en watts (selon la FTP) ; elle suit la frappe.
 - La hauteur du profil suit la hauteur de la fenêtre (100 px mini). Sur une fenêtre basse, la page défile et la bibliothèque reste visible.
-- Téléphone en paysage : même disposition, réduite (bibliothèque de 260 px, libellé et description masqués) ; la page défile.
+- **Téléphone en paysage** (pointeur tactile, orientation paysage, hauteur de 460 px ou moins ; vérifié en émulation à 667 × 375, 800 × 360, 844 × 390 et 932 × 430 : aucun défilement) : même balisage et même logique que sur ordinateur, une autre disposition en CSS (`seances.css`, bloc final) et la couche de commandes de `renderOverlay()` dans `workout-editor.ts`.
+  - **Rail** de navigation à gauche (icônes et libellés de 9 px) ; en-tête réduit au titre (modifiable) avec son sous-titre (durée, charge, état), au chevron qui ouvre la **bibliothèque** en tiroir, au « ⋯ » (Enregistrer, Dupliquer pour modifier, Exporter .zwo, temps par zone) et à **Rouler**.
+  - **Commandes sur le bloc sélectionné** : une capsule verticale par puissance (+, valeur en % et en watts, −), une pastille de durée (pas de 15 s), un badge de répétitions pour un intervalle. La pastille se pose au-dessus de la barre, ou en haut du profil quand la barre monte trop haut ; les capsules passent alors dessous. Sur une montée ou une descente (échauffement, rampe, retour au calme), deux capsules, début et fin (une seule si le bloc est très étroit).
+  - **Sous le profil** : la bande de blocs, annuler et rétablir, « + » (ajouter un bloc après le bloc sélectionné) et « ⋯ » qui ouvre la **feuille des réglages du bloc** : l'inspecteur complet (durée de la récupération, cadence, déplacer, dupliquer, séparer, supprimer).
+  - Boutons en capsules de 28 px, zone tactile de 40 px (marge invisible). Un modèle (lecture seule) n'affiche pas de commandes sur le profil.
+  - Limites connues : la description d'une séance ne se modifie pas sur téléphone ; l'insertion d'un bloc à un endroit précis (les « + » entre blocs) n'existe pas, seul l'ajout après le bloc sélectionné ; la liste de la bibliothèque défile dans son tiroir ; un intervalle d'une seule répétition peut voir sa pastille de durée près du badge de répétitions.
 
 ## À faire
 
 - Glisser-déposer des blocs sur le profil (déjà au reste à faire du roadmap).
-- **Téléphone en paysage** : l'écran D défile aujourd'hui sur téléphone ; implémenter la disposition retenue parmi G, H, I (voir plus haut). Tester ensuite sur un vrai téléphone.
+- **Téléphone en paysage** : tester sur un vrai téléphone (gestes, zone tactile des capsules étroites de la récupération, encoche) ; décrire la séance et insérer un bloc à un endroit précis sur téléphone.
 - Les actions du bloc (cadence, avant, après, séparer) pourraient passer en menu si la colonne principale manque de largeur.

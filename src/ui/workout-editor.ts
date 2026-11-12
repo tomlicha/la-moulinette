@@ -106,6 +106,15 @@ export function setupWorkoutEditor(o: EditorOptions) {
   const insertDialog = $<HTMLDialogElement>('ed-insert');
   const cadenceDialog = $<HTMLDialogElement>('ed-cadence');
   const history = new UndoHistory<EditorBlock[]>();
+  const sea = document.querySelector<HTMLElement>('.sea')!;
+  const overlay = $('ed-over');
+  /** Téléphone en paysage : écran sans défilement, commandes posées sur le bloc (docs/design/seances.md, piste J). */
+  const PHONE = matchMedia('(pointer: coarse) and (orientation: landscape) and (max-height: 460px)');
+  /** Panneau ouvert sur téléphone : `lib` (bibliothèque), `more` (menu ⋯), `add`, `block` (réglages du bloc) ; vide : aucun. */
+  const setPanel = (p = '') => {
+    sea.dataset.panel = p;
+  };
+  setPanel();
 
   let draft: Draft | undefined;
   let selected = 0;
@@ -216,6 +225,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
 
   /** Clic dans la bibliothèque : la séance s'ouvre, et devient la séance choisie de l'application. */
   function pick(key: string) {
+    setPanel();
     if (key === keyOf(draft)) return;
     if (openKey(key)) o.onFocus(key);
   }
@@ -278,6 +288,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
    * Une séance sans modification suit le choix fait ailleurs (accueil, sortie).
    */
   function sync() {
+    setPanel();
     const want = o.currentChoice();
     if (draft && (isDirty() || !want || want === keyOf(draft))) {
       renderLibrary();
@@ -303,6 +314,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
     baseZones = unsaved ? undefined : timeInZones(w, ftp());
     nameIn.value = d.name;
     descIn.value = d.description;
+    setPanel();
     say();
     renderLibrary();
     render();
@@ -388,6 +400,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
     const stats = workoutStats(w, f);
     const zones = timeInZones(w, f);
     const ro = !!draft.readOnly;
+    $('ed-sub').textContent = `${fmtLong(stats.durationS)} · charge ${stats.load}${ro ? ' · lecture seule' : isDirty() ? ' · modifiée' : ''}`;
     $('ed-dirty').hidden = !isDirty();
     $('ed-readonly').hidden = !ro;
     $('ed-kicker').textContent = ro ? 'Modèle' : draft.id ? 'Mes séances' : 'Nouvelle séance';
@@ -400,8 +413,9 @@ export function setupWorkoutEditor(o: EditorOptions) {
     inspector.classList.toggle('ro', ro);
     const roReason = 'Un modèle est en lecture seule : duplique-le pour le modifier.';
     document.querySelectorAll<HTMLButtonElement>('[data-add]').forEach((b) => setBlocked(b, ro ? roReason : undefined));
-    setBlocked($<HTMLButtonElement>('ed-undo'), history.canUndo ? undefined : ro ? roReason : 'Rien à annuler pour l’instant.');
-    setBlocked($<HTMLButtonElement>('ed-redo'), history.canRedo ? undefined : ro ? roReason : 'Rien à rétablir : tu n’as rien annulé.');
+    for (const id of ['ed-undo', 'ed-undo2']) setBlocked($<HTMLButtonElement>(id), history.canUndo ? undefined : ro ? roReason : 'Rien à annuler pour l’instant.');
+    for (const id of ['ed-redo', 'ed-redo2']) setBlocked($<HTMLButtonElement>(id), history.canRedo ? undefined : ro ? roReason : 'Rien à rétablir : tu n’as rien annulé.');
+    for (const id of ['ed-add-btn', 'ed-bmenu-btn']) setBlocked($<HTMLButtonElement>(id), ro ? roReason : undefined);
     renderSummary(stats, zones);
     renderChart(w, f);
     renderStrip();
@@ -412,6 +426,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
     $('ed-errors').replaceChildren(...errors.map((e) => el('li', { textContent: e })));
     for (const id of ['ed-save', 'ed-export']) setBlocked($<HTMLButtonElement>(id), errors.length ? `À corriger d’abord : ${errors[0]}` : undefined);
     renderRide(errors);
+    renderOverlay();
   }
 
   /** « Rouler » attend une séance valide, puis un trainer connecté ; l'application rappelle quand la connexion change. */
@@ -649,7 +664,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
     const actions = el('div', { className: 'actions' });
     if (b.type !== 'free') {
       const c = b.cadenceRpm;
-      actions.append(button(c ? `Cadence : ${c} rpm…` : 'Cadence…', openCadence, 'secondary'));
+      actions.append(button(c ? `${c} rpm…` : 'Cadence…', openCadence, 'secondary'));
       actions.lastElementChild!.setAttribute('title', 'Cadence cible du bloc (facultative)');
     }
     actions.append(
@@ -712,7 +727,11 @@ export function setupWorkoutEditor(o: EditorOptions) {
 
     const sentence = el('p', { className: 'sentence', textContent: describeBlock(b, f) });
     if (b.type === 'intervals') sentence.title = `Les ${b.repeat} répétitions sont modifiées ensemble`;
-    inspector.replaceChildren(sentence, el('div', { className: 'ed-body' }, line, actions));
+    // Sur téléphone, l'inspecteur est une feuille (bouton ⋯ sous le profil) : titre et bouton Fermer en tête.
+    const close = el('button', { type: 'button', className: 'sheet-x', textContent: 'Fermer' });
+    close.dataset.openPanel = '';
+    const head = el('div', { className: 'sheet-head' }, el('strong', { textContent: `${BLOCK_LABEL[b.type]} · bloc ${selected + 1} sur ${draft!.blocks.length}` }), close);
+    inspector.replaceChildren(head, sentence, el('div', { className: 'ed-body' }, line, actions));
     if (active) inspector.querySelector<HTMLElement>(`[data-key="${active}"]`)?.focus();
   }
 
@@ -787,8 +806,11 @@ export function setupWorkoutEditor(o: EditorOptions) {
         const was = baseZones && baseZones[id] !== z[id] ? ` (avant : ${formatDuration(baseZones[id])})` : '';
         return el('li', { title: `${zoneName(id)}${was}` }, swatch, `${zoneName(id)} `, el('strong', { textContent: formatDuration(z[id]) }));
       });
-    $('ed-zones').title = zoneReading(z, formatDuration);
-    $('ed-zones').replaceChildren(el('span', { className: 'k', textContent: 'Zones' }), bar, el('ul', {}, ...items));
+    const parts = [el('span', { className: 'k', textContent: 'Zones' }), bar, el('ul', {}, ...items)];
+    for (const id of ['ed-zones', 'ed-zones-m']) {
+      $(id).title = zoneReading(z, formatDuration);
+      $(id).replaceChildren(...parts.map((n) => n.cloneNode(true)));
+    }
   }
 
   // --- Info-bulle et sélection sur le profil ---
@@ -843,9 +865,124 @@ export function setupWorkoutEditor(o: EditorOptions) {
     if (draft?.blocks.length) select(blockIndexAt(draft.blocks, timeAt(e)));
   });
 
+  // --- Commandes posées sur le bloc sélectionné (téléphone en paysage) ---
+
+  type PowerField = 'onPower' | 'offPower' | 'power' | 'from' | 'to';
+  const clampPower = (v: number) => Math.min(3, Math.max(0.05, Math.round(v * 100) / 100));
+
+  /** Ajuste d'un pas la puissance d'un champ du bloc sélectionné (même historique que l'inspecteur). */
+  function bump(field: PowerField, d: number) {
+    const b = draft?.blocks[selected] as unknown as Record<string, number> | undefined;
+    const current = b?.[field];
+    if (!draft || draft.readOnly || typeof current !== 'number') return;
+    commitSet((v) => {
+      (draft!.blocks[selected] as unknown as Record<string, number>)[field] = v;
+    }, clampPower(current + d));
+  }
+
+  /**
+   * Les commandes du bloc sélectionné sont dessinées sur le profil : un pas + / − par puissance (en % et en watts),
+   * une pastille de durée, un badge de répétitions. Les répétitions étant liées, on règle un seul motif.
+   * Seulement sur téléphone en paysage : ailleurs, l'inspecteur sous le profil porte les mêmes réglages.
+   */
+  function renderOverlay() {
+    overlay.replaceChildren();
+    if (!draft || draft.readOnly || !PHONE.matches) return;
+    const b = draft.blocks[selected];
+    const W = plot.clientWidth;
+    const H = plot.clientHeight;
+    if (!b || !W || !H) return;
+    const f = ftp();
+    const w = workout();
+    const peak = profilePeakW(w, f);
+    const total = w.steps.reduce((t, s) => t + s.durationS, 0) || 1;
+    const r = blockRanges(draft.blocks)[selected]!;
+    const px = (s: number) => (s / total) * W;
+    const topOf = (frac: number) => (1 - (frac * f) / peak) * H;
+    const put = (node: HTMLElement, cx: number, top: number, half: number) => {
+      node.style.left = `${Math.max(half, Math.min(W - half, cx))}px`;
+      node.style.top = `${Math.max(2, top)}px`;
+      overlay.append(node);
+    };
+    const step = (txt: string, label: string, run: () => void) => {
+      const x = el('button', { type: 'button', textContent: txt });
+      x.setAttribute('aria-label', label);
+      x.addEventListener('click', run);
+      return x;
+    };
+    /** Pastille de durée : au-dessus de la barre s'il y a la place, sinon en haut du profil ; les capsules passent alors dessous. */
+    const CHIP_ROOM = 34;
+    const capMin = (barTop: number) => (barTop >= CHIP_ROOM ? 0 : 32);
+    const cap = (field: PowerField, frac: number, cx: number, label: string, small = false, minTop = 0) => {
+      const node = el(
+        'div',
+        { className: `ov-cap${small ? ' sm' : ''}` },
+        step('+', `${label} plus 5 %`, () => bump(field, POWER_STEP)),
+        el('strong', { textContent: `${pct(frac)} %` }),
+        el('small', { textContent: `${Math.round(frac * f)} W` }),
+        step('−', `${label} moins 5 %`, () => bump(field, -POWER_STEP)),
+      );
+      put(node, cx, Math.min(Math.max(topOf(frac) + 3, minTop), H - (small ? 74 : 84)), 16);
+    };
+    /** Durée du bloc (l'effort pour des intervalles). */
+    const chip = (cx: number, seconds: number, barTop: number) => {
+      const node = el(
+        'div',
+        { className: 'ov-chip' },
+        step('−', 'Durée moins 15 s', () => updateSelected((x) => nudgeDuration(x, -DURATION_STEP_S))),
+        el('strong', { textContent: formatDuration(seconds) }),
+        step('+', 'Durée plus 15 s', () => updateSelected((x) => nudgeDuration(x, DURATION_STEP_S))),
+      );
+      put(node, cx, barTop >= CHIP_ROOM ? barTop - 30 : 2, 52);
+    };
+    const x0 = px(r.start);
+    switch (b.type) {
+      case 'intervals': {
+        const onW = px(b.onS);
+        const barTop = topOf(b.onPower);
+        cap('onPower', b.onPower, x0 + onW / 2, 'Effort', false, capMin(barTop));
+        cap('offPower', b.offPower, x0 + onW + px(b.offS) / 2, 'Récupération', true);
+        chip(x0 + onW / 2, b.onS, barTop);
+        const reps = el(
+          'div',
+          { className: 'ov-chip ov-reps' },
+          step('−', 'Une répétition de moins', () => updateSelected((x) => (x.type === 'intervals' ? { ...x, repeat: Math.max(1, x.repeat - 1) } : x))),
+          el('strong', { textContent: `× ${b.repeat}` }),
+          step('+', 'Une répétition de plus', () => updateSelected((x) => (x.type === 'intervals' ? { ...x, repeat: Math.min(50, x.repeat + 1) } : x))),
+        );
+        put(reps, px(r.end) - 48, 4, 44);
+        break;
+      }
+      case 'steady':
+        cap('power', b.power, x0 + px(b.durationS) / 2, 'Puissance', false, capMin(topOf(b.power)));
+        chip(x0 + px(b.durationS) / 2, b.durationS, topOf(b.power));
+        break;
+      case 'warmup':
+      case 'cooldown':
+      case 'ramp': {
+        const bw = px(b.durationS);
+        const barTop = Math.min(topOf(b.from), topOf(b.to));
+        if (bw >= 64) cap('from', b.from, x0 + bw * 0.22, 'Début', true, capMin(barTop));
+        cap('to', b.to, x0 + (bw >= 64 ? bw * 0.78 : bw / 2), 'Fin', true, capMin(barTop));
+        chip(x0 + bw / 2, b.durationS, barTop);
+        break;
+      }
+      case 'free':
+        chip(x0 + px(b.durationS) / 2, b.durationS, 0);
+        break;
+    }
+  }
+  overlay.addEventListener('click', (e) => e.stopPropagation());
+  new ResizeObserver(() => renderOverlay()).observe(plot);
+  PHONE.addEventListener('change', () => {
+    setPanel();
+    renderOverlay();
+  });
+
   // --- Clavier ---
 
   document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && sea.dataset.panel && editor.offsetParent !== null) setPanel();
     if (!draft || editor.offsetParent === null || isTyping(e.target) || isElsewhere(e.target)) return;
     const ctrl = e.ctrlKey || e.metaKey;
     if (ctrl && e.key.toLowerCase() === 'z') {
@@ -962,10 +1099,20 @@ export function setupWorkoutEditor(o: EditorOptions) {
       if (!draft) return;
       // Ajouté après le bloc sélectionné : c'est là que l'utilisateur regarde.
       insertBlock(b.dataset.add as BlockType, draft.blocks.length ? selected + 1 : 0);
+      setPanel();
     }),
   );
   $('ed-undo').addEventListener('click', undo);
   $('ed-redo').addEventListener('click', redo);
+  $('ed-undo2').addEventListener('click', undo);
+  $('ed-redo2').addEventListener('click', redo);
+  // Boutons de panneau (téléphone) : un second tap referme ; le voile referme aussi.
+  sea.addEventListener('click', (e) => {
+    const t = (e.target as HTMLElement).closest<HTMLElement>('[data-open-panel]');
+    if (!t) return;
+    const next = t.dataset.openPanel ?? '';
+    setPanel(next && sea.dataset.panel === next ? '' : next);
+  });
   $('lib-new').addEventListener('click', () =>
     open({ name: 'Nouvelle séance', description: '', blocks: [defaultBlock('warmup'), defaultBlock('intervals'), defaultBlock('cooldown')] }, true),
   );
@@ -977,8 +1124,14 @@ export function setupWorkoutEditor(o: EditorOptions) {
     if (f) openFromWorkoutFile(f.name, await f.text());
     importIn.value = '';
   });
-  $('ed-save').addEventListener('click', () => void save());
-  $('ed-copy').addEventListener('click', duplicateModel);
+  $('ed-save').addEventListener('click', () => {
+    setPanel();
+    void save();
+  });
+  $('ed-copy').addEventListener('click', () => {
+    setPanel();
+    duplicateModel();
+  });
   $('ed-ride').addEventListener('click', () => {
     if (!draft) return;
     if (draft.readOnly) return o.onRide(`sample:${draft.sampleId}`);
@@ -986,6 +1139,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
     if (id) o.onRide(`lib:${id}`);
   });
   $('ed-export').addEventListener('click', () => {
+    setPanel();
     if (draft) download(`${slug(draft.name)}.zwo`, toZwo(draft.name, draft.description, draft.blocks));
   });
   addEventListener('beforeunload', (e) => {
