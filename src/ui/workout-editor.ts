@@ -418,6 +418,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
     const roReason = 'Un modèle est en lecture seule : duplique-le pour le modifier.';
     for (const id of ['ed-undo', 'ed-undo2']) setBlocked($<HTMLButtonElement>(id), history.canUndo ? undefined : ro ? roReason : 'Rien à annuler pour l’instant.');
     for (const id of ['ed-redo', 'ed-redo2']) setBlocked($<HTMLButtonElement>(id), history.canRedo ? undefined : ro ? roReason : 'Rien à rétablir : tu n’as rien annulé.');
+    setBlocked($<HTMLButtonElement>('ed-del'), ro ? roReason : draft.blocks.length ? undefined : 'Aucun bloc à supprimer.');
     renderSummary(stats, zones);
     renderChart(w, f);
     renderBlockBar();
@@ -1505,6 +1506,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
 
   $('ed-undo').addEventListener('click', undo);
   $('ed-redo').addEventListener('click', redo);
+  $('ed-del').addEventListener('click', deleteSelected); // téléphone : sans passer par le menu « ⋯ » (annulable)
   $('ed-undo2').addEventListener('click', undo);
   $('ed-redo2').addEventListener('click', redo);
   // Boutons de panneau (téléphone) : un second tap referme ; le voile referme aussi.
