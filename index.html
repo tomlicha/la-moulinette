@@ -308,9 +308,13 @@
                 </div>
               </details>
 
+              <section class="rm-sec" aria-labelledby="rm-view-t">
+                <h3 id="rm-view-t">Affichage</h3>
+                <label class="rm-switch"><span>Statistiques de rendu <small>images/s, temps d'image, triangles</small></span><input id="view-stats-toggle" type="checkbox" role="switch" /></label>
+              </section>
+
               <details class="rm-sec rm-fold">
-                <summary>Rendu 3D</summary>
-                <label class="rm-check"><input id="view-stats-toggle" type="checkbox" /> Afficher les statistiques de rendu</label>
+                <summary>Moteur de rendu</summary>
                 <p class="note">
                   <a href="?renderer=webgl2">Forcer WebGL2</a> · <a href="?">WebGPU si disponible</a> ·
                   <a href="?quality=low">Qualité réduite</a><br />
