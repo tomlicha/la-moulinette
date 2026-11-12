@@ -4,7 +4,7 @@ Référence permanente de l'écran **Séances** : bibliothèque et éditeur sur 
 
 - Code : [`src/ui/workout-editor.ts`](../../src/ui/workout-editor.ts) (bibliothèque et éditeur), [`src/ui/seances.css`](../../src/ui/seances.css) (style), balisage dans [`index.html`](../../index.html) (`data-view="seances"`), branchement dans [`src/main.ts`](../../src/main.ts) (`setupWorkoutEditor`).
 - Logique pure, testée : [`src/workout/`](../../src/workout/) (`blocks.ts`, `block-ops.ts`, `history.ts`, `zones.ts`, `library.ts`), inchangée par la refonte.
-- Maquettes (claude.ai), dans l'ordre : [tour 1, propositions A, B, C](https://claude.ai/artifact/2EYqkdcgcbfVNsmUkBJfLr) ; [tour 2, fusions D, E, F](https://claude.ai/artifact/9RCni2a8hDKeM26PUyM62Y) ; [tour 3, téléphone en paysage, G, H, I](https://claude.ai/artifact/TDiP7b83DzsLPigxce9kPE) ; [tour 4, commandes sur le bloc, J, K, L](https://claude.ai/artifact/FS16DyG1wruUcz99zDuHTX). Retenue pour l'ordinateur : **D · Miroir de l'accueil**. Pour le téléphone en paysage : **J · Dans la barre** (voir « Téléphone en paysage »), livrée le 12 novembre 2026.
+- Maquettes (claude.ai), dans l'ordre : [tour 1, propositions A, B, C](https://claude.ai/artifact/2EYqkdcgcbfVNsmUkBJfLr) ; [tour 2, fusions D, E, F](https://claude.ai/artifact/9RCni2a8hDKeM26PUyM62Y) ; [tour 3, téléphone en paysage, G, H, I](https://claude.ai/artifact/TDiP7b83DzsLPigxce9kPE) ; [tour 4, commandes sur le bloc, J, K, L](https://claude.ai/artifact/FS16DyG1wruUcz99zDuHTX) ; [tour 5, bibliothèque de blocs préfaits, P, Q, R](https://claude.ai/artifact/4LjWhBFhSY2jaJKc26na9Q). Retenue pour l'ordinateur : **D · Miroir de l'accueil**. Pour le téléphone en paysage : **J · Dans la barre** (voir « Téléphone en paysage »), livrée le 12 novembre 2026.
 
 ## Décisions
 
@@ -70,6 +70,22 @@ Planche : [tour 4, J, K, L](https://claude.ai/artifact/FS16DyG1wruUcz99zDuHTX), 
 | L · Zoom sur une répétition | Toucher un intervalle zoome le profil sur une répétition (effort puis récupération) ; les barres, devenues larges, portent leurs commandes à l'horizontale (puissance et durée) ; badge de répétitions ; la bande de blocs reste la vue d'ensemble. | Cibles de 32 à 36 px sur tout bloc, même court (il est agrandi) ; les cinq champs sur le bloc ; bonne échelle de détail. | Perte de la vue d'ensemble pendant l'édition ; le plus de travail (fenêtre de zoom, transitions, repères) ; changement d'échelle à chaque bloc touché. |
 
 Recommandation : **L**, ou **K** pour aller vite. **Retenue : J** (12 novembre 2026), contre cette recommandation : c'est la plus directe et la plus légère à l'œil ; ses limites (colonnes étroites, bloc très court) sont traitées dans la réalisation, voir ci-dessous.
+
+### Tour 5 : bibliothèque de blocs préfaits (maquettes, choix en attente)
+
+**Constat (12 novembre 2026).** L'ajout d'un bloc propose six boutons génériques (Échauffement, Palier, Intervalles, Rampe, Libre, Retour au calme) : chacun insère un bloc par défaut à retoucher, toujours après le bloc sélectionné, sans aperçu. Demande : refondre cette partie en vraie **bibliothèque de blocs préfaits**, placée autrement si utile.
+
+Principes communs : des blocs d'entraînement qui ont un sens (Sweet spot 2×20, VO2 5×4, 30/30 × 10, échauffement avec accélérations), rangés par type et donc par zone de couleur ; **voir avant d'ajouter** (cadre en pointillés sur le profil, durée de la séance mise à jour) ; **choisir la place** (après le bloc sélectionné, ou en glissant) ; **Mes blocs** (« Enregistrer comme bloc » dans le menu ⋯ du bloc) ; les blocs vierges (palier, rampe, libre) restent disponibles.
+
+Planche : [tour 5, P, Q, R](https://claude.ai/artifact/4LjWhBFhSY2jaJKc26na9Q), fenêtre de 800 × 360 px sur l'écran actuel.
+
+| Piste | Principe | Pour | Contre |
+|---|---|---|---|
+| P · Tiroir « Blocs » | Panneau à droite du profil (onglets Prêts et Mes blocs, types en pastilles, liste avec profil, durée, intensité). « + » ajoute après le bloc sélectionné ; on peut aussi glisser un bloc sur le profil (cadre en pointillés et repère). | Même geste que le déplacement des blocs ; le profil reste visible ; sur ordinateur, onglet « Blocs » à côté de la bibliothèque de séances. | Le profil perd environ 300 px de large le temps du choix ; cinq blocs visibles à la fois ; glisser depuis un tiroir est un geste plus long qu'un tap. |
+| Q · Palette par zone, avec aperçu | Feuille du bas avec onglets de couleur et cartes à grand profil ; toucher une carte affiche l'aperçu en pointillés et une barre de confirmation (Ajouter après le bloc 3, Autre place, Annuler). | On voit le résultat et la durée avant de valider ; grandes cartes ; le profil garde sa largeur. | Un tap de plus par ajout ; la feuille couvre la barre du bloc ; « Autre place » demande un second mode. |
+| R · Saisie rapide en texte | « + » ouvre une ligne de commande à la place de l'en-tête (`5x 4' 120% r 4' 50%`), résumé reformulé, aperçu en pointillés, suggestions en pastilles. | La plus rapide pour qui connaît ses séances ; les suggestions servent de bibliothèque ; ligne en haut, là où le clavier laisse de la place. | Mini-syntaxe à apprendre, clavier à l'écran ; moins de découverte ; analyseur de texte à écrire et à tester. |
+
+Recommandation : **P, avec l'aperçu de Q** (le cadre apparaît dès qu'on glisse un bloc) ; R en complément plus tard. Choix en attente de la décision.
 
 ## Écran
 
