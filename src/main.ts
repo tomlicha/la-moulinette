@@ -19,6 +19,9 @@ import { formatDuration } from './ui/duration';
 import { setBlocked, setupBlockedHints, type BlockReason } from './ui/blocked';
 import { setupRouter } from './ui/router';
 import { setupWorkoutEditor } from './ui/workout-editor';
+import { RideHud } from './ui/hud';
+import { ClimbCounter, PowerAverage } from './ui/hud-model';
+import type { RideSnapshot } from './sim/ride';
 import { blocksToWorkout } from './workout/blocks';
 import { WorkoutLibrary } from './workout/library';
 import { SAMPLE_WORKOUTS } from './workout/samples';
@@ -52,7 +55,6 @@ const gradeInput = $<HTMLInputElement>('grade');
 const hub = new SensorHub();
 let trainer: TrainerAdapter | undefined;
 let hrMonitor: HeartRateMonitor | undefined;
-let frames = 0;
 
 /** Au-delà de ce délai sans mesure de puissance, le cycliste est considéré à l'arrêt dans la simulation. */
 const POWER_STALE_MS = 3000;
@@ -66,14 +68,17 @@ let rideTimer: ReturnType<typeof setInterval> | undefined;
 let lastTick = 0;
 let lastPower = { w: 0, at: 0 };
 let lastCadence = { rpm: 0, at: 0 };
-let lastMeasurementAt = 0;
+let lastHr = { bpm: 0, at: 0 };
+let lastSpeed = { kmh: 0, at: 0 };
+/** Puissance moyenne sur 3 s et dénivelé positif, pour le HUD. */
+const power3s = new PowerAverage();
+const climb = new ClimbCounter();
+let lastRide: RideSnapshot | undefined;
+let lastWoState: WorkoutState | undefined;
 let view: RideView | undefined;
 let currentState: ConnectionState = 'disconnected';
 
 const hex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, '0')).join(' ');
-const show = (id: string, v: number | undefined, digits = 0) => {
-  $(id).textContent = v === undefined ? '–' : v.toFixed(digits);
-};
 
 function log(msg: string) {
   const ts = new Date().toLocaleTimeString('fr-FR');
@@ -159,15 +164,11 @@ hub.on('raw', (src, data) => {
   if (src !== 'Indoor Bike Data' && src !== 'Heart Rate' && src !== 'Cycling Power') log(`${src} : ${hex(data)}`);
 });
 hub.on('measurement', (m) => {
-  frames++;
-  lastMeasurementAt = performance.now();
   if (m.powerW !== undefined) lastPower = { w: m.powerW, at: performance.now() };
   if (m.cadenceRpm !== undefined) lastCadence = { rpm: m.cadenceRpm, at: performance.now() };
-  show('m-power', m.powerW);
-  show('m-cadence', m.cadenceRpm);
-  show('m-speed', m.speedKmh, 1);
-  show('m-hr', m.heartRateBpm);
-  show('m-distance', m.distanceM);
+  if (m.powerW !== undefined) power3s.push(m.powerW, performance.now());
+  if (m.heartRateBpm !== undefined) lastHr = { bpm: m.heartRateBpm, at: performance.now() };
+  if (m.speedKmh !== undefined) lastSpeed = { kmh: m.speedKmh, at: performance.now() };
 });
 
 const fmtTime = (s: number) => formatDuration(Math.floor(s));
@@ -179,16 +180,13 @@ function tickRide() {
   const s = ride.advance((now - lastTick) / 1000, power);
   exporter.onRide(s);
   lastTick = now;
+  lastRide = s;
+  climb.add(s.altitudeM);
   view?.setState({
     distanceM: s.distanceM,
     speedKmh: s.speedKmh,
     cadenceRpm: now - lastCadence.at > POWER_STALE_MS ? 0 : lastCadence.rpm,
   });
-  show('r-speed', s.speedKmh, 1);
-  show('r-dist', s.distanceM / 1000, 2);
-  show('r-grade', s.gradePct, 1);
-  show('r-alt', s.altitudeM);
-  $('r-time').textContent = fmtTime(s.elapsedS);
 
   if (currentState === 'connected' && trainer?.capabilities.simulation && !ergActive && throttle.shouldSend(s.gradePct, now)) {
     throttle.markSent(s.gradePct, now);
@@ -209,6 +207,8 @@ function setErgActive(on: boolean) {
 function startRide() {
   const massKg = Number(massInput.value) || DEFAULT_RIDER.massKg;
   ride = new Ride(DEMO_ROUTE, { ...DEFAULT_RIDER, massKg });
+  lastRide = ride.snapshot();
+  climb.reset();
   throttle.reset();
   lastTick = performance.now();
   rideTimer = setInterval(tickRide, 100);
@@ -345,8 +345,6 @@ const woHarder = $<HTMLButtonElement>('wo-harder');
 const woShapes = $('wo-shapes');
 const PROFILE_W = 1000;
 const PROFILE_H = 120;
-/** Écart toléré entre puissance mesurée et consigne avant de l'afficher comme hors cible. */
-const ON_TARGET_W = 10;
 const FTP_KEY = 'zwift2.ftp';
 
 const follower = new ErgFollower();
@@ -454,35 +452,19 @@ function chooseWorkout(value: string) {
 }
 
 function renderWorkout(s: WorkoutState | undefined) {
+  lastWoState = s;
   const cursor = $('wo-cursor');
   const x = s ? (s.elapsedS / (s.totalS || 1)) * PROFILE_W : 0;
   cursor.setAttribute('x1', String(x));
   cursor.setAttribute('x2', String(x));
   woShapes.querySelectorAll('path').forEach((p, i) => p.classList.toggle('past', !!s && i < s.stepIndex));
 
-  const delta = $('wo-delta');
-  delta.className = '';
   const msg = $('wo-message');
   if (!s) {
-    for (const id of ['wo-target', 'wo-step-left', 'wo-left']) $(id).textContent = '–';
-    delta.textContent = '–';
-    $('wo-step-label').textContent = 'palier';
     $('wo-next').textContent = '';
     msg.hidden = true;
     return;
   }
-  $('wo-target').textContent = s.targetW === undefined ? 'libre' : String(s.targetW);
-  const powerFresh = performance.now() - lastPower.at <= POWER_STALE_MS;
-  if (s.targetW !== undefined && powerFresh) {
-    const d = Math.round(lastPower.w - s.targetW);
-    delta.textContent = `${d > 0 ? '+' : ''}${d} W`;
-    delta.className = Math.abs(d) <= ON_TARGET_W ? 'ok' : 'off';
-  } else {
-    delta.textContent = '–';
-  }
-  $('wo-step-left').textContent = fmtTime(s.stepRemainingS);
-  $('wo-step-label').textContent = `${STEP_LABEL[s.step.kind]}${s.step.cadenceRpm ? ` · ${s.step.cadenceRpm} rpm` : ''}`;
-  $('wo-left').textContent = fmtTime(s.totalS - s.elapsedS);
   $('wo-next').textContent = s.next
     ? `Ensuite : ${STEP_LABEL[s.next.kind]}, ${s.nextTargetW === undefined ? 'libre' : `${s.nextTargetW} W`}, ${fmtTime(s.next.durationS)}`
     : 'Dernier palier';
@@ -731,14 +713,6 @@ const exporter = setupExport({
   log,
 });
 
-setInterval(() => {
-  show('m-rate', frames);
-  frames = 0;
-  // Capteur muet : mieux vaut un tiret que la dernière valeur affichée comme si elle était actuelle.
-  if (lastMeasurementAt && performance.now() - lastMeasurementAt > POWER_STALE_MS) {
-    for (const id of ['m-power', 'm-cadence', 'm-speed', 'm-hr']) show(id, undefined);
-  }
-}, 1000);
 
 if (webBluetoothAvailable()) {
   $('support').textContent = 'Web Bluetooth disponible.';
@@ -748,6 +722,27 @@ if (webBluetoothAvailable()) {
 }
 
 const params = new URLSearchParams(location.search);
+
+// HUD posé sur la vue 3D (docs/design/hud.md). En qualité réduite, panneaux sans flou.
+const hud = new RideHud($('hud'), DEMO_ROUTE, { flat: params.get('quality') === 'low' });
+const fresh = (at: number) => performance.now() - at <= POWER_STALE_MS;
+function renderHud() {
+  if (router.current() !== 'sortie') return;
+  hud.update({
+    powerW: power3s.value(performance.now()),
+    heartRateBpm: fresh(lastHr.at) ? lastHr.bpm : undefined,
+    cadenceRpm: fresh(lastCadence.at) ? lastCadence.rpm : undefined,
+    // Pendant la sortie, la vitesse virtuelle (celle qui fait avancer la vue) ; sinon celle mesurée par le trainer.
+    speedKmh: ride && lastRide ? lastRide.speedKmh : fresh(lastSpeed.at) ? lastSpeed.kmh : undefined,
+    ftpW: runner?.ftpW ?? readFtp(),
+    ride: ride && lastRide ? { snapshot: lastRide, climbM: climb.total } : undefined,
+    workout: runner && lastWoState ? { workout: runner.workout, state: lastWoState, ftpW: runner.ftpW } : undefined,
+    control: ergActive ? 'erg' : ride && trainer?.capabilities.simulation ? 'sim' : undefined,
+    trainerConnected: roleState.trainer === 'connected',
+    heartRateConnected: roleState.hr === 'connected',
+  });
+}
+setInterval(renderHud, 250);
 RideView.create($<HTMLCanvasElement>('view'), DEMO_ROUTE, {
   forceWebGL: params.get('renderer') === 'webgl2',
   quality: params.get('quality') === 'low' ? 'low' : 'high',

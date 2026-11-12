@@ -67,20 +67,12 @@
         </p>
         <section class="view">
           <canvas id="view"></canvas>
+          <div id="hud"></div>
           <div id="view-stats" class="view-stats">rendu : initialisation…</div>
           <p class="note">
             Rendu : <a href="?renderer=webgl2">forcer WebGL2</a> · <a href="?">WebGPU si disponible</a> ·
             <a href="?quality=low">qualité réduite</a> (recharge la page et repasse par les appareils)
           </p>
-        </section>
-
-        <section class="metrics">
-          <div><span id="m-power">–</span><label>W</label></div>
-          <div><span id="m-cadence">–</span><label>rpm</label></div>
-          <div><span id="m-speed">–</span><label>km/h</label></div>
-          <div><span id="m-hr">–</span><label>bpm</label></div>
-          <div><span id="m-distance">–</span><label>m</label></div>
-          <div><span id="m-rate">–</span><label>trames/s</label></div>
         </section>
 
         <section>
@@ -90,13 +82,6 @@
             <input id="mass" type="number" min="30" max="200" step="1" value="80" />
             <span>kg</span>
             <button id="ride-toggle" disabled>Démarrer la sortie</button>
-          </div>
-          <div class="metrics">
-            <div><span id="r-speed">–</span><label>km/h virtuels</label></div>
-            <div><span id="r-dist">–</span><label>km</label></div>
-            <div><span id="r-grade">–</span><label>% pente</label></div>
-            <div><span id="r-alt">–</span><label>m altitude</label></div>
-            <div><span id="r-time">–</span><label>temps</label></div>
           </div>
           <p class="note">La puissance mesurée fait avancer le modèle physique ; la pente du parcours est envoyée au trainer en mode SIM.</p>
         </section>
@@ -125,12 +110,6 @@
             <button id="wo-easier" class="secondary" disabled aria-label="Intensité moins 5 %">−5 %</button>
             <span id="wo-intensity">100 %</span>
             <button id="wo-harder" class="secondary" disabled aria-label="Intensité plus 5 %">+5 %</button>
-          </div>
-          <div class="metrics">
-            <div><span id="wo-target">–</span><label>W visés</label></div>
-            <div><span id="wo-delta">–</span><label>écart mesuré</label></div>
-            <div><span id="wo-step-left">–</span><label id="wo-step-label">palier</label></div>
-            <div><span id="wo-left">–</span><label>reste de la séance</label></div>
           </div>
           <p id="wo-next" class="note"></p>
           <p id="wo-message" class="wo-message" hidden></p>

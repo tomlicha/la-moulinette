@@ -1,0 +1,114 @@
+/*
+ * HUD de la sortie, posé sur la vue 3D. Spécification : docs/design/hud.md.
+ * Mis en page dans un repère fixe 1280 × 720, mis à l'échelle de la vue par --hud-s, widgets à 90 % (--hud-k).
+ * Verre dépoli : le décor derrière chaque panneau est flouté, d'où un contraste stable même devant un ciel clair.
+ * Couleurs fixes (indépendantes du thème de la page) : le HUD est toujours posé sur la scène.
+ */
+.hud {
+  --hud-panel: rgba(24, 30, 40, .70);
+  --hud-panel-flat: rgba(24, 30, 40, .84);
+  --hud-fg: #FFFFFF;
+  --hud-muted: #D3DCE8;
+  --hud-off: rgba(255, 255, 255, .35);
+  --hud-ink: #0B1422;
+  --hud-accent: #5BE3C9;
+  --hud-track: rgba(255, 255, 255, .16);
+  --hud-divider: rgba(255, 255, 255, .14);
+  --hud-relief: #66758B;
+  --hud-relief-line: #DDE6F0;
+  --hud-edge: rgba(255, 255, 255, .14);
+  --hud-shadow: 0 8px 28px rgba(5, 10, 20, .25);
+  --hud-blur: blur(16px) saturate(1.3);
+  --hud-k: .9;
+  /* Zones de la planche de style : mêmes teintes de jour comme de nuit, la scène ne change pas avec le thème. */
+  --hz1: #8C99A8; --hz2: #3B82D6; --hz3: #2FA36B; --hz4: #F2C230; --hz5: #F08A3C; --hz6: #B8322C;
+  --hud-num: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
+  --hud-text: Barlow, system-ui, sans-serif;
+
+  /* Même boîte que le canevas (pleine largeur, 16:9), pas tout le bloc .view qui contient aussi la note en dessous. */
+  position: absolute; left: 0; top: 0; width: 100%; aspect-ratio: 16 / 9;
+  overflow: hidden; border-radius: 10px; pointer-events: none;
+}
+.hud-stage {
+  position: absolute; left: 0; top: 0; width: 1280px; height: 720px;
+  transform-origin: 0 0; transform: scale(var(--hud-s, .5));
+  color: var(--hud-fg); font: 500 16px/1.25 var(--hud-text);
+}
+
+.hud-p {
+  position: absolute; box-sizing: border-box; border-radius: 14px;
+  background: var(--hud-panel); border: 1px solid var(--hud-edge); box-shadow: var(--hud-shadow);
+  -webkit-backdrop-filter: var(--hud-blur); backdrop-filter: var(--hud-blur);
+  display: flex; flex-direction: column; transform: scale(var(--hud-k));
+}
+/* Qualité réduite ou navigateur sans flou : même teinte, plus opaque. */
+.hud.flat .hud-p { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--hud-panel-flat); }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .hud-p { background: var(--hud-panel-flat); }
+}
+
+.hud-left { left: 64px; top: 36px; width: 250px; padding: 14px 16px; gap: 6px; transform-origin: 0 0; }
+.hud-center { left: 340px; top: 36px; width: 600px; padding: 14px 20px; gap: 10px; transform-origin: 50% 0; }
+.hud-bottom { left: 64px; top: 596px; width: 1152px; height: 90px; padding: 10px 20px; justify-content: center; transform-origin: 50% 100%; }
+
+/* Ce qui s'affiche selon l'état : sortie libre (ou pas encore démarrée), séance. */
+.hud:not([data-mode='ride']) [data-when='ride'],
+.hud:not([data-mode='workout']) [data-when='workout'],
+.hud[data-mode='workout'] [data-when='not-workout'] { display: none !important; }
+
+.hud .lab, .hud .u { font-size: 16px; color: var(--hud-muted); }
+.hud .u { font-weight: 500; }
+.hud .n { font-family: var(--hud-num); font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px rgba(5, 10, 20, .35); }
+.hud .row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.hud .col { display: flex; flex-direction: column; }
+.hud .title { font-size: 18px; font-weight: 700; }
+.hud .divider { width: 1px; align-self: stretch; background: var(--hud-divider); }
+
+.hud-power { display: flex; align-items: center; gap: 20px; }
+.hud-power-main { width: 176px; flex: none; gap: 4px; }
+.hud-power-main .n { font-size: 76px; font-weight: 700; line-height: .92; }
+.hud-power-main .unit { font-size: 24px; font-weight: 600; }
+.hud-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; flex: 1; min-width: 0; }
+.hud-metrics .n { font-size: 38px; }
+.hud-metrics .col { gap: 2px; }
+
+.hud-pill { display: inline-block; font-size: 16px; font-weight: 700; color: var(--hud-ink); background: var(--hud-track); border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+.hud-chip { display: inline-block; font-size: 16px; font-weight: 700; color: var(--hud-ink); background: var(--hud-accent); border-radius: 6px; padding: 2px 10px; letter-spacing: .04em; white-space: nowrap; }
+.hud-pill[data-z='z1'], .hud-fill[data-z='z1'] { background: var(--hz1); }
+.hud-pill[data-z='z2'], .hud-fill[data-z='z2'] { background: var(--hz2); }
+.hud-pill[data-z='z3'], .hud-fill[data-z='z3'] { background: var(--hz3); }
+.hud-pill[data-z='z4'], .hud-fill[data-z='z4'] { background: var(--hz4); }
+.hud-pill[data-z='z5'], .hud-fill[data-z='z5'] { background: var(--hz5); }
+.hud-pill[data-z='z6'], .hud-fill[data-z='z6'] { background: var(--hz6); color: var(--hud-fg); }
+.hud-pill[data-z=''] { color: var(--hud-fg); }
+.hud-zfg[data-z='z1'] { color: var(--hz1); } .hud-zfg[data-z='z2'] { color: var(--hz2); }
+.hud-zfg[data-z='z3'] { color: var(--hz3); } .hud-zfg[data-z='z4'] { color: var(--hz4); }
+.hud-zfg[data-z='z5'] { color: var(--hz5); } .hud-zfg[data-z='z6'] { color: var(--hz6); }
+
+.hud-prog { position: relative; height: 8px; border-radius: 4px; background: var(--hud-track); overflow: hidden; }
+.hud-prog .hud-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 4px; background: var(--hz4); transition: width .25s linear; }
+
+.hud-zbar { position: relative; height: 22px; }
+.hud-zbar .segs { position: absolute; left: 0; right: 0; top: 7px; height: 8px; display: flex; gap: 2px; }
+.hud-zbar .segs span { height: 100%; border-radius: 2px; opacity: .55; }
+.hud-zbar .band { position: absolute; top: 3px; height: 16px; box-sizing: border-box; border-radius: 4px; border: 2px solid var(--hz4); background: rgba(242, 194, 48, .25); }
+.hud-zbar .mark { position: absolute; top: 0; width: 4px; height: 22px; margin-left: -2px; border-radius: 2px; background: var(--hud-fg); transition: left .4s ease-out; }
+
+.hud-dots { display: flex; gap: 12px; color: var(--hud-muted); white-space: nowrap; }
+.hud-dots b { font-weight: 400; color: var(--hud-off); }
+.hud-dots b.on { color: var(--hud-accent); }
+
+.hud svg { display: block; overflow: visible; }
+.hud .relief { fill: var(--hud-relief); }
+.hud .relief-done { fill: var(--hud-accent); fill-opacity: .8; }
+.hud .relief-line { fill: none; stroke: var(--hud-relief-line); stroke-width: 1.5; }
+.hud .summit { stroke: var(--hud-fg); stroke-opacity: .7; stroke-width: 1.5; stroke-dasharray: 3 3; }
+.hud .cursor { stroke: var(--hud-fg); stroke-width: 2; }
+.hud .wo-cursor { stroke: var(--hud-fg); stroke-width: 3; }
+.hud .dot { fill: var(--hud-fg); stroke: var(--hud-accent); stroke-width: 2.5; }
+.hud .z1 { fill: var(--hz1); } .hud .z2 { fill: var(--hz2); } .hud .z3 { fill: var(--hz3); }
+.hud .z4 { fill: var(--hz4); } .hud .z5 { fill: var(--hz5); } .hud .z6 { fill: var(--hz6); }
+.hud .free { fill: var(--hud-relief); }
+.hud path.past { opacity: .45; }
+
+@media (prefers-reduced-motion: reduce) { .hud-prog .hud-fill, .hud-zbar .mark { transition: none; } }
