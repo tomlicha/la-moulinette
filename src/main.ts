@@ -382,6 +382,8 @@ const homeWoStart = $<HTMLButtonElement>('home-wo-start');
 const homeRideBtn = $<HTMLButtonElement>('home-ride');
 // Fond de l'accueil : trois scènes qui se relaient toutes les minutes.
 setupHomeBackground($('home-scenes'), $('home-title'), $('home-desc'));
+// L'écran Séances a le même fond, sans titre ni description.
+setupHomeBackground($('sea-scenes'));
 const PROFILE_W = 1000;
 const PROFILE_H = 120;
 const FTP_KEY = 'zwift2.ftp';
@@ -406,19 +408,26 @@ try {
 }
 const readFtp = () => (Number(woFtp.value) >= 50 ? Number(woFtp.value) : 200);
 
-function refreshWorkoutButtons() {
+/** Appelé par l'écran Séances quand « Rouler » doit se remettre à jour (affecté une fois l'éditeur créé). */
+let refreshEditorRide: (() => void) | undefined;
+
+/** Ce qui empêche de démarrer une séance, hors le choix de la séance : séance déjà en cours, trainer absent ou sans ERG. */
+function workoutStartBlock(): string | BlockReason | undefined {
   const canErg = currentState === 'connected' && !!trainer?.capabilities.targetPower;
-  const startReason = runner
+  return runner
     ? 'La séance est déjà en cours.'
-    : !workout
-      ? 'Choisis d’abord une séance dans la liste.'
-      : currentState !== 'connected'
-        ? needTrainer('La séance pilote la résistance de ton home trainer : connecte-le d’abord.')
-        : !canErg
-          ? noControl('mode ERG')
-          : undefined;
+    : currentState !== 'connected'
+      ? needTrainer('La séance pilote la résistance de ton home trainer : connecte-le d’abord.')
+      : !canErg
+        ? noControl('mode ERG')
+        : undefined;
+}
+
+function refreshWorkoutButtons() {
+  const startReason = !workout && !runner ? 'Choisis d’abord une séance dans la liste.' : workoutStartBlock();
   setBlocked(woStart, startReason);
   setBlocked(homeWoStart, startReason);
+  refreshEditorRide?.();
   for (const b of [woPause, woSkip, woStop, woEasier, woHarder]) setBlocked(b, runner ? undefined : 'Démarre d’abord la séance.');
   woPause.textContent = woPaused ? 'Reprendre' : 'Pause';
 }
@@ -651,19 +660,26 @@ const editor = setupWorkoutEditor({
   readFtp,
   log,
   onLibraryChange: refreshWorkoutChoices,
-  onUse: (id) => {
-    router.go('sortie');
-    chooseWorkout(`lib:${id}`);
+  currentChoice: () => woSelect.value,
+  // Pendant une séance, le choix reste celui de la séance en cours : on ne le change pas en parcourant la bibliothèque.
+  onFocus: (key) => {
+    if (!runner) chooseWorkout(key);
   },
-  onUseSample: (id) => {
+  onRide: (key) => {
     router.go('sortie');
-    chooseWorkout(`sample:${id}`);
+    chooseWorkout(key);
+    startWorkout();
   },
+  rideBlock: workoutStartBlock,
 });
+refreshEditorRide = editor.refreshRide;
 refreshWorkoutChoices();
 
 setupAppShell();
-const router = setupRouter((v) => view?.setActive(v === 'sortie'));
+const router = setupRouter((v) => {
+  view?.setActive(v === 'sortie');
+  if (v === 'seances') editor.sync();
+});
 
 const registry = new DeviceRegistry();
 const roleState: Record<DeviceRole, ConnectionState> = { trainer: 'disconnected', hr: 'disconnected' };

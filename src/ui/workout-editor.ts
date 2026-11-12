@@ -13,13 +13,14 @@ import {
 } from '../workout/blocks';
 import { blockIndexAt, blockRanges, blockShort, describeBlock, nudgeDuration, nudgePower, splitIntervals } from '../workout/block-ops';
 import { UndoHistory } from '../workout/history';
-import type { WorkoutLibrary } from '../workout/library';
+import type { SavedWorkout, WorkoutLibrary } from '../workout/library';
 import { targetWatts, type Workout } from '../workout/model';
 import { profilePeakW, profileShapes, zoneOf, type Zone } from '../workout/profile';
 import { parseWorkout } from '../workout/runner';
 import { SAMPLE_WORKOUTS } from '../workout/samples';
 import { effortSeconds, intensityWord, timeInZones, ZONES, zoneName, zoneReading, type ZoneTimes } from '../workout/zones';
-import { setBlocked } from './blocked';
+import { setBlocked, type BlockReason } from './blocked';
+import './seances.css';
 import { formatDuration, parseDuration } from './duration';
 
 const SVG = 'http://www.w3.org/2000/svg';
@@ -29,7 +30,11 @@ const POWER_STEP = 0.05;
 const DURATION_STEP_S = 15;
 
 interface Draft {
+  /** Identifiant dans la bibliothèque, une fois la séance enregistrée. */
   id?: string;
+  /** Modèle livré avec l'application : affiché en lecture seule, on le duplique pour le modifier. */
+  sampleId?: string;
+  readOnly?: boolean;
   name: string;
   description: string;
   blocks: EditorBlock[];
@@ -41,10 +46,14 @@ export interface EditorOptions {
   log: (msg: string) => void;
   /** La bibliothèque a changé : la liste des séances de l'écran de sortie doit être reconstruite. */
   onLibraryChange: () => void;
-  /** Utiliser une séance enregistrée dans la sortie. */
-  onUse: (id: string) => void;
-  /** Utiliser une séance d'exemple dans la sortie. */
-  onUseSample: (sampleId: string) => void;
+  /** Séance choisie dans l'application (`lib:<id>` ou `sample:<id>`, vide si aucune) : celle que l'écran ouvre en premier. */
+  currentChoice: () => string;
+  /** L'utilisateur a ouvert cette séance dans l'éditeur : elle devient la séance choisie de l'application. */
+  onFocus: (key: string) => void;
+  /** Rouler cette séance : va sur la sortie et la démarre. */
+  onRide: (key: string) => void;
+  /** Pourquoi on ne peut pas rouler maintenant (pas de trainer, séance déjà en cours), sinon `undefined`. */
+  rideBlock: () => string | BlockReason | undefined;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -76,11 +85,15 @@ const slug = (s: string) =>
 const pct = (fraction: number) => Math.round(fraction * 100);
 const fmtLong = (s: number) => (s >= 3600 ? `${Math.floor(s / 3600)} h ${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}` : formatDuration(s));
 const isTyping = (t: EventTarget | null) => t instanceof HTMLElement && !!t.closest('input, textarea, select, dialog[open]');
+/** Bibliothèque et navigation ont leurs propres touches : les flèches et Suppr n'y touchent pas aux blocs. */
+const isElsewhere = (t: EventTarget | null) => t instanceof HTMLElement && !!t.closest('.sea-lib, .home-top');
 
 /**
- * Écran « Séances » : bibliothèque (mes séances, modèles, import) et éditeur à profil direct.
- * Le profil, la bande de structure et la ligne de réglages montrent le même bloc sélectionné ; chaque
- * modification passe par `commit`, qui l'inscrit dans l'historique avant de redessiner.
+ * Écran « Séances » : bibliothèque (mes séances, modèles, import) et éditeur à profil direct, sur le même écran
+ * (docs/design/seances.md). Une séance est toujours ouverte : en choisir une dans la bibliothèque l'ouvre
+ * aussitôt. Le profil, la bande de structure et la ligne de réglages montrent le même bloc sélectionné ;
+ * chaque modification passe par `commit`, qui l'inscrit dans l'historique avant de redessiner.
+ * Un modèle s'ouvre en lecture seule : on peut le parcourir et le rouler, ou le dupliquer pour le modifier.
  */
 export function setupWorkoutEditor(o: EditorOptions) {
   const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -106,13 +119,25 @@ export function setupWorkoutEditor(o: EditorOptions) {
 
   const ftp = () => o.readFtp();
   const workout = (): Workout => blocksToWorkout(draft?.name ?? '', draft?.description, draft?.blocks ?? []);
-  const isDirty = () => !!draft && JSON.stringify(draft) !== baseline;
+  const isDirty = () => !!draft && !draft.readOnly && JSON.stringify(draft) !== baseline;
 
   // --- Bibliothèque ---
 
+  /** Clé d'une séance ouverte : `lib:<id>` (enregistrée) ou `sample:<id>` (modèle) ; rien pour un brouillon. */
+  const keyOf = (d: Draft | undefined) => (d?.id ? `lib:${d.id}` : d?.sampleId ? `sample:${d.sampleId}` : undefined);
+  const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+  /** Message dans la bibliothèque (le journal est masqué sur cet écran) : import refusé, enregistrement impossible. */
+  function say(msg?: string) {
+    const p = $('lib-msg');
+    p.textContent = msg ?? '';
+    p.hidden = !msg;
+    if (msg) o.log(msg);
+  }
+
   function summary(blocks: EditorBlock[]) {
     const s = workoutStats(blocksToWorkout('x', undefined, blocks), ftp());
-    return `${formatDuration(s.durationS)} · ${s.avgW} W moyens · charge ${s.load}`;
+    return `${fmtLong(s.durationS)} · ${s.avgW} W · charge ${s.load}`;
   }
 
   function button(label: string, onClick: () => void, cls = '') {
@@ -121,102 +146,171 @@ export function setupWorkoutEditor(o: EditorOptions) {
     return b;
   }
 
+  function sampleWorkout(id: string): Workout | undefined {
+    const s = SAMPLE_WORKOUTS.find((x) => x.id === id);
+    if (!s) return undefined;
+    try {
+      return parseWorkout(s.fileName, s.text);
+    } catch (e) {
+      o.log(`modèle illisible (${s.fileName}) : ${e instanceof Error ? e.message : e}`);
+      return undefined;
+    }
+  }
+
+  /** Aperçu du profil d'une séance (mêmes couleurs de zones que l'éditeur), pour sa ligne dans la bibliothèque. */
+  function miniProfile(w: Workout) {
+    const root = svg('svg', { class: 'lib-mini', viewBox: '0 0 100 40', preserveAspectRatio: 'none', 'aria-hidden': 'true' });
+    for (const s of profileShapes(w, ftp(), 100, 40)) root.append(svg('path', { d: s.d, class: s.zone }));
+    return root;
+  }
+
+  function libRow(key: string, w: Workout, meta: string, pressed: boolean, onPick?: () => void, onRemove?: () => void) {
+    const main = el(
+      'button',
+      { type: 'button', className: 'lib-item' },
+      miniProfile(w),
+      el('span', { className: 'lib-text' }, el('strong', { textContent: w.name || 'Séance sans nom' }), el('small', { textContent: meta })),
+    );
+    main.dataset.key = key;
+    main.setAttribute('aria-pressed', String(pressed));
+    if (onPick) main.addEventListener('click', onPick);
+    const row = el('li', { className: 'lib-row' }, main);
+    if (onRemove) {
+      const del = el('button', { type: 'button', className: 'lib-del', textContent: '✕', title: 'Supprimer' });
+      del.setAttribute('aria-label', `Supprimer la séance « ${w.name} »`);
+      del.addEventListener('click', onRemove);
+      row.append(del);
+    }
+    return row;
+  }
+
   function renderLibrary() {
-    const items = o.library.list();
-    $('lib-list').replaceChildren(
-      ...(items.length
-        ? items.map((w) =>
-            el(
-              'li',
-              { className: 'lib-item' },
-              el('div', {}, el('strong', { textContent: w.name }), el('span', { className: 'note', textContent: ` · ${summary(w.blocks)}` })),
-              el(
-                'div',
-                { className: 'row' },
-                button('Utiliser', () => o.onUse(w.id)),
-                button('Modifier', () => open({ id: w.id, name: w.name, description: w.description ?? '', blocks: structuredClone(w.blocks) }), 'secondary'),
-                button('Exporter .zwo', () => download(`${slug(w.name)}.zwo`, toZwo(w.name, w.description, w.blocks)), 'secondary'),
-                button(
-                  'Supprimer',
-                  () => {
-                    if (!confirm(`Supprimer la séance « ${w.name} » ?`)) return;
-                    o.library.remove(w.id);
-                    o.log(`séance supprimée : ${w.name}`);
-                    if (draft?.id === w.id) close(true);
-                    renderLibrary();
-                    o.onLibraryChange();
-                  },
-                  'secondary',
-                ),
-              ),
-            ),
-          )
-        : [el('li', { className: 'note', textContent: 'Aucune séance enregistrée : crée-en une ou copie un modèle.' })]),
-    );
+    // Les lignes sont reconstruites à chaque ouverture : le focus clavier revient sur la même ligne.
+    const active = document.activeElement;
+    const focusKey = active instanceof HTMLElement && active.closest('.sea-lib') ? active.dataset.key : undefined;
+    const q = fold($<HTMLInputElement>('lib-search').value.trim());
+    const match = (name: string) => !q || fold(name).includes(q);
+    const current = keyOf(draft);
+
+    const saved = o.library.list();
+    const mine: HTMLElement[] = [];
+    // Une séance nouvelle, importée ou copiée n'est pas encore dans la bibliothèque : on la montre en tête, ouverte.
+    if (draft && !draft.id && !draft.readOnly) mine.push(libRow('draft', workout(), 'Non enregistrée', true));
+    for (const w of saved.filter((x) => match(x.name))) {
+      const key = `lib:${w.id}`;
+      mine.push(libRow(key, blocksToWorkout(w.name, w.description, w.blocks), summary(w.blocks), current === key, () => pick(key), () => remove(w)));
+    }
+    if (!mine.length) mine.push(el('li', { className: 'note', textContent: saved.length ? 'Aucune séance ne correspond.' : 'Aucune séance enregistrée : crée-en une ou duplique un modèle.' }));
+    $('lib-list').replaceChildren(...mine);
+    $('lib-count').textContent = String(saved.length);
+
+    const samples = SAMPLE_WORKOUTS.flatMap((s) => {
+      const w = sampleWorkout(s.id);
+      return w && match(w.name) ? [libRow(`sample:${s.id}`, w, summary(workoutToBlocks(w, ftp()).blocks), current === `sample:${s.id}`, () => pick(`sample:${s.id}`))] : [];
+    });
+    $('lib-samples').replaceChildren(...(samples.length ? samples : [el('li', { className: 'note', textContent: 'Aucun modèle ne correspond.' })]));
+    $('lib-sample-count').textContent = String(SAMPLE_WORKOUTS.length);
+
+    if (focusKey) document.querySelector<HTMLElement>(`.sea-lib [data-key="${CSS.escape(focusKey)}"]`)?.focus();
   }
 
-  function renderSamples() {
-    $('lib-samples').replaceChildren(
-      ...SAMPLE_WORKOUTS.map((s) => {
-        const w = parseWorkout(s.fileName, s.text);
-        const { blocks } = workoutToBlocks(w, ftp());
-        return el(
-          'li',
-          { className: 'lib-item' },
-          el('div', {}, el('strong', { textContent: w.name }), el('span', { className: 'note', textContent: ` · ${summary(blocks)}` })),
-          el(
-            'div',
-            { className: 'row' },
-            button('Utiliser', () => o.onUseSample(s.id)),
-            button('Copier pour modifier', () => openFromWorkoutFile(s.fileName, s.text, `${w.name} (copie)`), 'secondary'),
-          ),
-        );
-      }),
-    );
+  /** Clic dans la bibliothèque : la séance s'ouvre, et devient la séance choisie de l'application. */
+  function pick(key: string) {
+    if (key === keyOf(draft)) return;
+    if (openKey(key)) o.onFocus(key);
   }
 
-  function openFromWorkoutFile(fileName: string, text: string, name?: string) {
+  /** Ouvre la séance désignée par sa clé ; `false` si elle n'existe plus ou si l'utilisateur garde son brouillon. */
+  function openKey(key: string): boolean {
+    const [kind, id = ''] = key.split(':');
+    if (kind === 'lib') {
+      const w = o.library.get(id);
+      return !!w && open({ id: w.id, name: w.name, description: w.description ?? '', blocks: structuredClone(w.blocks) });
+    }
+    const w = sampleWorkout(id);
+    if (!w) return false;
+    return open({ sampleId: id, readOnly: true, name: w.name, description: w.description ?? '', blocks: workoutToBlocks(w, ftp()).blocks });
+  }
+
+  /** Rien d'utilisable ouvert : la première séance de l'utilisateur, sinon le premier modèle. */
+  function openFallback(syncChoice: boolean) {
+    const first = o.library.list()[0];
+    const key = first ? `lib:${first.id}` : SAMPLE_WORKOUTS[0] ? `sample:${SAMPLE_WORKOUTS[0].id}` : undefined;
+    if (key && openKey(key) && syncChoice) o.onFocus(key);
+  }
+
+  function remove(w: SavedWorkout) {
+    if (!confirm(`Supprimer la séance « ${w.name} » ?`)) return;
+    o.library.remove(w.id);
+    o.log(`séance supprimée : ${w.name}`);
+    const wasOpen = draft?.id === w.id;
+    if (wasOpen) {
+      draft = undefined;
+      baseline = '';
+    }
+    renderLibrary();
+    o.onLibraryChange();
+    if (wasOpen) openFallback(true);
+  }
+
+  function openFromWorkoutFile(fileName: string, text: string) {
     let w;
     try {
       w = parseWorkout(fileName, text);
     } catch (e) {
-      o.log(`import impossible (${fileName}) : ${e instanceof Error ? e.message : e}`);
+      say(`import impossible (${fileName}) : ${e instanceof Error ? e.message : e}`);
       return;
     }
     const { blocks, warnings } = workoutToBlocks(w, ftp());
-    for (const m of [...w.warnings, ...warnings]) o.log(`import : ${m}`);
-    open({ name: name ?? w.name, description: w.description ?? '', blocks }, true);
+    if (open({ name: w.name, description: w.description ?? '', blocks }, true)) {
+      for (const m of [...w.warnings, ...warnings]) o.log(`import : ${m}`);
+    }
+  }
+
+  /** Le modèle ouvert devient une séance à soi, à enregistrer : on ne modifie jamais un modèle. */
+  function duplicateModel() {
+    if (!draft?.readOnly) return;
+    open({ name: `${draft.name} (copie)`, description: draft.description, blocks: structuredClone(draft.blocks) }, true);
+  }
+
+  /**
+   * À l'arrivée sur l'écran : on ouvre la séance choisie dans l'application, sauf si un brouillon modifié est en cours.
+   * Une séance sans modification suit le choix fait ailleurs (accueil, sortie).
+   */
+  function sync() {
+    const want = o.currentChoice();
+    if (draft && (isDirty() || !want || want === keyOf(draft))) {
+      renderLibrary();
+      render();
+      return;
+    }
+    if (!(want && openKey(want)) && !draft) openFallback(false);
   }
 
   // --- Ouverture, enregistrement ---
 
-  function open(d: Draft, unsaved = false) {
-    if (isDirty() && !confirm('Abandonner les modifications en cours ?')) return;
+  /** Ouvre un brouillon ; `false` si l'utilisateur préfère garder ses modifications en cours. */
+  function open(d: Draft, unsaved = false): boolean {
+    if (isDirty() && !confirm('Abandonner les modifications en cours ?')) return false;
     draft = d;
     selected = Math.min(1, d.blocks.length - 1);
     history.clear();
+    typing = false;
     // Une séance importée ou nouvelle n'a pas de version enregistrée : elle part « modifiée ».
     baseline = unsaved ? '' : JSON.stringify(d);
     const w = workout();
     baseStats = unsaved ? undefined : workoutStats(w, ftp());
     baseZones = unsaved ? undefined : timeInZones(w, ftp());
-    $('ed-title').textContent = d.id ? 'Modifier la séance' : 'Nouvelle séance';
     nameIn.value = d.name;
     descIn.value = d.description;
-    editor.hidden = false;
+    say();
+    renderLibrary();
     render();
-    editor.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  function close(force = false) {
-    if (!force && isDirty() && !confirm('Fermer sans enregistrer les modifications ?')) return;
-    draft = undefined;
-    baseline = '';
-    editor.hidden = true;
+    return true;
   }
 
   function save(): string | undefined {
-    if (!draft || validateBlocks(draft.blocks).length) return undefined;
+    if (!draft || draft.readOnly || validateBlocks(draft.blocks).length) return undefined;
     try {
       const saved = o.library.save({
         id: draft.id,
@@ -225,17 +319,20 @@ export function setupWorkoutEditor(o: EditorOptions) {
         blocks: draft.blocks,
       });
       draft.id = saved.id;
+      draft.name = saved.name;
+      nameIn.value = saved.name;
       baseline = JSON.stringify(draft);
       baseStats = workoutStats(workout(), ftp());
       baseZones = timeInZones(workout(), ftp());
-      $('ed-title').textContent = 'Modifier la séance';
+      say();
       o.log(`séance enregistrée : ${saved.name}`);
       renderLibrary();
       o.onLibraryChange();
       render();
+      o.onFocus(`lib:${saved.id}`);
       return saved.id;
     } catch (e) {
-      o.log(`enregistrement impossible (stockage du navigateur plein ou bloqué) : ${e instanceof Error ? e.message : e}`);
+      say(`enregistrement impossible (stockage du navigateur plein ou bloqué) : ${e instanceof Error ? e.message : e}`);
       return undefined;
     }
   }
@@ -244,7 +341,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
 
   /** Applique une modification des blocs en l'inscrivant d'abord dans l'historique. */
   function commit(change: (blocks: EditorBlock[]) => EditorBlock[], nextSelected = selected) {
-    if (!draft) return;
+    if (!draft || draft.readOnly) return;
     history.record(draft.blocks);
     draft.blocks = change(draft.blocks);
     selected = Math.max(0, Math.min(nextSelected, draft.blocks.length - 1));
@@ -265,7 +362,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
   }
 
   function undo() {
-    if (!draft) return;
+    if (!draft || draft.readOnly) return;
     const prev = history.undo(draft.blocks);
     if (!prev) return;
     draft.blocks = prev;
@@ -274,7 +371,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
   }
 
   function redo() {
-    if (!draft) return;
+    if (!draft || draft.readOnly) return;
     const next = history.redo(draft.blocks);
     if (!next) return;
     draft.blocks = next;
@@ -290,11 +387,21 @@ export function setupWorkoutEditor(o: EditorOptions) {
     const f = ftp();
     const stats = workoutStats(w, f);
     const zones = timeInZones(w, f);
+    const ro = !!draft.readOnly;
     $('ed-dirty').hidden = !isDirty();
-    setBlocked($<HTMLButtonElement>('ed-undo'), history.canUndo ? undefined : 'Rien à annuler pour l’instant.');
-    setBlocked($<HTMLButtonElement>('ed-redo'), history.canRedo ? undefined : 'Rien à rétablir : tu n’as rien annulé.');
-    const sel = draft.blocks[selected];
-    $('ed-linked').textContent = sel?.type === 'intervals' ? `Les ${sel.repeat} répétitions sont modifiées ensemble` : '';
+    $('ed-readonly').hidden = !ro;
+    $('ed-kicker').textContent = ro ? 'Modèle' : draft.id ? 'Mes séances' : 'Nouvelle séance';
+    nameIn.readOnly = ro;
+    descIn.readOnly = ro;
+    $('ed-save').hidden = ro;
+    $('ed-export').hidden = ro;
+    $('ed-copy').hidden = !ro;
+    inspector.inert = ro;
+    inspector.classList.toggle('ro', ro);
+    const roReason = 'Un modèle est en lecture seule : duplique-le pour le modifier.';
+    document.querySelectorAll<HTMLButtonElement>('[data-add]').forEach((b) => setBlocked(b, ro ? roReason : undefined));
+    setBlocked($<HTMLButtonElement>('ed-undo'), history.canUndo ? undefined : ro ? roReason : 'Rien à annuler pour l’instant.');
+    setBlocked($<HTMLButtonElement>('ed-redo'), history.canRedo ? undefined : ro ? roReason : 'Rien à rétablir : tu n’as rien annulé.');
     renderSummary(stats, zones);
     renderChart(w, f);
     renderStrip();
@@ -303,7 +410,13 @@ export function setupWorkoutEditor(o: EditorOptions) {
     renderZones(zones);
     const errors = validateBlocks(draft.blocks);
     $('ed-errors').replaceChildren(...errors.map((e) => el('li', { textContent: e })));
-    for (const id of ['ed-save', 'ed-use', 'ed-export']) setBlocked($<HTMLButtonElement>(id), errors.length ? `À corriger d’abord : ${errors[0]}` : undefined);
+    for (const id of ['ed-save', 'ed-export']) setBlocked($<HTMLButtonElement>(id), errors.length ? `À corriger d’abord : ${errors[0]}` : undefined);
+    renderRide(errors);
+  }
+
+  /** « Rouler » attend une séance valide, puis un trainer connecté ; l'application rappelle quand la connexion change. */
+  function renderRide(errors = draft ? validateBlocks(draft.blocks) : []) {
+    setBlocked($<HTMLButtonElement>('ed-ride'), errors.length ? `À corriger d’abord : ${errors[0]}` : o.rideBlock());
   }
 
   function delta(now: number, before: number | undefined, digits = 0, unit = '') {
@@ -318,16 +431,15 @@ export function setupWorkoutEditor(o: EditorOptions) {
     const cell = (k: string, v: string, h: string, d = '', small = '') =>
       el(
         'div',
-        {},
+        { title: h },
         el('div', { className: 'k', textContent: k }),
         el('div', { className: 'v' }, v, small ? el('small', { textContent: ` ${small}` }) : '', d ? el('span', { className: 'delta', textContent: d }) : ''),
-        el('div', { className: 'h', textContent: h }),
       );
     $('ed-summary').replaceChildren(
       cell('Durée', fmtLong(s.durationS), `dont ${fmtLong(effortSeconds(z))} d'effort`, delta(s.durationS / 60, baseStats && baseStats.durationS / 60, 0, ' min')),
-      cell('Puissance moyenne', `${s.avgW} W`, `${Math.round((s.avgW / f) * 100)} % de ta FTP (${f} W)`, delta(s.avgW, baseStats?.avgW)),
+      cell('Moyenne', `${s.avgW} W`, `${Math.round((s.avgW / f) * 100)} % de ta FTP (${f} W)`, delta(s.avgW, baseStats?.avgW)),
       cell('Intensité', s.intensity.toFixed(2).replace('.', ','), '1,00 = tenir sa FTP', delta(s.intensity, baseStats?.intensity, 2), intensityWord(s.intensity)),
-      cell('Charge estimée', String(s.load), '1 h à la FTP = 100', delta(s.load, baseStats?.load)),
+      cell('Charge', String(s.load), '1 h à la FTP = 100', delta(s.load, baseStats?.load)),
     );
   }
 
@@ -453,7 +565,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
 
   /** Les setters écrivent dans le bloc sélectionné du brouillon : on le copie d'abord, l'historique garde l'original. */
   function commitSet(set: (v: number) => void, v: number) {
-    if (!draft) return;
+    if (!draft || draft.readOnly) return;
     history.record(draft.blocks);
     typing = false;
     draft.blocks = structuredClone(draft.blocks);
@@ -496,7 +608,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
 
   /** Frappe dans un champ : on modifie le brouillon en place et on redessine tout sauf la ligne de réglages. */
   function liveEdit(apply: () => void) {
-    if (!draft) return;
+    if (!draft || draft.readOnly) return;
     if (!typing) {
       history.record(draft.blocks);
       typing = true;
@@ -529,7 +641,8 @@ export function setupWorkoutEditor(o: EditorOptions) {
     const actions = el('div', { className: 'actions' });
     if (b.type !== 'free') {
       const c = b.cadenceRpm;
-      actions.append(button(c ? `Cadence cible : ${c} rpm…` : 'Cadence cible…', openCadence, 'secondary'));
+      actions.append(button(c ? `Cadence : ${c} rpm…` : 'Cadence…', openCadence, 'secondary'));
+      actions.lastElementChild!.setAttribute('title', 'Cadence cible du bloc (facultative)');
     }
     actions.append(
       button('← Avant', () => moveSelected(-1), 'secondary'),
@@ -537,7 +650,9 @@ export function setupWorkoutEditor(o: EditorOptions) {
       button('Dupliquer', () => commit((bs) => [...bs.slice(0, selected + 1), structuredClone(b), ...bs.slice(selected + 1)], selected + 1), 'secondary'),
     );
     if (b.type === 'intervals') {
-      actions.append(button('Séparer les répétitions', () => commit((bs) => [...bs.slice(0, selected), ...splitIntervals(b), ...bs.slice(selected + 1)]), 'secondary'));
+      const split = button('Séparer', () => commit((bs) => [...bs.slice(0, selected), ...splitIntervals(b), ...bs.slice(selected + 1)]), 'secondary');
+      split.title = 'Séparer les répétitions en blocs individuels';
+      actions.append(split);
     }
     actions.append(button('Supprimer', deleteSelected, 'secondary danger'));
     actions.querySelectorAll('button').forEach((x, i) => (x.dataset.key = `act-${i}`));
@@ -587,7 +702,9 @@ export function setupWorkoutEditor(o: EditorOptions) {
         break;
     }
 
-    inspector.replaceChildren(el('div', { className: 'top' }, el('p', { className: 'sentence', textContent: describeBlock(b, f) }), actions), line);
+    const sentence = el('p', { className: 'sentence', textContent: describeBlock(b, f) });
+    if (b.type === 'intervals') sentence.title = `Les ${b.repeat} répétitions sont modifiées ensemble`;
+    inspector.replaceChildren(sentence, el('div', { className: 'ed-body' }, line, actions));
     if (active) inspector.querySelector<HTMLElement>(`[data-key="${active}"]`)?.focus();
   }
 
@@ -628,31 +745,31 @@ export function setupWorkoutEditor(o: EditorOptions) {
 
   // --- Temps par zone ---
 
+  /** Une ligne : barre de répartition, puis le temps passé dans chaque zone. Le détail (écarts, lecture) est en info-bulle. */
   function renderZones(z: ZoneTimes) {
     const total = Object.values(z).reduce((a, b) => a + b, 0) || 1;
     const ids = [...ZONES.map((x) => x.id), 'free'] as Zone[];
+    const color = (id: Zone) => (id === 'free' ? 'var(--muted)' : `var(--${id})`);
     const bar = el('div', { className: 'zone-bar' });
     bar.setAttribute('aria-hidden', 'true');
     for (const id of ids) {
       if (!z[id]) continue;
       const s = el('span');
       s.style.width = `${(z[id] / total) * 100}%`;
-      s.style.background = id === 'free' ? 'var(--muted)' : `var(--${id})`;
+      s.style.background = color(id);
       bar.append(s);
     }
-    const rows = ids
+    const items = ids
       .filter((id) => z[id] || baseZones?.[id])
       .sort((a, b) => z[b] - z[a])
       .map((id) => {
-        const was = baseZones && baseZones[id] !== z[id] ? el('span', { className: 'was', textContent: ` (avant : ${formatDuration(baseZones[id])})` }) : '';
-        return el('li', {}, el('span', { textContent: zoneName(id) }), el('span', {}, el('strong', { textContent: formatDuration(z[id]) }), was));
+        const swatch = el('i');
+        swatch.style.background = color(id);
+        const was = baseZones && baseZones[id] !== z[id] ? ` (avant : ${formatDuration(baseZones[id])})` : '';
+        return el('li', { title: `${zoneName(id)}${was}` }, swatch, `${zoneName(id)} `, el('strong', { textContent: formatDuration(z[id]) }));
       });
-    $('ed-zones').replaceChildren(
-      el('h3', { textContent: 'Temps par zone' }),
-      bar,
-      el('ul', {}, ...rows),
-      el('p', { className: 'note', textContent: zoneReading(z, formatDuration) }),
-    );
+    $('ed-zones').title = zoneReading(z, formatDuration);
+    $('ed-zones').replaceChildren(el('span', { className: 'k', textContent: 'Zones' }), bar, el('ul', {}, ...items));
   }
 
   // --- Info-bulle et sélection sur le profil ---
@@ -710,7 +827,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
   // --- Clavier ---
 
   document.addEventListener('keydown', (e) => {
-    if (!draft || editor.hidden || editor.offsetParent === null || isTyping(e.target)) return;
+    if (!draft || editor.offsetParent === null || isTyping(e.target) || isElsewhere(e.target)) return;
     const ctrl = e.ctrlKey || e.metaKey;
     if (ctrl && e.key.toLowerCase() === 'z') {
       e.preventDefault();
@@ -799,12 +916,15 @@ export function setupWorkoutEditor(o: EditorOptions) {
   // --- Branchements ---
 
   nameIn.addEventListener('input', () => {
-    if (!draft) return;
+    if (!draft || draft.readOnly) return;
     draft.name = nameIn.value;
     $('ed-dirty').hidden = !isDirty();
+    // Un brouillon est montré dans la bibliothèque sous son nom : on le tient à jour sans reconstruire la liste.
+    const row = document.querySelector('.sea-lib [data-key="draft"] strong');
+    if (row) row.textContent = draft.name || 'Séance sans nom';
   });
   descIn.addEventListener('input', () => {
-    if (!draft) return;
+    if (!draft || draft.readOnly) return;
     draft.description = descIn.value;
     $('ed-dirty').hidden = !isDirty();
   });
@@ -830,34 +950,48 @@ export function setupWorkoutEditor(o: EditorOptions) {
   $('lib-new').addEventListener('click', () =>
     open({ name: 'Nouvelle séance', description: '', blocks: [defaultBlock('warmup'), defaultBlock('intervals'), defaultBlock('cooldown')] }, true),
   );
+  $('lib-search').addEventListener('input', renderLibrary);
   const importIn = $<HTMLInputElement>('lib-import');
+  $('lib-import-btn').addEventListener('click', () => importIn.click());
   importIn.addEventListener('change', async () => {
     const f = importIn.files?.[0];
     if (f) openFromWorkoutFile(f.name, await f.text());
     importIn.value = '';
   });
   $('ed-save').addEventListener('click', () => void save());
-  $('ed-use').addEventListener('click', () => {
+  $('ed-copy').addEventListener('click', duplicateModel);
+  $('ed-ride').addEventListener('click', () => {
+    if (!draft) return;
+    if (draft.readOnly) return o.onRide(`sample:${draft.sampleId}`);
     const id = save();
-    if (id) o.onUse(id);
+    if (id) o.onRide(`lib:${id}`);
   });
   $('ed-export').addEventListener('click', () => {
     if (draft) download(`${slug(draft.name)}.zwo`, toZwo(draft.name, draft.description, draft.blocks));
   });
-  $('ed-close').addEventListener('click', () => close());
   addEventListener('beforeunload', (e) => {
     if (isDirty()) e.preventDefault();
   });
 
   renderLibrary();
-  renderSamples();
 
   return {
+    /** À appeler à chaque arrivée sur l'écran : ouvre la séance choisie dans l'application. */
+    sync,
+    /** À appeler quand la connexion du trainer ou la séance en cours change : « Rouler » en dépend. */
+    refreshRide: () => renderRide(),
     /** À appeler quand la FTP change : les watts affichés en dépendent. */
     refresh() {
-      renderLibrary();
-      renderSamples();
-      if (draft) render();
+      if (draft?.readOnly) {
+        // Les modèles en watts (.erg, .mrc) sont relus en % de la FTP : on les rouvre avec la nouvelle valeur.
+        const key = keyOf(draft);
+        const keep = selected;
+        draft = undefined;
+        if (key && openKey(key)) select(keep);
+      } else {
+        renderLibrary();
+        if (draft) render();
+      }
     },
   };
 }

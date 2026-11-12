@@ -26,7 +26,7 @@ Mise à jour du 27 octobre 2026. Référence : [analyse technique](analyse-techn
 | Multijoueur, backend, comptes | Non commencé | — |
 | Coquille iOS (Capacitor) | Non commencée | — |
 | Séances structurées (.zwo, .erg, .mrc) | Fait : lecture des trois formats, déroulement minuté, ERG piloté par la séance, profil coloré par zone, intensité réglable | Vérifié dans la page avec le trainer simulé ; **pas encore sur le KICKR** |
-| Éditeur de séances | Fait (étape 1 de la maquette « A·2 + A·3 ») : profil sur fond de zones avec info-bulle, bande de structure et insertion, réglages du bloc sur une ligne avec ±5 %, cadence en option, temps par zone, écarts avant/après, annuler/rétablir, raccourcis clavier. Reste : glisser-déposer sur le profil | Vérifié dans la vraie page (Chrome) |
+| Éditeur de séances | Fait (étape 1 de la maquette « A·2 + A·3 ») : profil sur fond de zones avec info-bulle, bande de structure et insertion, réglages du bloc sur une ligne avec ±5 %, cadence en option, temps par zone, écarts avant/après, annuler/rétablir, raccourcis clavier. Reste : glisser-déposer sur le profil. Le 12 novembre 2026, l'écran est refondu : bibliothèque et éditeur sur un seul écran plein écran, comme l'accueil ([docs/design/seances.md](design/seances.md)) | Vérifié dans la vraie page (Chrome) |
 | Reconnexion au lancement | Fait : appareils mémorisés, écran Appareils en premier, reconnexion sans clic si `getDevices()` existe, sinon un clic par appareil | `getDevices()` absent du Chrome de test : **reconnexion sans clic non vérifiée sur matériel** |
 
 ## Prochaines étapes

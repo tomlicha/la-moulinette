@@ -7,12 +7,13 @@ export const nextScene = (current: number, count: number) => (current + 1) % cou
 
 /**
  * Fond de l'accueil : les scènes sont empilées et fondues l'une dans l'autre (le style est dans home.css).
- * Le titre et la description suivent l'image affichée. Retourne une fonction qui arrête le roulement.
+ * Le titre et la description suivent l'image affichée quand ils sont fournis (l'écran Séances n'en a pas).
+ * Retourne une fonction qui arrête le roulement.
  */
 export function setupHomeBackground(
   container: HTMLElement,
-  title: HTMLElement,
-  description: HTMLElement,
+  title?: HTMLElement,
+  description?: HTMLElement,
   scenes: HomeScene[] = HOME_SCENES,
   everyMs = SCENE_ROTATION_MS,
 ): () => void {
@@ -29,8 +30,8 @@ export function setupHomeBackground(
   let current = Math.floor(Math.random() * scenes.length);
   const show = (i: number) => {
     layers.forEach((l, k) => l.toggleAttribute('data-on', k === i));
-    title.textContent = scenes[i]!.name;
-    description.textContent = scenes[i]!.description;
+    if (title) title.textContent = scenes[i]!.name;
+    if (description) description.textContent = scenes[i]!.description;
     current = i;
   };
   show(current);

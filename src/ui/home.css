@@ -3,7 +3,7 @@
  * Le radar et le visuel d'accueil sont des panneaux de scène, aux couleurs fixes comme le HUD ;
  * le reste suit le thème de la page. L'accent de ces deux écrans est celui du jeu (menthe).
  */
-[data-view='appareils'], [data-view='accueil'] { --accent: #5BE3C9; --on-accent: #0B1422; --pink: #FF5FA2; }
+[data-view='appareils'], [data-view='accueil'], [data-view='seances'] { --accent: #5BE3C9; --on-accent: #0B1422; --pink: #FF5FA2; }
 main:has([data-view='appareils']:not([hidden])) { max-width: 1184px; }
 [data-view='appareils'] h1, [data-view='accueil'] h2.home-title {
   font-family: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; font-weight: 700; line-height: 1; letter-spacing: .01em;
@@ -132,6 +132,8 @@ main:has([data-view='accueil']:not([hidden])) { max-width: none; padding: 0; }
 .home-nav { display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: var(--glass); border: 1px solid var(--glass-line); backdrop-filter: blur(16px) saturate(1.3); }
 .home-nav a { display: flex; align-items: center; height: 44px; padding: 0 20px; border-radius: 10px; color: #fff; font-size: 1.06rem; font-weight: 600; text-decoration: none; }
 .home-nav a:hover { background: rgba(255, 255, 255, .12); }
+/* Sur les écrans autres que l'accueil, la navigation marque l'écran courant. */
+.home-nav a[aria-current='page'] { background: #5BE3C9; color: #0B1422; }
 .home-nav a:focus-visible, a.home-radar:focus-visible { outline: 3px solid #5BE3C9; outline-offset: 2px; }
 
 .home-hero-body { align-self: end; justify-self: start; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; max-width: 640px; }

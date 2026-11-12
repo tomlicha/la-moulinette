@@ -30,7 +30,7 @@ Deux variantes, mêmes proportions que la maquette : `full` (520 × 592, écran 
 
 ## Accueil
 
-Écran **plein écran** : le visuel du parcours (« Colline », le seul qui existe) occupe toute la fenêtre, la barre du haut et le journal sont masqués. Par-dessus, en panneaux de verre : la marque et la navigation (Sortie, Séances, Appareils) en haut ; le nom du parcours et le bouton **Rouler** en bas à gauche ; en bas à droite le radar réduit (cliquable vers Appareils) et la séance (choix dans la même liste que l'écran Sortie, profil par zones, **Démarrer la séance**). L'accueil est le point de départ de la navigation ; les autres écrans gardent la barre du haut, où « Accueil » ramène ici. Sur téléphone, les blocs s'empilent et la page défile.
+Écran **plein écran** : le visuel du parcours (« Colline », le seul qui existe) occupe toute la fenêtre, la barre du haut et le journal sont masqués. Par-dessus, en panneaux de verre : la marque et la navigation (Sortie, Séances, Appareils) en haut ; le nom du parcours et le bouton **Rouler** en bas à gauche ; en bas à droite le radar réduit (cliquable vers Appareils) et la séance (choix dans la même liste que l'écran Sortie, profil par zones, **Démarrer la séance**). L'accueil est le point de départ de la navigation ; Sortie et Appareils gardent la barre du haut, où « Accueil » ramène ici. L'écran Séances est lui aussi plein écran, avec la même navigation (voir [seances.md](seances.md)). Sur téléphone, les blocs s'empilent et la page défile.
 
 ### Fonds et logo
 
@@ -39,7 +39,7 @@ Deux variantes, mêmes proportions que la maquette : `full` (520 × 592, écran 
 
 ## Style
 
-Panneaux de scène (radar, visuel) aux couleurs fixes, comme le HUD ; le reste suit le thème de la page. Sur ces deux écrans uniquement, l'accent est la menthe du jeu (`#5BE3C9`, texte `#0B1422`) au lieu de l'orange des autres écrans. Titres en Barlow Condensed (polices `@fontsource`).
+Panneaux de scène (radar, visuel) aux couleurs fixes, comme le HUD ; le reste suit le thème de la page. Sur ces écrans (Appareils, Accueil, Séances), l'accent est la menthe du jeu (`#5BE3C9`, texte `#0B1422`) au lieu de l'orange des autres écrans. Titres en Barlow Condensed (polices `@fontsource`).
 
 ## À faire
 

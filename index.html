@@ -218,79 +218,113 @@
         </section>
       </section>
 
-      <!-- Écran 4 : bibliothèque et éditeur de séances -->
+      <!-- Écran 4 : séances, plein écran comme l'accueil (docs/design/seances.md, maquette D « Miroir de l'accueil »).
+           Éditeur toujours actif au centre, bibliothèque dans la colonne de droite : plus de bascule liste / éditeur. -->
       <section data-view="seances" hidden>
-        <h1>Séances</h1>
-        <div class="row">
-          <button id="lib-new">Nouvelle séance</button>
-          <label class="file-btn" for="lib-import">Importer .zwo, .erg ou .mrc</label>
-          <input id="lib-import" type="file" accept=".zwo,.erg,.mrc" hidden />
-        </div>
+        <div class="sea">
+          <div id="sea-scenes" class="home-scenes" aria-hidden="true"></div>
+          <div class="home-shade sea-shade"></div>
 
-        <section id="editor" class="editor" hidden aria-labelledby="ed-title">
-          <h2 id="ed-title" class="visually-hidden">Nouvelle séance</h2>
-          <header class="ed-header">
-            <label class="ed-name"><span>Séance</span><input id="ed-name" type="text" maxlength="80" /></label>
-            <span id="ed-dirty" class="ed-dirty" hidden>● Modifiée, non enregistrée</span>
-            <div class="row">
-              <button id="ed-save">Enregistrer</button>
-              <button id="ed-use" class="secondary">Utiliser</button>
-              <button id="ed-export" class="secondary">Exporter .zwo</button>
-              <button id="ed-close" class="secondary">Fermer</button>
-            </div>
+          <header class="home-top">
+            <strong class="home-brand"><span class="logo" role="img" aria-label="La Moulinette"><span class="logo-la" aria-hidden="true">LA</span><span class="logo-word" aria-hidden="true">M<svg class="logo-o" viewBox="0 0 24 24" fill="none"><circle class="logo-teeth" cx="12" cy="12" r="11" /><circle class="logo-ring" cx="12" cy="12" r="8" /><path class="logo-spokes" d="M12 12V5.4M12 12l6.3-2M12 12l3.9 5.3M12 12l-3.9 5.3M12 12l-6.3-2" /><circle cx="12" cy="12" r="2.1" fill="currentColor" stroke="none" /></svg>ULINETTE</span></span></strong>
+            <nav class="home-nav" aria-label="Écrans">
+              <a href="#accueil" data-nav="accueil">Accueil</a>
+              <a href="#sortie" data-nav="sortie">Sortie</a>
+              <a href="#seances" data-nav="seances">Séances</a>
+              <a href="#appareils" data-nav="appareils">Appareils</a>
+            </nav>
           </header>
-          <details class="ed-desc">
-            <summary>Description</summary>
-            <textarea id="ed-desc" rows="2" maxlength="500" aria-label="Description de la séance"></textarea>
-          </details>
 
-          <section id="ed-summary" class="ed-summary" aria-label="Résumé"></section>
-
-          <section class="ed-card">
-            <div class="ed-toolbar" role="toolbar" aria-label="Outils d'édition">
-              <button id="ed-undo" type="button" class="secondary">↶ Annuler</button>
-              <button id="ed-redo" type="button" class="secondary">↷ Rétablir</button>
-              <span class="spacer"></span>
-              <span id="ed-linked" class="note"></span>
-            </div>
-            <div class="ed-chart">
-              <div id="ed-yaxis" class="ed-yaxis" aria-hidden="true"></div>
-              <div class="ed-plot-col">
-                <div id="ed-plot" class="ed-plot" tabindex="0" aria-label="Profil de la séance. Flèches gauche et droite : bloc précédent ou suivant ; haut et bas : puissance.">
-                  <svg id="ed-svg" viewBox="0 0 1000 120" preserveAspectRatio="none" role="img"></svg>
-                  <div id="ed-zone-labels" class="ed-zone-labels" aria-hidden="true"></div>
-                  <div id="ed-tip" class="ed-tip" role="tooltip" hidden></div>
+          <div id="editor" class="sea-main">
+            <h1 id="ed-title" class="visually-hidden">Séances</h1>
+            <section class="sea-hero" aria-label="Séance ouverte">
+              <div class="sea-hero-top">
+                <div class="sea-hero-l">
+                  <span id="ed-kicker" class="home-kicker">Mes séances</span>
+                  <label class="ed-name"><span class="visually-hidden">Nom de la séance</span><input id="ed-name" type="text" maxlength="80" autocomplete="off" /></label>
+                  <label class="ed-desc"><span class="visually-hidden">Description de la séance</span><input id="ed-desc" type="text" maxlength="500" placeholder="Ajouter une description" autocomplete="off" /></label>
                 </div>
-                <div id="ed-strip" class="ed-strip" aria-label="Structure de la séance"></div>
-                <div id="ed-xaxis" class="ed-xaxis" aria-hidden="true"></div>
+                <div class="sea-hero-r">
+                  <span id="ed-dirty" class="ed-dirty" hidden>● Modifiée, non enregistrée</span>
+                  <span id="ed-readonly" class="ed-readonly" hidden>Modèle · lecture seule</span>
+                </div>
               </div>
-            </div>
-          </section>
+              <div class="sea-hero-row">
+                <button id="ed-ride" class="sea-ride" type="button" title="Enregistre la séance puis la lance sur la sortie">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12-7.5z" /></svg>Rouler
+                </button>
+                <button id="ed-save" class="secondary" type="button">Enregistrer</button>
+                <button id="ed-copy" class="secondary" type="button" hidden>Dupliquer pour modifier</button>
+                <button id="ed-export" class="secondary" type="button">Exporter .zwo</button>
+                <span class="spacer"></span>
+                <section id="ed-summary" class="ed-summary" aria-label="Résumé"></section>
+              </div>
+            </section>
 
-          <div class="ed-bottom">
-            <form id="ed-inspector" class="ed-inspector" aria-label="Bloc sélectionné"></form>
-            <section id="ed-zones" class="ed-zones" aria-label="Temps par zone"></section>
+            <section class="ed-card" aria-label="Éditeur">
+              <div class="ed-toolbar" role="toolbar" aria-label="Outils d'édition">
+                <button id="ed-undo" type="button" class="chip icon" aria-label="Annuler" title="Annuler (Ctrl+Z)">↶</button>
+                <button id="ed-redo" type="button" class="chip icon" aria-label="Rétablir" title="Rétablir (Ctrl+Maj+Z)">↷</button>
+                <span class="spacer"></span>
+                <span class="note">Ajouter</span>
+                <button type="button" class="chip" data-add="warmup">Échauffement</button>
+                <button type="button" class="chip" data-add="steady">Palier</button>
+                <button type="button" class="chip" data-add="intervals">Intervalles</button>
+                <button type="button" class="chip" data-add="ramp">Rampe</button>
+                <button type="button" class="chip" data-add="free">Libre</button>
+                <button type="button" class="chip" data-add="cooldown">Retour au calme</button>
+              <details class="ed-keys-d">
+                <summary title="Raccourcis clavier" aria-label="Raccourcis clavier">?</summary>
+                <p class="ed-keys note">
+                  <span><kbd>↑</kbd> <kbd>↓</kbd> ±5 %</span>
+                  <span><kbd>⇧</kbd>+<kbd>←</kbd> <kbd>→</kbd> ±15 s</span>
+                  <span><kbd>←</kbd> <kbd>→</kbd> autre bloc</span>
+                  <span><kbd>Suppr</kbd> supprimer</span>
+                  <span><kbd>Ctrl</kbd>+<kbd>Z</kbd> annuler</span>
+                </p>
+              </details>
+              </div>
+              <div class="ed-chart">
+                <div id="ed-yaxis" class="ed-yaxis" aria-hidden="true"></div>
+                <div class="ed-plot-col">
+                  <div id="ed-plot" class="ed-plot" tabindex="0" aria-label="Profil de la séance. Flèches gauche et droite : bloc précédent ou suivant ; haut et bas : puissance.">
+                    <svg id="ed-svg" viewBox="0 0 1000 120" preserveAspectRatio="none" role="img"></svg>
+                    <div id="ed-zone-labels" class="ed-zone-labels" aria-hidden="true"></div>
+                    <div id="ed-tip" class="ed-tip" role="tooltip" hidden></div>
+                  </div>
+                  <div id="ed-xaxis" class="ed-xaxis" aria-hidden="true"></div>
+                  <div id="ed-strip" class="ed-strip" aria-label="Structure de la séance"></div>
+                </div>
+              </div>
+              <section id="ed-zones" class="ed-zones" aria-label="Temps par zone"></section>
+              <form id="ed-inspector" class="ed-inspector" aria-label="Bloc sélectionné"></form>
+              <ul id="ed-errors" class="errors"></ul>
+            </section>
           </div>
 
-          <div class="ed-add-row">
-            <div class="row">
-              <span class="note">Ajouter</span>
-              <button type="button" class="chip" data-add="warmup">Échauffement</button>
-              <button type="button" class="chip" data-add="steady">Palier</button>
-              <button type="button" class="chip" data-add="intervals">Intervalles</button>
-              <button type="button" class="chip" data-add="ramp">Rampe</button>
-              <button type="button" class="chip" data-add="free">Libre</button>
-              <button type="button" class="chip" data-add="cooldown">Retour au calme</button>
+          <aside class="sea-lib" aria-label="Bibliothèque de séances">
+            <div class="lib-head">
+              <h2 class="lib-title">Séances</h2>
+              <button id="lib-new" type="button">+ Nouvelle</button>
             </div>
-            <p class="ed-keys note">
-              <span><kbd>↑</kbd> <kbd>↓</kbd> ±5 %</span>
-              <span><kbd>⇧</kbd>+<kbd>←</kbd> <kbd>→</kbd> ±15 s</span>
-              <span><kbd>←</kbd> <kbd>→</kbd> autre bloc</span>
-              <span><kbd>Suppr</kbd> supprimer</span>
-              <span><kbd>Ctrl</kbd>+<kbd>Z</kbd> annuler</span>
-            </p>
-          </div>
-          <ul id="ed-errors" class="errors"></ul>
+            <label class="lib-search">
+              <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></svg>
+              <span class="visually-hidden">Rechercher une séance</span>
+              <input id="lib-search" type="search" placeholder="Rechercher une séance" autocomplete="off" />
+            </label>
+            <p id="lib-msg" class="lib-msg" role="status" hidden></p>
+            <div class="lib-scroll">
+              <h3 class="lib-grp"><span>Mes séances</span><span id="lib-count"></span></h3>
+              <ul id="lib-list" class="lib-list"></ul>
+              <h3 class="lib-grp"><span>Modèles</span><span id="lib-sample-count"></span></h3>
+              <ul id="lib-samples" class="lib-list"></ul>
+            </div>
+            <div class="lib-foot">
+              <span class="note">.zwo · .erg · .mrc</span>
+              <button id="lib-import-btn" class="secondary" type="button">Importer</button>
+              <input id="lib-import" type="file" accept=".zwo,.erg,.mrc" hidden />
+            </div>
+          </aside>
 
           <dialog id="ed-insert" class="ed-dialog" aria-labelledby="ed-insert-title">
             <h3 id="ed-insert-title">Insérer un bloc ici</h3>
@@ -308,12 +342,7 @@
               <button type="button" class="secondary" data-close>Annuler</button>
             </div>
           </dialog>
-        </section>
-
-        <h2>Mes séances</h2>
-        <ul id="lib-list" class="lib-list"></ul>
-        <h2>Modèles</h2>
-        <ul id="lib-samples" class="lib-list"></ul>
+        </div>
       </section>
 
       <details class="log-panel">
