@@ -343,6 +343,17 @@
 
           <div class="sea-scrim" data-open-panel=""></div>
 
+          <!-- Saisie d'une valeur exacte, ouverte en touchant une valeur sur le profil (téléphone en paysage) -->
+          <form id="ed-pop" class="ed-pop" autocomplete="off" aria-labelledby="pop-title">
+            <strong id="pop-title" class="pop-title"></strong>
+            <div id="pop-g-power" class="pop-g"><span>Puissance</span><input id="pop-pct" type="text" inputmode="numeric" aria-label="Puissance en % de la FTP" /><b>%</b><input id="pop-w" type="text" inputmode="numeric" aria-label="Puissance en watts" /><b>W</b></div>
+            <div id="pop-g-dur" class="pop-g"><span>Durée</span><input id="pop-dur" type="text" inputmode="numeric" placeholder="mm:ss" aria-label="Durée, minutes et secondes" /></div>
+            <div id="pop-g-cad" class="pop-g"><span>Cadence</span><input id="pop-cad" type="text" inputmode="numeric" placeholder="libre" aria-label="Cadence cible, facultative" /><b>rpm</b></div>
+            <div id="pop-g-rep" class="pop-g"><span>Répétitions</span><input id="pop-rep" type="text" inputmode="numeric" aria-label="Nombre de répétitions" /></div>
+            <button type="submit" id="pop-ok">OK</button>
+            <button type="button" class="secondary" data-open-panel="">Annuler</button>
+          </form>
+
           <dialog id="ed-insert" class="ed-dialog" aria-labelledby="ed-insert-title">
             <h3 id="ed-insert-title">Insérer un bloc ici</h3>
             <div class="row" id="ed-insert-types"></div>

@@ -184,7 +184,7 @@ kbd { font: inherit; font-size: .75rem; border: 1px solid var(--ctl-line); borde
 }
 
 /* Éléments propres au téléphone en paysage : absents ailleurs. */
-.ph-btn, .ed-sub, .ed-sbar, .ed-over, .sea-scrim, .sheet-head, .nav-ico, .ed-hmenu .ed-zones-m { display: none; }
+.ph-btn, .ed-sub, .ed-sbar, .ed-over, .sea-scrim, .sheet-head, .nav-ico, .ed-pop, .ed-hmenu .ed-zones-m { display: none; }
 .ed-hmenu { display: contents; }
 
 /*
@@ -274,13 +274,34 @@ kbd { font: inherit; font-size: .75rem; border: 1px solid var(--ctl-line); borde
   .ov-reps { border-color: rgba(91, 227, 201, .7); }
   .ov-reps strong { min-width: 30px; }
 
-  /* Feuille des réglages du bloc : l'inspecteur complet, en capsules */
+  /* « ⋯ » sous le profil : menu des actions du bloc. Les valeurs se saisissent en touchant la valeur sur le profil. */
   .ed-inspector { display: none; }
-  .sea[data-panel='block'] .ed-inspector { display: flex; left: 62px; right: 8px; bottom: 6px; padding: 8px 10px; gap: 6px; max-height: calc(100dvh - 12px); overflow-y: auto; border-color: #5BE3C9; }
-  .ed-inspector .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .sheet-x { height: 30px; padding: 0 12px; border-radius: 9px; font-size: .85rem; background: rgba(255, 255, 255, .12); color: #fff; border: 1px solid rgba(255, 255, 255, .3); }
-  .ed-inspector .sentence { font-size: .85rem; }
-  .ed-inspector .actions button { padding: 3px 9px; font-size: .78rem; }
+  .sea[data-panel='block'] .ed-inspector { display: flex; left: auto; right: 8px; bottom: 46px; width: 230px; padding: 6px; gap: 2px; max-height: calc(100dvh - 60px); overflow-y: auto; }
+  .ed-inspector .sheet-head { display: block; padding: 2px 8px 4px; font-size: .78rem; color: var(--muted); }
+  .sheet-x, .ed-inspector .sentence, .ed-inspector .ed-line, .act-cadence { display: none; }
+  .ed-inspector .ed-body { display: block; }
+  .ed-inspector .actions { display: grid; grid-template-columns: 1fr; gap: 2px; justify-content: stretch; margin: 0; }
+  .ed-inspector .actions button { height: 34px; padding: 0 10px; border: 0; border-radius: 9px; background: transparent; font-size: .9rem; font-weight: 600; text-align: left; color: #fff; }
+  .ed-inspector .actions button:hover { background: rgba(255, 255, 255, .12); }
+  .ed-inspector .actions .danger { color: var(--err); }
+
+  /* Valeurs touchables sur le profil : un tap ouvre la saisie d'un chiffre exact */
+  .ov-cap button.ov-val, .ov-chip button.ov-val { width: auto; height: auto; padding: 0 2px; border-radius: 6px; color: #fff; font-weight: inherit; display: flex; flex-direction: column; align-items: center; }
+  .ov-cap button.ov-val::before, .ov-chip button.ov-val::before { inset: -3px -4px; }
+  .ov-val strong { border-bottom: 1px dotted rgba(255, 255, 255, .6); }
+  .ov-chip button.ov-val { flex-direction: row; }
+
+  /* Saisie : une seule ligne en haut de l'écran, pour rester visible quand le clavier prend la place */
+  .sea[data-panel='edit'] .ed-pop { display: flex; position: fixed; z-index: 40; top: 6px; left: 62px; right: 8px; align-items: center; flex-wrap: wrap; gap: 6px 12px; padding: 8px 10px; border-radius: 14px; background: #16233A; border: 1px solid #5BE3C9; box-shadow: 0 12px 32px rgba(5, 10, 20, .55); }
+  .pop-title { font: 700 1.3rem/1 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; margin-right: 4px; }
+  .pop-g { display: flex; align-items: center; gap: 5px; }
+  .pop-g span { font-size: .75rem; color: var(--muted); }
+  .pop-g b { font-weight: 500; color: var(--muted); }
+  .ed-pop input { width: 3.4rem; height: 34px; padding: 0 6px; text-align: center; font-size: 16px; font-weight: 700; border: 1px solid var(--btn-line); border-radius: 8px; background: var(--raised); }
+  #pop-dur { width: 4.4rem; }
+  .ed-pop input.invalid { outline: 2px solid var(--err); }
+  .ed-pop button { height: 34px; padding: 0 16px; border-radius: 9px; font-size: .95rem; font-weight: 700; }
+  #pop-ok { margin-left: auto; }
   .stepper { padding: 0 2px; gap: 0; border-radius: 14px; background: rgba(255, 255, 255, .12); }
   .stepper button { position: relative; width: 28px; height: 28px; border: 0; border-radius: 50%; background: transparent; color: #9FF0DF; font-size: 17px; }
   .stepper button::before { content: ''; position: absolute; inset: -6px -3px; }

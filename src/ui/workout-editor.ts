@@ -666,6 +666,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
       const c = b.cadenceRpm;
       actions.append(button(c ? `${c} rpm…` : 'Cadence…', openCadence, 'secondary'));
       actions.lastElementChild!.setAttribute('title', 'Cadence cible du bloc (facultative)');
+      actions.lastElementChild!.classList.add('act-cadence');
     }
     actions.append(
       button('← Avant', () => moveSelected(-1), 'secondary'),
@@ -731,6 +732,8 @@ export function setupWorkoutEditor(o: EditorOptions) {
     const close = el('button', { type: 'button', className: 'sheet-x', textContent: 'Fermer' });
     close.dataset.openPanel = '';
     const head = el('div', { className: 'sheet-head' }, el('strong', { textContent: `${BLOCK_LABEL[b.type]} · bloc ${selected + 1} sur ${draft!.blocks.length}` }), close);
+    // Sur téléphone, l'inspecteur n'est plus qu'un menu d'actions : une action faite, il se referme.
+    actions.addEventListener('click', () => setPanel());
     inspector.replaceChildren(head, sentence, el('div', { className: 'ed-body' }, line, actions));
     if (active) inspector.querySelector<HTMLElement>(`[data-key="${active}"]`)?.focus();
   }
@@ -865,6 +868,102 @@ export function setupWorkoutEditor(o: EditorOptions) {
     if (draft?.blocks.length) select(blockIndexAt(draft.blocks, timeAt(e)));
   });
 
+  // --- Saisie d'une valeur exacte, au toucher (téléphone) ---
+
+  /** Ce que la saisie règle : une puissance (% et W), une durée, une cadence, ou les répétitions. */
+  interface EditSpec {
+    title: string;
+    power?: PowerField;
+    dur?: 'on' | 'off' | 'block';
+    cad?: 'on' | 'off';
+    reps?: boolean;
+  }
+  const pop = $<HTMLFormElement>('ed-pop');
+  const popIn = (id: string) => $<HTMLInputElement>(id);
+  let editSpec: EditSpec | undefined;
+
+  function openEdit(spec: EditSpec) {
+    const b = draft?.blocks[selected] as unknown as Record<string, number | undefined> | undefined;
+    if (!draft || draft.readOnly || !b) return;
+    editSpec = spec;
+    $('pop-title').textContent = spec.title;
+    $('pop-g-power').hidden = !spec.power;
+    $('pop-g-dur').hidden = !spec.dur;
+    $('pop-g-cad').hidden = !spec.cad;
+    $('pop-g-rep').hidden = !spec.reps;
+    if (spec.power) {
+      const v = b[spec.power] ?? 0;
+      popIn('pop-pct').value = String(pct(v));
+      popIn('pop-w').value = String(Math.round(v * ftp()));
+    }
+    if (spec.dur) popIn('pop-dur').value = formatDuration((spec.dur === 'on' ? b.onS : spec.dur === 'off' ? b.offS : b.durationS) ?? 0);
+    if (spec.cad) popIn('pop-cad').value = String((spec.cad === 'on' ? b.cadenceRpm : b.restCadenceRpm) ?? '');
+    if (spec.reps) popIn('pop-rep').value = String(b.repeat ?? 1);
+    for (const i of pop.querySelectorAll('input')) i.classList.remove('invalid');
+    setPanel('edit');
+    const first = pop.querySelector<HTMLInputElement>('.pop-g:not([hidden]) input');
+    first?.focus();
+    first?.select();
+  }
+
+  // Pourcentage et watts se suivent : on tape l'un ou l'autre.
+  popIn('pop-pct').addEventListener('input', () => {
+    const v = Number(popIn('pop-pct').value);
+    if (v > 0) popIn('pop-w').value = String(Math.round((v / 100) * ftp()));
+  });
+  popIn('pop-w').addEventListener('input', () => {
+    const v = Number(popIn('pop-w').value);
+    if (v > 0) popIn('pop-pct').value = String(Math.round((v / ftp()) * 100));
+  });
+  pop.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const spec = editSpec;
+    if (!spec || !draft) return;
+    let ok = true;
+    const check = (input: HTMLInputElement, valid: boolean) => {
+      input.classList.toggle('invalid', !valid);
+      if (!valid) ok = false;
+    };
+    const out: { pct?: number; dur?: number; cad?: number | null; reps?: number } = {};
+    if (spec.power) {
+      const t = popIn('pop-pct').value.trim();
+      const v = Number(t);
+      check(popIn('pop-pct'), t !== '' && v > 0 && v <= 300);
+      out.pct = v;
+    }
+    if (spec.dur) {
+      const v = parseDuration(popIn('pop-dur').value);
+      check(popIn('pop-dur'), v !== undefined && v >= 1);
+      out.dur = v;
+    }
+    if (spec.cad) {
+      const t = popIn('pop-cad').value.trim();
+      const v = Math.round(Number(t));
+      check(popIn('pop-cad'), t === '' || (v >= 30 && v <= 200));
+      out.cad = t === '' ? null : v;
+    }
+    if (spec.reps) {
+      const v = Number(popIn('pop-rep').value);
+      check(popIn('pop-rep'), Number.isInteger(v) && v >= 1 && v <= 50);
+      out.reps = v;
+    }
+    if (!ok) return;
+    // Une seule entrée d'historique pour toute la saisie.
+    updateSelected((b) => {
+      const c = { ...b } as unknown as Record<string, number | undefined>;
+      if (spec.power && out.pct !== undefined) c[spec.power] = clampPower(out.pct / 100);
+      if (spec.dur && out.dur !== undefined) c[spec.dur === 'on' ? 'onS' : spec.dur === 'off' ? 'offS' : 'durationS'] = out.dur;
+      if (spec.cad) {
+        const key = spec.cad === 'on' ? 'cadenceRpm' : 'restCadenceRpm';
+        if (out.cad) c[key] = out.cad;
+        else delete c[key];
+      }
+      if (spec.reps && out.reps !== undefined) c.repeat = out.reps;
+      return c as unknown as EditorBlock;
+    });
+    setPanel();
+  });
+
   // --- Commandes posées sur le bloc sélectionné (téléphone en paysage) ---
 
   type PowerField = 'onPower' | 'offPower' | 'power' | 'from' | 'to';
@@ -913,24 +1012,30 @@ export function setupWorkoutEditor(o: EditorOptions) {
     /** Pastille de durée : au-dessus de la barre s'il y a la place, sinon en haut du profil ; les capsules passent alors dessous. */
     const CHIP_ROOM = 34;
     const capMin = (barTop: number) => (barTop >= CHIP_ROOM ? 0 : 32);
-    const cap = (field: PowerField, frac: number, cx: number, label: string, small = false, minTop = 0) => {
+    /** Valeur touchable : ouvre la saisie d'un chiffre exact. */
+    const val = (what: string, spec: EditSpec, ...children: HTMLElement[]) => {
+      const v = el('button', { type: 'button', className: 'ov-val' }, ...children);
+      v.setAttribute('aria-label', `${what} : saisir une valeur`);
+      v.addEventListener('click', () => openEdit(spec));
+      return v;
+    };
+    const cap = (field: PowerField, frac: number, cx: number, label: string, small: boolean, minTop: number, spec: EditSpec) => {
       const node = el(
         'div',
         { className: `ov-cap${small ? ' sm' : ''}` },
         step('+', `${label} plus 5 %`, () => bump(field, POWER_STEP)),
-        el('strong', { textContent: `${pct(frac)} %` }),
-        el('small', { textContent: `${Math.round(frac * f)} W` }),
+        val(label, spec, el('strong', { textContent: `${pct(frac)} %` }), el('small', { textContent: `${Math.round(frac * f)} W` })),
         step('−', `${label} moins 5 %`, () => bump(field, -POWER_STEP)),
       );
       put(node, cx, Math.min(Math.max(topOf(frac) + 3, minTop), H - (small ? 74 : 84)), 16);
     };
     /** Durée du bloc (l'effort pour des intervalles). */
-    const chip = (cx: number, seconds: number, barTop: number) => {
+    const chip = (cx: number, seconds: number, barTop: number, spec: EditSpec) => {
       const node = el(
         'div',
         { className: 'ov-chip' },
         step('−', 'Durée moins 15 s', () => updateSelected((x) => nudgeDuration(x, -DURATION_STEP_S))),
-        el('strong', { textContent: formatDuration(seconds) }),
+        val('Durée', spec, el('strong', { textContent: formatDuration(seconds) })),
         step('+', 'Durée plus 15 s', () => updateSelected((x) => nudgeDuration(x, DURATION_STEP_S))),
       );
       put(node, cx, barTop >= CHIP_ROOM ? barTop - 30 : 2, 52);
@@ -940,35 +1045,35 @@ export function setupWorkoutEditor(o: EditorOptions) {
       case 'intervals': {
         const onW = px(b.onS);
         const barTop = topOf(b.onPower);
-        cap('onPower', b.onPower, x0 + onW / 2, 'Effort', false, capMin(barTop));
-        cap('offPower', b.offPower, x0 + onW + px(b.offS) / 2, 'Récupération', true);
-        chip(x0 + onW / 2, b.onS, barTop);
+        cap('onPower', b.onPower, x0 + onW / 2, 'Effort', false, capMin(barTop), { title: 'Effort', power: 'onPower', dur: 'on', cad: 'on' });
+        cap('offPower', b.offPower, x0 + onW + px(b.offS) / 2, 'Récupération', true, 0, { title: 'Récupération', power: 'offPower', dur: 'off', cad: 'off' });
+        chip(x0 + onW / 2, b.onS, barTop, { title: 'Durée de l’effort', dur: 'on' });
         const reps = el(
           'div',
           { className: 'ov-chip ov-reps' },
           step('−', 'Une répétition de moins', () => updateSelected((x) => (x.type === 'intervals' ? { ...x, repeat: Math.max(1, x.repeat - 1) } : x))),
-          el('strong', { textContent: `× ${b.repeat}` }),
+          val('Répétitions', { title: 'Répétitions', reps: true }, el('strong', { textContent: `× ${b.repeat}` })),
           step('+', 'Une répétition de plus', () => updateSelected((x) => (x.type === 'intervals' ? { ...x, repeat: Math.min(50, x.repeat + 1) } : x))),
         );
         put(reps, px(r.end) - 48, 4, 44);
         break;
       }
       case 'steady':
-        cap('power', b.power, x0 + px(b.durationS) / 2, 'Puissance', false, capMin(topOf(b.power)));
-        chip(x0 + px(b.durationS) / 2, b.durationS, topOf(b.power));
+        cap('power', b.power, x0 + px(b.durationS) / 2, 'Puissance', false, capMin(topOf(b.power)), { title: 'Puissance', power: 'power', dur: 'block', cad: 'on' });
+        chip(x0 + px(b.durationS) / 2, b.durationS, topOf(b.power), { title: 'Durée', dur: 'block' });
         break;
       case 'warmup':
       case 'cooldown':
       case 'ramp': {
         const bw = px(b.durationS);
         const barTop = Math.min(topOf(b.from), topOf(b.to));
-        if (bw >= 64) cap('from', b.from, x0 + bw * 0.22, 'Début', true, capMin(barTop));
-        cap('to', b.to, x0 + (bw >= 64 ? bw * 0.78 : bw / 2), 'Fin', true, capMin(barTop));
-        chip(x0 + bw / 2, b.durationS, barTop);
+        if (bw >= 64) cap('from', b.from, x0 + bw * 0.22, 'Début', true, capMin(barTop), { title: 'Début', power: 'from', dur: 'block', cad: 'on' });
+        cap('to', b.to, x0 + (bw >= 64 ? bw * 0.78 : bw / 2), 'Fin', true, capMin(barTop), { title: 'Fin', power: 'to', dur: 'block', cad: 'on' });
+        chip(x0 + bw / 2, b.durationS, barTop, { title: 'Durée', dur: 'block' });
         break;
       }
       case 'free':
-        chip(x0 + px(b.durationS) / 2, b.durationS, 0);
+        chip(x0 + px(b.durationS) / 2, b.durationS, 0, { title: 'Durée', dur: 'block' });
         break;
     }
   }
