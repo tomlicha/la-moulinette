@@ -58,6 +58,8 @@
 /* `hidden` doit toujours cacher, même un élément dont la classe fixe un `display` (sinon l'éditeur vide s'affiche). */
 [hidden] { display: none !important; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.4 system-ui, sans-serif; }
+html { -webkit-text-size-adjust: 100%; }
+body { overscroll-behavior: none; }
 main { max-width: 720px; margin: 0 auto; padding: 16px; }
 h1 { font-size: 1.3rem; }
 h2 { font-size: 1rem; margin: 1.5rem 0 .5rem; }
@@ -201,3 +203,37 @@ button[aria-disabled='true'] { opacity: .45; cursor: help; }
 .blocked-tip button { padding: 6px 12px; font-size: .85rem; }
 .hint-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 8px 0 12px; padding: 10px 14px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 12%, var(--card)); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); }
 .hint-banner a { font-weight: 600; }
+
+/* --- Mode application sur mobile : plein écran, paysage, mêmes écrans que sur ordinateur --- */
+#rotate-hint { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: var(--bg); color: var(--fg); text-align: center; padding: 24px; }
+#rotate-hint[hidden] { display: none !important; }
+.rotate-icon { font-size: 4rem; animation: rotate-hint 2s ease-in-out infinite; }
+@keyframes rotate-hint { 0%, 30% { transform: rotate(0); } 70%, 100% { transform: rotate(-90deg); } }
+@media (prefers-reduced-motion: reduce) { .rotate-icon { animation: none; } }
+
+/* Zones sûres (encoche, barre de gestes) : l'application occupe tout l'écran sans passer dessous. */
+@supports (padding: max(0px)) {
+  body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+  .topbar { padding-top: max(10px, env(safe-area-inset-top)); }
+}
+
+/* Téléphone en paysage : même disposition que sur ordinateur, en plus compact. */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 600px) {
+  main { padding: 8px 12px; }
+  .topbar { padding-top: 4px; padding-bottom: 4px; gap: 4px 12px; }
+  .brand .logo { font-size: 1.2rem; }
+  .topbar nav a { padding: 4px 10px; }
+  .pill { font-size: .8rem; padding: 2px 8px; }
+  h1 { font-size: 1.1rem; margin: .4em 0; }
+  /* La sortie : la vue 3D tient dans l'écran (16:9, bord à bord), le reste défile dessous. */
+  .view { width: min(100%, calc((100dvh - 44px) * 16 / 9)); margin: 0 auto 8px; }
+  main:has([data-view='sortie']:not([hidden])) { padding: 0; }
+  /* L'avertissement « aucun trainer » flotte au-dessus de la vue au lieu de la pousser hors de l'écran. */
+  .hint-banner { position: fixed; z-index: 20; left: 50%; bottom: max(8px, env(safe-area-inset-bottom)); transform: translateX(-50%); flex-wrap: nowrap; margin: 0; padding: 4px 12px; font-size: .8rem; white-space: nowrap; max-width: 94vw; overflow: hidden; text-overflow: ellipsis; background: var(--card); }
+  .view canvas { border-radius: 0; }
+  .hud { border-radius: 0; }
+  /* Éditeur : les colonnes du bureau restent côte à côte. */
+  .ed-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .ed-yaxis { width: 84px; }
+  .ed-plot, .ed-yaxis { height: 200px; }
+}

@@ -75,7 +75,7 @@ main:has([data-view='appareils']:not([hidden])) { max-width: 1184px; }
 /* --- Écran Appareils --- */
 .dev-layout { display: grid; grid-template-columns: minmax(280px, 520px) minmax(0, 1fr); gap: 16px 32px; align-items: start; }
 .dev-radar { min-width: 0; }
-@media (min-width: 861px) { .dev-radar { position: sticky; top: 72px; } }
+@media (min-width: 861px), (orientation: landscape) { .dev-radar { position: sticky; top: 72px; } }
 .dev-side { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .dev-side .device-cards { grid-template-columns: 1fr; gap: 14px; margin: 10px 0; }
 .dev-side .device-card { border: 1.5px solid transparent; border-radius: 18px; padding: 18px 20px; }
@@ -84,7 +84,7 @@ main:has([data-view='appareils']:not([hidden])) { max-width: 1184px; }
 .dev-side .device-card[data-s='connecting'] { border-style: dashed; border-color: var(--pink); }
 .dev-side .device-card[data-s='error'] { border-style: dashed; border-color: var(--err); }
 .dev-lede { margin: 0 0 4px; color: var(--muted); }
-@media (max-width: 860px) {
+@media (max-width: 860px) and (orientation: portrait) {
   .dev-layout { grid-template-columns: 1fr; }
   .dev-radar { max-width: 420px; }
 }
@@ -150,7 +150,7 @@ a.home-radar { display: block; color: inherit; text-decoration: none; border-rad
 .home-workout .row { margin: 0; }
 .home-workout .row a { color: var(--glass-muted); font-size: .9rem; }
 
-@media (max-width: 900px) {
+@media (max-width: 900px) and (orientation: portrait) {
   .home { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; padding: 16px; gap: 16px; }
   .home-top { flex-wrap: wrap; }
   .home-nav a { padding: 0 14px; }
@@ -163,3 +163,23 @@ a.home-radar { display: block; color: inherit; text-decoration: none; border-rad
 .trainer-help ul { margin: 8px 0; padding-left: 1.2rem; display: grid; gap: 4px; }
 .trainer-help label { display: grid; gap: 4px; margin-top: 8px; }
 .trainer-help select { width: 100%; }
+
+/* Téléphone en paysage : l'accueil et les appareils gardent la disposition du bureau, réduite. */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 600px) {
+  .home { padding: 10px max(16px, env(safe-area-inset-left)) 12px; gap: 10px; grid-template-columns: minmax(0, 1fr) 300px; }
+  .home-brand { height: 40px; padding: 0 12px; font-size: 1.5rem; }
+  .home-nav a { height: 34px; padding: 0 12px; font-size: .95rem; }
+  .home h2.home-title { font-size: clamp(2.6rem, 11vh, 4rem); }
+  .home-hero-body p { font-size: 1rem; margin-bottom: 8px; }
+  button.home-ride { height: 52px; padding: 0 28px; font-size: 1.3rem; }
+  .home { height: 100dvh; min-height: 0; }
+  .home-side { gap: 8px; min-height: 0; }
+  .home-radar { max-height: 38dvh; overflow: hidden; }
+  .home-workout-meta, .home-workout .wo-profile { display: none; }
+  .home-kicker { font-size: .75rem; }
+  .home-workout { padding: 10px; gap: 6px; }
+  .dev-layout { gap: 12px 20px; grid-template-columns: minmax(200px, 38%) minmax(0, 1fr); }
+  .dev-radar { top: 8px !important; }
+  .dev-side .device-card { padding: 10px 14px; }
+  .dev-side .device-card h2 { font-size: 1.1rem; }
+}

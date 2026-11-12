@@ -19,6 +19,7 @@ import { ALL_PROTOCOLS, PROTOCOL_LABEL, type ControlProtocol } from './sensors/t
 import { formatDuration } from './ui/duration';
 import { setBlocked, setupBlockedHints, type BlockReason } from './ui/blocked';
 import { setupRouter } from './ui/router';
+import { setupAppShell } from './ui/app-shell';
 import { setupWorkoutEditor } from './ui/workout-editor';
 import { RideHud } from './ui/hud';
 import { createRadar } from './ui/radar';
@@ -661,6 +662,7 @@ const editor = setupWorkoutEditor({
 });
 refreshWorkoutChoices();
 
+setupAppShell();
 const router = setupRouter((v) => view?.setActive(v === 'sortie'));
 
 const registry = new DeviceRegistry();

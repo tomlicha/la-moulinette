@@ -2,12 +2,24 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="theme-color" content="#262c35" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="La Moulinette" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <title>La Moulinette</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
+    <!-- Mobile en portrait : on invite à tourner l'appareil (l'application est conçue en paysage). -->
+    <div id="rotate-hint" role="alert" hidden>
+      <div class="rotate-icon" aria-hidden="true">⟳</div>
+      <p>Tourne ton téléphone en mode paysage</p>
+      <button id="fs-btn" type="button">Plein écran</button>
+    </div>
     <header class="topbar">
       <strong class="brand"><span class="logo" role="img" aria-label="La Moulinette"><span class="logo-la" aria-hidden="true">LA</span><span class="logo-word" aria-hidden="true">M<svg class="logo-o" viewBox="0 0 24 24" fill="none"><circle class="logo-teeth" cx="12" cy="12" r="11" /><circle class="logo-ring" cx="12" cy="12" r="8" /><path class="logo-spokes" d="M12 12V5.4M12 12l6.3-2M12 12l3.9 5.3M12 12l-3.9 5.3M12 12l-6.3-2" /><circle cx="12" cy="12" r="2.1" fill="currentColor" stroke="none" /></svg>ULINETTE</span></span></strong>
       <nav aria-label="Écrans">

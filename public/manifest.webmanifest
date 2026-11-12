@@ -1,0 +1,13 @@
+{
+  "name": "La Moulinette",
+  "short_name": "Moulinette",
+  "lang": "fr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#262c35",
+  "theme_color": "#262c35",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
