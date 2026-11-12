@@ -37,7 +37,7 @@ Une seule géométrie, **carrée** (200 × 200 dans le repère du dessin) : le m
 
 ## Appareils
 
-Écran **plein écran** comme l'accueil et les séances : la scène en fond sous le voile crème, la marque en pastille et la navigation flottante, avec Appareils comme page courante ; la barre du haut est masquée (le journal reste sous l'écran).
+Écran **plein écran** comme l'accueil et les séances : la scène en fond sous le voile crème, la marque en pastille et la navigation flottante, avec Appareils comme page courante ; la barre du haut et le journal sont masqués, comme sur l'accueil : la page ne défile pas (sauf aide ouverte ou fenêtre trop basse). La fiche du coureur défile dans sa carte si l'écran est trop bas ; les zones y tiennent sur une ligne (« ≤ 139 W », « ≥ 303 W »).
 
 - **Ligne du haut** : une carte titre (« Équipe ton coureur », une phrase, le résumé du coureur, **Continuer vers l'accueil** et « Continuer sans trainer ») et la tuile radar `large`.
 - **Carte « Capteurs »** : le home trainer et la ceinture cardio côte à côte dans une seule carte. Chaque colonne donne l'icône, le nom de l'appareil, l'état (« Connecté », « Connexion… », « Erreur de connexion », « Non connecté(e) »), puis les boutons de connexion. Une ligne d'aide repliée (« Ton trainer n'apparaît pas… », avec le choix du protocole) et l'état du Bluetooth web complètent la carte.

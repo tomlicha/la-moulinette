@@ -145,9 +145,9 @@ a.home-radar > div { width: 100%; }
 }
 
 /* --- Écran Appareils : plein écran comme l'accueil. Carte titre et tuile radar, puis une carte « Capteurs » unique. --- */
-body:has([data-view='appareils']:not([hidden])) .topbar { display: none; }
+body:has([data-view='appareils']:not([hidden])) .topbar,
+body:has([data-view='appareils']:not([hidden])) .log-panel { display: none; }
 main:has([data-view='appareils']:not([hidden])) { max-width: none; padding: 0; }
-main:has([data-view='appareils']:not([hidden])) .log-panel { margin: 0; padding: 12px 16px 24px; }
 .dev { grid-template-columns: minmax(0, 1fr) clamp(200px, 20vw, 250px); grid-template-rows: auto 1fr auto auto; }
 .dev .home-top { grid-column: 1 / -1; }
 .dev-hero, .dev-sensors { border-radius: var(--radius-card); background: var(--glass); border: 1px solid var(--glass-line); box-shadow: var(--shadow-card); backdrop-filter: blur(14px) saturate(1.2); min-width: 0; }
@@ -202,7 +202,7 @@ button.rider-chip:hover { background: #FBF6EF; }
 /* Fiche du coureur */
 .rider-dialog { border: 0; padding: 0; background: transparent; max-width: none; color: var(--fg); font-family: Barlow, system-ui, sans-serif; }
 .rider-dialog::backdrop { background: rgb(20 23 26 / .45); backdrop-filter: blur(4px); }
-.rider-card { width: min(460px, calc(100vw - 32px)); box-sizing: border-box; display: flex; flex-direction: column; gap: 14px; padding: 22px 24px; border-radius: var(--radius-card); background: #fff; box-shadow: 0 18px 48px rgb(0 0 0 / .3); color-scheme: light; }
+.rider-card { width: min(460px, calc(100vw - 32px)); max-height: calc(100dvh - 24px); overflow-y: auto; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px; padding: 22px 24px; border-radius: var(--radius-card); background: #fff; box-shadow: 0 18px 48px rgb(0 0 0 / .3); color-scheme: light; }
 .rider-top { display: flex; align-items: center; gap: 16px; }
 .rider-top h2 { margin: 0; font: 700 2.2rem/1 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; }
 .rider-avatar { width: 88px; height: 88px; flex: none; border-radius: 50%; object-fit: cover; border: 3px solid #5BE3C9; background: #E2E4E7; box-shadow: 0 0 0 4px rgba(91, 227, 201, .2); }
@@ -223,8 +223,9 @@ button.rider-chip:hover { background: #FBF6EF; }
 .rider-zones { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
 .rider-zones li { display: flex; align-items: center; gap: 8px; font-size: .95rem; }
 .rider-zones li i { width: 10px; height: 10px; flex: none; border-radius: 3px; }
-.rider-zones li span { color: var(--muted); }
-.rider-zones li b { margin-left: auto; font-variant-numeric: tabular-nums; }
+.rider-zones li { min-width: 0; }
+.rider-zones li span { min-width: 0; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rider-zones li b { margin-left: auto; padding-left: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .rider-zones .z1 { background: var(--z1); } .rider-zones .z2 { background: var(--z2); } .rider-zones .z3 { background: var(--z3); }
 .rider-zones .z4 { background: var(--z4); } .rider-zones .z5 { background: var(--z5); } .rider-zones .z6 { background: var(--z6); }
 .rider-card .row { margin: 0; justify-content: flex-end; }

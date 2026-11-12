@@ -63,7 +63,7 @@ export function setupRiderProfile(o: {
     zonesOut.replaceChildren(
       ...zoneRangesW(ftp).map((z) => {
         const li = document.createElement('li');
-        const range = z.fromW === undefined ? `jusqu’à ${z.toW} W` : z.toW === undefined ? `dès ${z.fromW} W` : `${z.fromW}–${z.toW} W`;
+        const range = z.fromW === undefined ? `≤ ${z.toW} W` : z.toW === undefined ? `≥ ${z.fromW} W` : `${z.fromW}–${z.toW} W`;
         li.innerHTML = `<i class="${z.id}"></i><span>${z.id.toUpperCase()} · ${z.name}</span><b>${range}</b>`;
         return li;
       }),
