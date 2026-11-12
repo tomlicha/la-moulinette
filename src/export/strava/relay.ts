@@ -86,7 +86,7 @@ export function createStravaRelay(opts: RelayOptions) {
 
     const url = new URL(req.url);
     const meta = {
-      name: url.searchParams.get('name') || 'Sortie zwift-2',
+      name: url.searchParams.get('name') || 'Sortie La Moulinette',
       externalId: url.searchParams.get('externalId') || `zwift2-${now()}`,
     };
 

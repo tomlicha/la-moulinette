@@ -1,4 +1,4 @@
-# zwift-2
+# La Moulinette
 
 App d'entraînement home trainer (cyclisme, puis course à pied), avec rendu 3D, capteurs Bluetooth et multijoueur.
 
