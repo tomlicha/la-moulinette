@@ -1,5 +1,5 @@
-export type View = 'appareils' | 'sortie' | 'seances';
-const VIEWS: View[] = ['appareils', 'sortie', 'seances'];
+export type View = 'appareils' | 'accueil' | 'sortie' | 'seances';
+const VIEWS: View[] = ['appareils', 'accueil', 'sortie', 'seances'];
 
 /**
  * Trois écrans dans une seule page, choisis par l'ancre de l'URL. Une page rechargée perd ses connexions

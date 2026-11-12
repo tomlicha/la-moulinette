@@ -3,63 +3,128 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>zwift-2</title>
+    <title>La Moulinette</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
     <header class="topbar">
-      <strong class="brand">zwift-2</strong>
+      <strong class="brand"><span class="logo" role="img" aria-label="La Moulinette"><span class="logo-la" aria-hidden="true">LA</span><span class="logo-word" aria-hidden="true">M<svg class="logo-o" viewBox="0 0 24 24" fill="none"><circle class="logo-teeth" cx="12" cy="12" r="11" /><circle class="logo-ring" cx="12" cy="12" r="8" /><path class="logo-spokes" d="M12 12V5.4M12 12l6.3-2M12 12l3.9 5.3M12 12l-3.9 5.3M12 12l-6.3-2" /><circle cx="12" cy="12" r="2.1" fill="currentColor" stroke="none" /></svg>ULINETTE</span></span></strong>
       <nav aria-label="Écrans">
-        <a href="#appareils" data-nav="appareils">Appareils</a>
+        <a href="#accueil" data-nav="accueil">Accueil</a>
         <a href="#sortie" data-nav="sortie">Sortie</a>
         <a href="#seances" data-nav="seances">Séances</a>
+        <a href="#appareils" data-nav="appareils">Appareils</a>
       </nav>
       <span id="status-trainer" class="pill">trainer : déconnecté</span>
       <span id="status-hr" class="pill">cardio : déconnecté</span>
     </header>
 
     <main>
-      <!-- Écran 1 : premier écran au lancement -->
+      <!-- Écran 1 : premier écran au lancement. Radar des appareils (maquette B1, docs/design/accueil-appareils.md) -->
       <section data-view="appareils">
-        <h1>Connexion des appareils</h1>
-        <p id="support" class="note"></p>
-        <p id="recall-note" class="note"></p>
+        <div class="dev-layout">
+          <div id="radar-devices" class="dev-radar"></div>
+          <div class="dev-side">
+            <h1>Équipe ton coureur</h1>
+            <p class="dev-lede">Chaque appareil apparaît sur le radar, relié à ton coureur. Un trainer suffit pour rouler.</p>
+            <p id="support" class="note"></p>
+            <p id="recall-note" class="note"></p>
 
-        <div class="device-cards">
-          <article class="device-card">
-            <h2>Home trainer</h2>
-            <p id="trainer-known" class="note">Aucun trainer connu.</p>
-            <span id="state" class="pill">trainer : déconnecté</span>
-            <p id="caps" class="note"></p>
-            <div class="row">
-              <button id="connect-ble">Rechercher un trainer</button>
-              <button id="connect-ble-other" class="secondary" hidden>Autre trainer</button>
-              <button id="connect-sim" class="secondary">Trainer simulé</button>
-              <button id="disconnect" class="secondary" disabled>Déconnecter</button>
-              <button id="forget-trainer" class="secondary" hidden>Oublier</button>
+            <div class="device-cards">
+              <article id="card-trainer" class="device-card">
+                <h2>Home trainer</h2>
+                <p id="trainer-known" class="note">Aucun trainer connu.</p>
+                <span id="state" class="pill">trainer : déconnecté</span>
+                <p id="caps" class="note"></p>
+                <div class="row">
+                  <button id="connect-ble">Rechercher un trainer</button>
+                  <button id="connect-ble-other" class="secondary" hidden>Autre trainer</button>
+                  <button id="connect-sim" class="secondary">Trainer simulé</button>
+                  <button id="disconnect" class="secondary" disabled>Déconnecter</button>
+                  <button id="forget-trainer" class="secondary" hidden>Oublier</button>
+                </div>
+                <details class="trainer-help note">
+                  <summary>Ton trainer n'apparaît pas, ou ne se pilote pas ?</summary>
+                  <ul>
+                    <li>Ferme les autres applications reliées au trainer (Zwift, l'app de la marque) et déconnecte ton compteur : beaucoup de trainers n'acceptent qu'une connexion Bluetooth à la fois.</li>
+                    <li>Mets à jour son firmware avec l'app de la marque (Wahoo, Tacx Training, My E-Training d'Elite) : les anciens firmwares n'ont pas toujours de mode de pilotage standard.</li>
+                    <li>Sous Windows, n'appaire pas le trainer dans les réglages Bluetooth : Chrome ou Edge s'en chargent. Après une mise à jour du firmware, retire-le de la liste Windows s'il y figure.</li>
+                  </ul>
+                  <label>Protocole de pilotage
+                    <select id="trainer-protocol">
+                      <option value="">Automatique, selon le modèle (recommandé)</option>
+                      <option value="ftms">FTMS (standard)</option>
+                      <option value="wahoo">Wahoo (propriétaire)</option>
+                      <option value="fec">FE-C over BLE (Tacx)</option>
+                    </select>
+                  </label>
+                </details>
+              </article>
+
+              <article id="card-hr" class="device-card">
+                <h2>Ceinture cardio</h2>
+                <p id="hr-known" class="note">Aucune ceinture connue. Facultatif.</p>
+                <span id="state-hr" class="pill">cardio : déconnecté</span>
+                <div class="row">
+                  <button id="connect-hr" class="secondary">Rechercher une ceinture</button>
+                  <button id="connect-hr-other" class="secondary" hidden>Autre ceinture</button>
+                  <button id="disconnect-hr" class="secondary" disabled>Déconnecter</button>
+                  <button id="forget-hr" class="secondary" hidden>Oublier</button>
+                </div>
+              </article>
             </div>
-          </article>
 
-          <article class="device-card">
-            <h2>Ceinture cardio</h2>
-            <p id="hr-known" class="note">Aucune ceinture connue. Facultatif.</p>
-            <span id="state-hr" class="pill">cardio : déconnecté</span>
             <div class="row">
-              <button id="connect-hr" class="secondary">Rechercher une ceinture</button>
-              <button id="connect-hr-other" class="secondary" hidden>Autre ceinture</button>
-              <button id="disconnect-hr" class="secondary" disabled>Déconnecter</button>
-              <button id="forget-hr" class="secondary" hidden>Oublier</button>
+              <button id="go-ride" disabled>Continuer vers l'accueil</button>
+              <a href="#accueil" class="note">Continuer sans trainer</a>
             </div>
-          </article>
-        </div>
-
-        <div class="row">
-          <button id="go-ride" disabled>Continuer vers la sortie</button>
-          <a href="#sortie" class="note">Continuer sans trainer</a>
+          </div>
         </div>
       </section>
 
-      <!-- Écran 2 : la sortie -->
+      <!-- Écran 2 : accueil, plein écran. Point de départ de la navigation (la barre du haut est masquée ici) -->
+      <section data-view="accueil" hidden>
+        <h1 class="visually-hidden">Accueil</h1>
+        <div class="home">
+            <div id="home-scenes" class="home-scenes" aria-hidden="true"></div>
+          <div class="home-shade"></div>
+
+          <header class="home-top">
+            <strong class="home-brand"><span class="logo" role="img" aria-label="La Moulinette"><span class="logo-la" aria-hidden="true">LA</span><span class="logo-word" aria-hidden="true">M<svg class="logo-o" viewBox="0 0 24 24" fill="none"><circle class="logo-teeth" cx="12" cy="12" r="11" /><circle class="logo-ring" cx="12" cy="12" r="8" /><path class="logo-spokes" d="M12 12V5.4M12 12l6.3-2M12 12l3.9 5.3M12 12l-3.9 5.3M12 12l-6.3-2" /><circle cx="12" cy="12" r="2.1" fill="currentColor" stroke="none" /></svg>ULINETTE</span></span></strong>
+            <nav class="home-nav" aria-label="Écrans">
+              <a href="#sortie" data-nav="sortie">Sortie</a>
+              <a href="#seances" data-nav="seances">Séances</a>
+              <a href="#appareils" data-nav="appareils">Appareils</a>
+            </nav>
+          </header>
+
+          <div class="home-hero-body">
+            <span class="home-kicker">Monde</span>
+            <h2 id="home-title" class="home-title"></h2>
+            <p id="home-desc"></p>
+            <button id="home-ride" class="home-ride" type="button" disabled>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12-7.5z" /></svg>Rouler
+            </button>
+          </div>
+
+          <aside class="home-side">
+            <a class="home-radar" href="#appareils"><div id="radar-home"></div></a>
+            <section class="home-workout" aria-labelledby="home-wo-title">
+              <span class="home-kicker" id="home-wo-title">Séance</span>
+              <select id="home-wo-select" aria-label="Séance"></select>
+              <p id="home-wo-meta" class="home-workout-meta">Aucune séance choisie.</p>
+              <svg class="wo-profile" viewBox="0 0 1000 120" preserveAspectRatio="none" aria-hidden="true"><g id="home-wo-shapes"></g></svg>
+              <div class="row">
+                <button id="home-wo-start" type="button" disabled>Démarrer la séance</button>
+                <a href="#seances">Créer ou modifier</a>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </section>
+
+      <!-- Écran 3 : la sortie -->
       <section data-view="sortie" hidden>
         <p id="sortie-hint" class="hint-banner">
           Aucun trainer connecté : la sortie et les séances en ont besoin pour avancer et piloter la résistance.
@@ -141,7 +206,7 @@
         </section>
       </section>
 
-      <!-- Écran 3 : bibliothèque et éditeur de séances -->
+      <!-- Écran 4 : bibliothèque et éditeur de séances -->
       <section data-view="seances" hidden>
         <h1>Séances</h1>
         <div class="row">

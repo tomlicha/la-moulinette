@@ -60,9 +60,8 @@ export function createLogReceiver(opts: ReceiverOptions) {
       if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405, cors);
       if (!opts.ingestToken && !opts.allowOpenIngest) return json({ error: 'not_configured' }, 503, cors);
       if (opts.ingestToken && !sameToken(bearer(req), opts.ingestToken)) return json({ error: 'forbidden' }, 403, cors);
-      // Refus avant lecture : inutile d'avaler un corps de plusieurs mégaoctets pour le jeter ensuite.
+      // Refus avant lecture : un Worker ne doit pas avaler un corps de plusieurs mégaoctets pour le jeter ensuite.
       if (Number(req.headers.get('content-length')) > LIMITS.bodyBytes) return json({ error: 'too_large' }, 413, cors);
-
       const text = await req.text();
       if (new TextEncoder().encode(text).length > LIMITS.bodyBytes) return json({ error: 'too_large' }, 413, cors);
       let parsed;

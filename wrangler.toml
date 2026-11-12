@@ -1,0 +1,20 @@
+# Récepteur de journaux sur Cloudflare Workers + D1. Mise en route : voir « Journaux d'erreurs à distance » dans le README.
+name = "zwift2-logs"
+main = "worker/index.ts"
+compatibility_date = "2026-11-01"
+workers_dev = true
+preview_urls = false
+
+# Domaine de l'application autorisé à déposer des rapports depuis un navigateur (CORS). `*` : tout le monde.
+[vars]
+ALLOWED_ORIGIN = "*"
+
+# Purge quotidienne des rapports de plus de 30 jours.
+[triggers]
+crons = ["0 3 * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "zwift2-logs"
+database_id = "9610a50e-302f-4e1e-984a-3d7cd29229cd"
+migrations_dir = "worker/migrations"

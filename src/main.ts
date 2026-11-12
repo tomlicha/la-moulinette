@@ -12,13 +12,17 @@ import type { ConnectionState, TrainerAdapter, TrainerCapabilities } from './sen
 import { STEP_LABEL, type Workout } from './workout/model';
 import { profileShapes } from './workout/profile';
 import { parseWorkout, type WorkoutState } from './workout/runner';
-import { canRecallDevices, DeviceRegistry, recallDevices, type DeviceRole } from './sensors/device-registry';
+import { browserStore, canRecallDevices, DeviceRegistry, recallDevices, type DeviceRole } from './sensors/device-registry';
+import { ALL_PROTOCOLS, PROTOCOL_LABEL, type ControlProtocol } from './sensors/trainer-profiles';
 import { formatDuration } from './ui/duration';
 import { setBlocked, setupBlockedHints, type BlockReason } from './ui/blocked';
 import { $ } from './ui/dom';
 import { setupRouter } from './ui/router';
 import { setupWorkoutEditor } from './ui/workout-editor';
 import { RideHud } from './ui/hud';
+import { createRadar } from './ui/radar';
+import { setupHomeBackground } from './ui/home-background';
+import { controlModes } from './ui/radar-model';
 import { blocksToWorkout } from './workout/blocks';
 import { WorkoutLibrary } from './workout/library';
 import { SAMPLE_WORKOUTS } from './workout/samples';
@@ -80,6 +84,16 @@ const el = {
   },
   viewStats: $('view-stats'),
   canvas: $<HTMLCanvasElement>('view'),
+  protocol: $<HTMLSelectElement>('trainer-protocol'),
+  card: { trainer: $('card-trainer'), hr: $('card-hr') },
+  // Accueil : même séance et même profil que l'écran de sortie, raccourcis vers la sortie.
+  home: {
+    shapes: $<SVGGElement>('home-wo-shapes'),
+    select: $<HTMLSelectElement>('home-wo-select'),
+    start: $<HTMLButtonElement>('home-wo-start'),
+    ride: $<HTMLButtonElement>('home-ride'),
+    meta: $('home-wo-meta'),
+  },
 };
 
 // --- Journal ---
@@ -102,6 +116,7 @@ const telemetry = setupTelemetry({
     trainer: trainer?.name,
     trainerState: roleState.trainer,
     capabilities: trainer?.capabilities,
+    trainerIdentity: trainer instanceof WebBluetoothTrainer ? trainer.identity : undefined,
     heartRateState: roleState.hr,
     rideRunning: session.riding,
   }),
@@ -118,6 +133,10 @@ const registry = new DeviceRegistry();
 const roleState: Record<DeviceRole, ConnectionState> = { trainer: 'disconnected', hr: 'disconnected' };
 /** Appareils que l'application tente de retrouver seule au lancement ; vide une fois cette phase terminée. */
 const launchPending = new Set<DeviceRole>();
+/** Même radar sur l'écran Appareils (grand) et sur l'accueil (réduit) : rôle de l'appareil et nom réel dans chaque bulle. */
+const radars = [createRadar($('radar-devices'), 'full'), createRadar($('radar-home'), 'mini')];
+// Fond de l'accueil : trois scènes qui se relaient toutes les minutes.
+setupHomeBackground($('home-scenes'), $('home-title'), $('home-desc'));
 
 const session = new TrainingSession({
   trainer: hub,
@@ -140,13 +159,34 @@ const exporter = setupExport({
   log,
 });
 
+/** Protocole de pilotage imposé depuis l'aide de l'écran Appareils ; vide = choix automatique selon le modèle. */
+const PROTOCOL_KEY = 'zwift2.trainerProtocol';
+const prefs = browserStore();
+const savedProtocol = prefs.getItem(PROTOCOL_KEY) as ControlProtocol | null;
+el.protocol.value = savedProtocol && ALL_PROTOCOLS.includes(savedProtocol) ? savedProtocol : '';
+el.protocol.addEventListener('change', () => {
+  try {
+    if (el.protocol.value) prefs.setItem(PROTOCOL_KEY, el.protocol.value);
+    else prefs.removeItem(PROTOCOL_KEY);
+  } catch {
+    // stockage bloqué : le choix vaut pour cette session
+  }
+  log(`protocole de pilotage : ${el.protocol.value ? PROTOCOL_LABEL[el.protocol.value as ControlProtocol] : 'automatique'}, appliqué à la prochaine connexion`);
+});
+
+function newBleTrainer(): WebBluetoothTrainer {
+  const t = new WebBluetoothTrainer();
+  t.forcedProtocol = (el.protocol.value || undefined) as ControlProtocol | undefined;
+  return t;
+}
+
 const hex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, '0')).join(' ');
 const fmtTime = (s: number) => formatDuration(Math.floor(s));
 
 hub.on('log', (msg, level) => log(msg, level));
 hub.on('raw', (src, data) => {
   // Les trames brutes servent à documenter chaque modèle de trainer ; on ne journalise pas tout le flux.
-  if (src !== 'Indoor Bike Data' && src !== 'Heart Rate' && src !== 'Cycling Power') log(`${src} : ${hex(data)}`);
+  if (src !== 'Indoor Bike Data' && src !== 'Heart Rate' && src !== 'Cycling Power' && src !== 'FE-C') log(`${src} : ${hex(data)}`);
 });
 hub.on('measurement', (m) => session.onMeasurement(m));
 
@@ -168,7 +208,9 @@ function onTrainerState(s: ConnectionState, detail?: string) {
   if (s === 'connected' && trainer) {
     const c = trainer.capabilities;
     const range = c.powerRange ? `, plage ${c.powerRange.min}–${c.powerRange.max} W` : '';
-    el.caps.textContent = `ERG : ${c.targetPower ? 'oui' : 'non'} · SIM : ${c.simulation ? 'oui' : 'non'}${range}`;
+    const id = trainer instanceof WebBluetoothTrainer ? trainer.identity : undefined;
+    const model = id ? `${id.profile.label}${id.info.firmware ? ` (firmware ${id.info.firmware})` : ''} · pilotage ${id.protocol ? PROTOCOL_LABEL[id.protocol] : 'aucun'} · ` : '';
+    el.caps.textContent = `${model}ERG : ${c.targetPower ? 'oui' : 'non'} · SIM : ${c.simulation ? 'oui' : 'non'}${range}${id?.advice ? `. ${id.advice}` : ''}`;
   }
   session.setConnection(s, trainer?.capabilities ?? NO_CAPS); // redessine les commandes par onChange
   renderDevices();
@@ -198,7 +240,9 @@ function refreshControls() {
           : undefined,
   );
   // La puissance seule suffit à rouler : la pente n'est envoyée que si le trainer sait la simuler.
-  setBlocked(el.ride, connected ? undefined : needTrainer('La sortie avance avec la puissance de ton home trainer : connecte-le d’abord.'));
+  const needPowerToRide = connected ? undefined : needTrainer('La sortie avance avec la puissance de ton home trainer : connecte-le d’abord.');
+  setBlocked(el.ride, needPowerToRide);
+  setBlocked(el.home.ride, needPowerToRide);
   el.erg.textContent = session.ergActive ? "Désengager l'ERG" : "Engager l'ERG";
   el.erg.classList.toggle('secondary', session.ergActive);
   el.ride.textContent = session.riding ? 'Arrêter la sortie' : 'Démarrer la sortie';
@@ -206,18 +250,17 @@ function refreshControls() {
   el.mass.title = session.riding ? 'La masse se règle avant de démarrer la sortie.' : '';
 
   const running = session.workout;
-  setBlocked(
-    el.wo.start,
-    running
-      ? 'La séance est déjà en cours.'
-      : !workout
-        ? 'Choisis d’abord une séance dans la liste ci-dessus.'
-        : !connected
-          ? needTrainer('La séance pilote la résistance de ton home trainer : connecte-le d’abord.')
-          : !caps.targetPower
-            ? noControl('mode ERG')
-            : undefined,
-  );
+  const startReason = running
+    ? 'La séance est déjà en cours.'
+    : !workout
+      ? 'Choisis d’abord une séance dans la liste.'
+      : !connected
+        ? needTrainer('La séance pilote la résistance de ton home trainer : connecte-le d’abord.')
+        : !caps.targetPower
+          ? noControl('mode ERG')
+          : undefined;
+  setBlocked(el.wo.start, startReason);
+  setBlocked(el.home.start, startReason);
   for (const b of [el.wo.pause, el.wo.skip, el.wo.stop, el.wo.easier, el.wo.harder]) {
     setBlocked(b, running ? undefined : 'Démarre d’abord la séance.');
   }
@@ -277,8 +320,8 @@ const connectHrWith = (hint?: string) =>
 el.connectHr.addEventListener('click', () => connectHrWith(registry.get('hr')?.name));
 el.connectHrOther.addEventListener('click', () => connectHrWith());
 el.disconnectHr.addEventListener('click', () => void hrMonitor?.disconnect());
-el.connectBle.addEventListener('click', () => void start(new WebBluetoothTrainer(), registry.get('trainer')?.name));
-el.connectBleOther.addEventListener('click', () => void start(new WebBluetoothTrainer()));
+el.connectBle.addEventListener('click', () => void start(newBleTrainer(), registry.get('trainer')?.name));
+el.connectBleOther.addEventListener('click', () => void start(newBleTrainer()));
 el.connectSim.addEventListener('click', () => void start(new SimulatedTrainer()));
 for (const role of ['trainer', 'hr'] as const) {
   el.forget[role].addEventListener('click', () => {
@@ -300,9 +343,8 @@ el.sim.addEventListener('click', () => void session.sendGrade(Number(el.gradeInp
 el.gradeInput.addEventListener('input', () => {
   el.gradeOut.textContent = `${el.gradeInput.value} %`;
 });
-el.ride.addEventListener('click', () =>
-  session.riding ? session.stopRide() : session.startRide(Number(el.mass.value) || DEFAULT_RIDER.massKg),
-);
+const riderMassKg = () => Number(el.mass.value) || DEFAULT_RIDER.massKg;
+el.ride.addEventListener('click', () => (session.riding ? session.stopRide() : session.startRide(riderMassKg())));
 
 // --- Séance structurée ---
 
@@ -322,12 +364,16 @@ const readFtp = () => (Number(el.wo.ftp.value) >= 50 ? Number(el.wo.ftp.value) :
 
 function renderProfile() {
   el.wo.shapes.replaceChildren();
+  el.home.shapes.replaceChildren();
+  el.home.meta.textContent = workout ? `${workout.name} · ${fmtTime(workout.steps.reduce((t, s) => t + s.durationS, 0))}` : 'Aucune séance choisie.';
   if (!workout) return;
   for (const s of profileShapes(workout, readFtp(), PROFILE_W, PROFILE_H)) {
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', s.d);
-    path.setAttribute('class', s.zone);
-    el.wo.shapes.append(path);
+    for (const target of [el.wo.shapes, el.home.shapes]) {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', s.d);
+      path.setAttribute('class', s.zone);
+      target.append(path);
+    }
   }
 }
 
@@ -359,6 +405,13 @@ function refreshWorkoutChoices() {
   samples.append(...SAMPLE_WORKOUTS.map((s) => opt(`sample:${s.id}`, parseWorkout(s.fileName, s.text).name)));
   el.wo.select.replaceChildren(opt('', '— choisir une séance —'), ...(mine.children.length ? [mine] : []), samples);
   el.wo.select.value = [...el.wo.select.options].some((o) => o.value === keep) ? keep : '';
+  syncHomeSelect();
+}
+
+/** Le sélecteur de l'accueil reprend les choix de celui de la sortie, et sa valeur. */
+function syncHomeSelect() {
+  el.home.select.replaceChildren(...[...el.wo.select.children].map((c) => c.cloneNode(true)));
+  el.home.select.value = el.wo.select.value;
 }
 
 function chooseWorkout(value: string) {
@@ -367,6 +420,7 @@ function chooseWorkout(value: string) {
     return;
   }
   el.wo.select.value = value;
+  el.home.select.value = value;
   workout = value ? workoutFromChoice(value) : undefined;
   if (!workout) {
     el.wo.name.textContent = 'Aucune séance choisie.';
@@ -413,7 +467,23 @@ el.wo.ftp.addEventListener('change', () => {
   renderProfile();
   editor.refresh();
 });
-el.wo.start.addEventListener('click', () => workout && session.startWorkout(workout, readFtp()));
+function startWorkout() {
+  if (!workout) return;
+  // La séance se roule sur le parcours : sans sortie en cours, le cycliste resterait immobile dans la vue.
+  if (!session.riding && session.connected) session.startRide(riderMassKg());
+  session.startWorkout(workout, readFtp());
+}
+
+el.home.select.addEventListener('change', () => chooseWorkout(el.home.select.value));
+el.home.start.addEventListener('click', () => {
+  router.go('sortie');
+  startWorkout();
+});
+el.home.ride.addEventListener('click', () => {
+  router.go('sortie');
+  if (!session.riding) session.startRide(riderMassKg());
+});
+el.wo.start.addEventListener('click', startWorkout);
 el.wo.pause.addEventListener('click', () => session.togglePause());
 el.wo.skip.addEventListener('click', () => session.skipStep());
 el.wo.stop.addEventListener('click', () => session.stopWorkout());
@@ -483,7 +553,18 @@ function renderDevices() {
   for (const [role, label] of [['trainer', 'trainer'], ['hr', 'cardio']] as const) {
     el.status[role].dataset.s = roleState[role];
     el.status[role].textContent = `${label} : ${STATUS_LABEL[roleState[role]]}`;
+    el.card[role].dataset.s = roleState[role];
   }
+  // Nom réel : celui de l'appareil connecté ; sinon le dernier appareil mémorisé, que la reconnexion cherche.
+  const radarDevices = {
+    trainer: {
+      state: roleState.trainer,
+      name: (roleState.trainer === 'connected' ? trainer?.name : undefined) ?? t?.name,
+      detail: roleState.trainer === 'connected' ? controlModes(trainer?.capabilities) : undefined,
+    },
+    hr: { state: roleState.hr, name: (roleState.hr === 'connected' ? hrMonitor?.name : undefined) ?? h?.name },
+  };
+  for (const r of radars) r.update(radarDevices);
 }
 
 /**
@@ -496,8 +577,8 @@ function maybeLeaveDevices() {
   if (!settled) return;
   launchPending.clear();
   if (router.current() !== 'appareils') return;
-  log('appareils connus reconnectés : passage à la sortie');
-  setTimeout(() => router.current() === 'appareils' && router.go('sortie'), 800);
+  log("appareils connus reconnectés : passage à l'accueil");
+  setTimeout(() => router.current() === 'appareils' && router.go('accueil'), 800);
 }
 
 async function reconnectKnownDevices() {
@@ -534,7 +615,7 @@ async function reconnectKnownDevices() {
   for (const role of found.keys()) launchPending.add(role);
   const td = found.get('trainer');
   if (td) {
-    const t = new WebBluetoothTrainer();
+    const t = newBleTrainer();
     attach(t);
     void t.connectDevice(td, true);
   }
@@ -543,7 +624,7 @@ async function reconnectKnownDevices() {
   note.textContent = `Reconnexion automatique : ${[...found.values()].map((d) => d.name ?? 'appareil').join(', ')}. Allume-les si ce n'est pas déjà fait.`;
 }
 
-el.goRide.addEventListener('click', () => router.go('sortie'));
+el.goRide.addEventListener('click', () => router.go('accueil'));
 $('copy-log').addEventListener('click', () => void navigator.clipboard.writeText(el.log.textContent ?? ''));
 
 el.support.textContent = webBluetoothAvailable()

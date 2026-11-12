@@ -1,0 +1,165 @@
+/*
+ * Écrans Appareils et Accueil. Référence : docs/design/accueil-appareils.md (maquette B1, « Médaillon »).
+ * Le radar et le visuel d'accueil sont des panneaux de scène, aux couleurs fixes comme le HUD ;
+ * le reste suit le thème de la page. L'accent de ces deux écrans est celui du jeu (menthe).
+ */
+[data-view='appareils'], [data-view='accueil'] { --accent: #5BE3C9; --on-accent: #0B1422; --pink: #FF5FA2; }
+main:has([data-view='appareils']:not([hidden])) { max-width: 1184px; }
+[data-view='appareils'] h1, [data-view='accueil'] h2.home-title {
+  font-family: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; font-weight: 700; line-height: 1; letter-spacing: .01em;
+}
+[data-view='appareils'] h1 { font-size: 2.9rem; margin: .2rem 0 .4rem; }
+
+/* --- Radar --- */
+.radar {
+  position: relative; width: 100%; aspect-ratio: 520 / 592; overflow: hidden; box-sizing: border-box;
+  border-radius: 18px; border: 1px solid rgba(255, 255, 255, .1); color: #fff;
+  background: radial-gradient(circle at 50% 50%, #1A2D4D 0%, #0F1C31 55%, #0B1422 100%);
+  font-family: Barlow, system-ui, sans-serif;
+  --tx: 78.3%; --ty: 32.6%; --hx: 19.8%; --hy: 65%;
+  --t-left: auto; --t-right: 4.6%; --t-top: 16.2%; --h-left: 4.6%; --h-top: 69.3%;
+  --core: 38.5%; --sweep: 88.5%; --ping: 46.2%;
+}
+.radar--mini {
+  aspect-ratio: 380 / 270;
+  --tx: 72.6%; --ty: 32.2%; --hx: 28.7%; --hy: 67.4%;
+  --t-left: auto; --t-right: 3.2%; --t-top: 37%; --h-left: 3.7%; --h-top: 75.6%;
+  --core: 31.6%; --sweep: 63.2%; --ping: 31.6%;
+}
+.radar-rings { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; }
+.radar-ring { stroke: rgba(91, 227, 201, .3); stroke-width: 1.5; }
+.radar-sweep, .radar-ping, .radar-core { position: absolute; left: 50%; top: 50%; translate: -50% -50%; border-radius: 50%; aspect-ratio: 1; }
+.radar-sweep {
+  width: var(--sweep);
+  background: conic-gradient(from 0deg, rgba(91, 227, 201, 0) 0%, rgba(91, 227, 201, 0) 74%, rgba(91, 227, 201, .32) 100%);
+  animation: radar-sweep 4s linear infinite;
+}
+.radar-ping { width: var(--ping); box-sizing: border-box; border: 2px solid #5BE3C9; animation: radar-ping 2.6s ease-out infinite; }
+.radar-core {
+  width: var(--core); box-sizing: border-box; overflow: hidden; border: 3px solid #5BE3C9; background: #E2E4E7;
+  box-shadow: 0 0 36px rgba(91, 227, 201, .35);
+}
+.radar-core img { display: block; width: 100%; height: 100%; object-fit: cover; }
+@keyframes radar-sweep { to { rotate: 360deg; } }
+@keyframes radar-ping { from { scale: .5; opacity: .8; } to { scale: 1.9; opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .radar-sweep, .radar-ping { animation: none; } .radar-ping { opacity: 0; } }
+
+.radar-dot { position: absolute; box-sizing: border-box; width: 22px; height: 22px; border-radius: 50%; translate: -50% -50%; }
+.radar--mini .radar-dot { width: 18px; height: 18px; }
+.radar-dot[data-role='trainer'] { left: var(--tx); top: var(--ty); }
+.radar-dot[data-role='hr'] { left: var(--hx); top: var(--hy); }
+.radar-dot[data-tone='ok'] { background: #5BE3C9; box-shadow: 0 0 18px #5BE3C9, 0 0 0 5px rgba(91, 227, 201, .25); }
+.radar-dot[data-tone='busy'] { border: 2px dashed #FF5FA2; background: rgba(255, 95, 162, .2); }
+.radar-dot[data-tone='off'] { border: 2px dashed rgba(255, 255, 255, .4); }
+.radar-dot[data-tone='error'] { border: 2px dashed #FF8A85; background: rgba(255, 138, 133, .2); }
+
+.radar-tag {
+  position: absolute; box-sizing: border-box; max-width: 62%; display: flex; flex-direction: column;
+  padding: 6px 14px; border-radius: 12px; line-height: 1.25; background: rgba(11, 20, 34, .94);
+  border: 1px solid rgba(91, 227, 201, .55);
+}
+.radar--mini .radar-tag { padding: 3px 10px; }
+.radar-tag[data-role='trainer'] { left: var(--t-left); right: var(--t-right); top: var(--t-top); }
+.radar-tag[data-role='hr'] { left: var(--h-left); top: var(--h-top); }
+.radar-tag .r { font-size: 16px; font-weight: 700; }
+.radar-tag .n { font-size: 14px; color: #D6E0EE; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radar-tag .s { font-size: 14px; color: #5BE3C9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radar--mini .radar-tag .s { display: none; }
+.radar-tag[data-tone='busy'] { border: 1px dashed rgba(255, 95, 162, .75); }
+.radar-tag[data-tone='busy'] .s { color: #FFB3D3; }
+.radar-tag[data-tone='off'] { border: 1px dashed rgba(255, 255, 255, .3); }
+.radar-tag[data-tone='off'] .s { color: #C9D3E0; }
+.radar-tag[data-tone='error'] { border: 1px dashed #FF8A85; }
+.radar-tag[data-tone='error'] .s { color: #FF8A85; }
+
+/* --- Écran Appareils --- */
+.dev-layout { display: grid; grid-template-columns: minmax(280px, 520px) minmax(0, 1fr); gap: 16px 32px; align-items: start; }
+.dev-radar { min-width: 0; }
+@media (min-width: 861px) { .dev-radar { position: sticky; top: 72px; } }
+.dev-side { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.dev-side .device-cards { grid-template-columns: 1fr; gap: 14px; margin: 10px 0; }
+.dev-side .device-card { border: 1.5px solid transparent; border-radius: 18px; padding: 18px 20px; }
+.dev-side .device-card h2 { font-size: 1.35rem; margin-bottom: .3rem; }
+.dev-side .device-card[data-s='connected'] { border-color: rgba(91, 227, 201, .6); }
+.dev-side .device-card[data-s='connecting'] { border-style: dashed; border-color: var(--pink); }
+.dev-side .device-card[data-s='error'] { border-style: dashed; border-color: var(--err); }
+.dev-lede { margin: 0 0 4px; color: var(--muted); }
+@media (max-width: 860px) {
+  .dev-layout { grid-template-columns: 1fr; }
+  .dev-radar { max-width: 420px; }
+}
+
+/*
+ * --- Logo « La Moulinette » ---
+ * Mot en capitales condensées penchées, « LA » en petit au-dessus de la première lettre, et un plateau de pédalier
+ * (anneau denté, bras, moyeu) à la place du O. Taille : celle du texte parent (`font-size`), couleur du mot : `color`.
+ */
+.logo { display: inline-flex; align-items: flex-start; gap: .18em; font-family: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; font-weight: 700; line-height: 1; text-transform: uppercase; white-space: nowrap; }
+.logo-la { margin-top: .06em; font-size: .46em; letter-spacing: .14em; color: #5BE3C9; }
+.logo-word { display: inline-flex; align-items: center; letter-spacing: .07em; transform: skewX(-8deg); transform-origin: left bottom; }
+.logo-o { width: .78em; height: .78em; margin: 0 .05em 0 .02em; color: #5BE3C9; stroke: currentColor; overflow: visible; }
+.logo-teeth { stroke-width: 2; stroke-dasharray: 2.2 1.64; }
+.logo-ring { stroke-width: 2.6; }
+.logo-spokes { stroke-width: 1.6; stroke-linecap: round; }
+.brand .logo { font-size: 1.5rem; }
+.brand .logo-la { color: var(--accent); }
+.home-brand .logo { font-size: 1em; }
+a:hover .logo-o, .home-brand:hover .logo-o { animation: logo-spin 1.2s linear infinite; transform-origin: center; }
+@keyframes logo-spin { to { rotate: 360deg; } }
+@media (prefers-reduced-motion: reduce) { .logo-o { animation: none !important; } }
+
+/* --- Écran Accueil : plein écran, la scène derrière, des panneaux de verre par-dessus --- */
+body:has([data-view='accueil']:not([hidden])) .topbar,
+body:has([data-view='accueil']:not([hidden])) .log-panel { display: none; }
+main:has([data-view='accueil']:not([hidden])) { max-width: none; padding: 0; }
+.home {
+  position: relative; box-sizing: border-box; overflow: hidden; min-height: 100vh; min-height: 100dvh; padding: 24px 32px 32px;
+  display: grid; grid-template-columns: minmax(0, 1fr) 380px; grid-template-rows: auto 1fr; gap: 24px;
+  background: #3F86D0; color: #fff; font-family: Barlow, system-ui, sans-serif;
+  /* Panneaux et champs sont posés sur la scène : couleurs fixes, quel que soit le thème de la page. */
+  color-scheme: dark; --glass: rgba(11, 20, 34, .78); --glass-line: rgba(255, 255, 255, .14); --glass-muted: #D3DCE8;
+}
+.home-scenes { position: absolute; inset: 0; }
+/* Les scènes sont empilées ; celle qui est affichée (`data-on`) se fond dans la précédente. */
+.home-scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; transition: opacity 1.6s ease-in-out; }
+.home-scene[data-on] { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .home-scene { transition: none; } }
+.home-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(11, 20, 34, .5) 0%, rgba(11, 20, 34, 0) 24%, rgba(11, 20, 34, 0) 50%, rgba(11, 20, 34, .88) 100%); }
+.home > :not(.home-scenes):not(.home-shade) { position: relative; z-index: 1; }
+
+.home-top { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.home-brand { display: flex; align-items: center; height: 52px; padding: 0 18px; border-radius: 14px; background: var(--glass); border: 1px solid var(--glass-line); backdrop-filter: blur(16px) saturate(1.3); font: 700 1.9rem/1 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; letter-spacing: .02em; }
+.home-nav { display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: var(--glass); border: 1px solid var(--glass-line); backdrop-filter: blur(16px) saturate(1.3); }
+.home-nav a { display: flex; align-items: center; height: 44px; padding: 0 20px; border-radius: 10px; color: #fff; font-size: 1.06rem; font-weight: 600; text-decoration: none; }
+.home-nav a:hover { background: rgba(255, 255, 255, .12); }
+.home-nav a:focus-visible, a.home-radar:focus-visible { outline: 3px solid #5BE3C9; outline-offset: 2px; }
+
+.home-hero-body { align-self: end; justify-self: start; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; max-width: 640px; }
+.home-kicker { font-size: .875rem; font-weight: 700; color: #5BE3C9; letter-spacing: .06em; text-transform: uppercase; }
+.home h2.home-title { margin: 0; font-family: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; font-weight: 700; line-height: .95; font-size: clamp(4rem, 9vw, 7.5rem); }
+.home-hero-body p { margin: 0 0 16px; font-size: 1.2rem; color: #E3EAF3; }
+button.home-ride { display: flex; align-items: center; gap: 12px; height: 72px; padding: 0 44px; border-radius: 16px; font-family: Barlow, system-ui, sans-serif; font-size: 1.7rem; font-weight: 700; box-shadow: 0 0 40px rgba(91, 227, 201, .35); }
+
+.home-side { align-self: end; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+a.home-radar { display: block; color: inherit; text-decoration: none; border-radius: 18px; box-shadow: 0 8px 28px rgba(5, 10, 20, .3); }
+.home-workout { display: flex; flex-direction: column; gap: 10px; padding: 18px; border-radius: 18px; background: var(--glass); border: 1px solid var(--glass-line); backdrop-filter: blur(16px) saturate(1.3); box-shadow: 0 8px 28px rgba(5, 10, 20, .3); }
+.home-workout .home-kicker { color: var(--glass-muted); }
+.home-workout select { width: 100%; background: rgba(255, 255, 255, .1); color: #fff; border: 1px solid rgba(255, 255, 255, .3); border-radius: 8px; }
+.home-workout-meta { margin: 0; color: var(--glass-muted); font-size: .95rem; }
+.home-workout .wo-profile { height: 64px; background: transparent; margin: 0; }
+.home-workout .row { margin: 0; }
+.home-workout .row a { color: var(--glass-muted); font-size: .9rem; }
+
+@media (max-width: 900px) {
+  .home { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; padding: 16px; gap: 16px; }
+  .home-top { flex-wrap: wrap; }
+  .home-nav a { padding: 0 14px; }
+  .home-hero-body { padding-top: 72px; }
+}
+
+/* Aide à la connexion du trainer, repliée par défaut. */
+.trainer-help { margin-top: 12px; }
+.trainer-help summary { cursor: pointer; }
+.trainer-help ul { margin: 8px 0; padding-left: 1.2rem; display: grid; gap: 4px; }
+.trainer-help label { display: grid; gap: 4px; margin-top: 8px; }
+.trainer-help select { width: 100%; }

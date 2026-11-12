@@ -35,7 +35,7 @@ export function createIntervalsRelay(opts: RelayOptions) {
       if (fit.length > MAX_FIT_BYTES) return json({ error: 'too_large' }, 413);
 
       const meta = {
-        name: url.searchParams.get('name') || 'Sortie zwift-2',
+        name: url.searchParams.get('name') || 'Sortie La Moulinette',
         externalId: url.searchParams.get('externalId') || `zwift2-${Date.now()}`,
       };
       try {

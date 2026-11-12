@@ -1,4 +1,4 @@
-# zwift-2
+# La Moulinette
 
 App d'entraînement home trainer (cyclisme, puis course à pied), avec rendu 3D, capteurs Bluetooth et multijoueur.
 
@@ -102,4 +102,19 @@ Sur l'écran Sortie, les mesures sont posées sur la vue 3D : parcours ou palier
   puis construire l'application avec `VITE_LOG_ENDPOINT=https://hôte/api/logs/ingest` et `VITE_LOG_TOKEN=<LOG_INGEST_TOKEN>`. Sans `VITE_LOG_ENDPOINT`, un build de production n'envoie rien. Le jeton d'envoi est visible dans le code de la page : il écarte le bruit, il ne protège pas un secret. Seul `LOG_READ_TOKEN` donne accès aux rapports, il ne va jamais dans l'application. Restreindre `LOG_ALLOWED_ORIGIN` au domaine de l'application. Sans `LOG_INGEST_TOKEN`, le serveur refuse de démarrer (`LOG_ALLOW_OPEN_INGEST=1` pour accepter malgré tout les dépôts de tout le monde) ; de même, un récepteur dont le jeton d'envoi n'est pas configuré refuse les dépôts.
 - **Relire** : `curl -H "Authorization: Bearer $LOG_READ_TOKEN" "https://hôte/api/logs/reports?limit=20&since=<ms>"` (JSON, du plus ancien au plus récent).
 
-Le récepteur (`receiver.ts`) est un gestionnaire `Request` vers `Response` indépendant de Node : il peut être rejoué dans un Worker avec un autre `LogStore` (KV, D1…). Les rapports contiennent le nom de l'appareil Bluetooth et le navigateur, pas de position ni de compte ; le rapport est lisible par quiconque détient le jeton de lecture. Vérifié : tests unitaires, serveur autonome et serveur de dev avec `curl`. Non vérifié : un envoi réel depuis la page avec un vrai trainer.
+#### Récepteur gratuit sur Cloudflare (Workers + D1)
+
+`worker/` rejoue le même récepteur (`src/telemetry/receiver.ts`) dans un Worker, avec D1 pour stockage : pas de serveur à maintenir, HTTPS inclus, offre gratuite largement suffisante pour quelques rapports par session. D1 plutôt que KV : KV ne liste pas du plus récent au plus ancien, et un Worker gratuit ne fait qu'environ 50 appels par requête, ce qui limiterait la relecture. Les rapports de plus de 30 jours sont purgés chaque nuit.
+
+```
+npx wrangler login
+npx wrangler d1 create zwift2-logs          # copier database_id dans wrangler.toml
+npx wrangler d1 migrations apply zwift2-logs --remote
+npx wrangler secret put INGEST_TOKEN        # jeton d'envoi, le même que VITE_LOG_TOKEN ; sans lui, le Worker refuse les dépôts
+npx wrangler secret put READ_TOKEN          # jeton de lecture, jamais dans l'application
+npx wrangler deploy                         # affiche https://zwift2-logs.<compte>.workers.dev
+```
+
+Puis `VITE_LOG_ENDPOINT=https://zwift2-logs.<compte>.workers.dev/api/logs/ingest` au build de l'application, et `ALLOWED_ORIGIN` de `wrangler.toml` au domaine de l'application. La relecture par `curl` est la même que ci-dessus. Le jeton d'envoi étant public, une règle de limitation de débit (Cloudflare, tableau de bord > Sécurité > WAF) protège le quota gratuit d'un envoi massif. Vérifié en local avec `wrangler dev` (D1 simulé) et par tests ; pas encore déployé sur un vrai compte.
+
+Le récepteur (`receiver.ts`) reste un gestionnaire `Request` vers `Response` indépendant de Node et de Cloudflare : un autre `LogStore` suffit pour l'héberger ailleurs. Les rapports contiennent le nom de l'appareil Bluetooth et le navigateur, pas de position ni de compte ; le rapport est lisible par quiconque détient le jeton de lecture. Vérifié : tests unitaires, serveur autonome et serveur de dev avec `curl`. Non vérifié : un envoi réel depuis la page avec un vrai trainer.

@@ -104,7 +104,7 @@ export function setupExport(opts: {
   const rideName = (startMs: number) => {
     const date = new Date(startMs);
     const hhmm = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-    return `Sortie zwift-2 du ${date.toLocaleDateString('fr-FR')} à ${hhmm}`;
+    return `Sortie La Moulinette du ${date.toLocaleDateString('fr-FR')} à ${hhmm}`;
   };
 
   intervalsButton.addEventListener('click', async () => {

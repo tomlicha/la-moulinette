@@ -7,8 +7,12 @@ export interface SectorOptions {
   receiveShadow?: boolean;
 }
 
-/** Secteurs par défaut : assez pour que la caméra et chaque cascade d'ombre n'en voient qu'une partie. */
-const DEFAULT_SECTORS = 16;
+/**
+ * Secteurs par défaut. Mesuré sur « Col des Érables » (Chrome, WebGPU, 11 novembre 2026) : sans découpage
+ * 2 395 k triangles et 49 i/s ; 8 secteurs 1 190 k triangles et 60 i/s stables ; 16 secteurs moins de triangles
+ * mais plus d'appels de dessin, dont le coût processeur reprend le dessus (54 à 60 i/s).
+ */
+const DEFAULT_SECTORS = 8;
 
 const _pos = new THREE.Vector3();
 
