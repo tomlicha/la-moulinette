@@ -92,7 +92,7 @@ export class RideView {
   dispose() {
     cancelAnimationFrame(this.raf);
     this.resizeObserver.disconnect();
-    this.renderer.dispose();
+    void this.renderer.dispose();
   }
 
   private resize() {

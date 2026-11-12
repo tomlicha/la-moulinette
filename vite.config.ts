@@ -1,14 +1,14 @@
 import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
-import type { IncomingMessage } from 'node:http';
 import { loadEnv, type Plugin } from 'vite';
 import { configDefaults, defineConfig } from 'vitest/config';
-import type { Tokens } from './src/export/strava/api';
-import { createIntervalsRelay, PREFIX as INTERVALS_PREFIX } from './src/export/intervals/relay';
-import { createStravaRelay, PREFIX, type TokenStore } from './src/export/strava/relay';
+import type { Tokens } from './src/export/strava/api.ts';
+import { createIntervalsRelay, PREFIX as INTERVALS_PREFIX } from './src/export/intervals/relay.ts';
+import { createStravaRelay, PREFIX, type TokenStore } from './src/export/strava/relay.ts';
 import { createFileStore } from './tools/logs/file-store.ts';
 import { serveWith } from './tools/logs/node-http.ts';
 import { createLogReceiver, PREFIX as LOGS_PREFIX } from './src/telemetry/receiver.ts';
 import { LIMITS } from './src/telemetry/report.ts';
+import { errMsg } from './src/util/errors.ts';
 
 const TOKEN_FILE = '.strava-tokens.json';
 
@@ -31,11 +31,8 @@ const fileStore: TokenStore = {
   },
 };
 
-async function readBody(req: IncomingMessage): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  for await (const c of req) chunks.push(c as Buffer);
-  return Buffer.concat(chunks);
-}
+/** Plafond du corps accepté par les relais : un fichier FIT de plusieurs heures reste bien en dessous. */
+const RELAY_MAX_BYTES = 11 * 1024 * 1024;
 
 /**
  * Relais Strava et intervals.icu dans le serveur de dev. Les variables STRAVA_* et INTERVALS_* ne portent pas
@@ -51,22 +48,14 @@ function exportRelays(env: Record<string, string>): Plugin {
         store: fileStore,
       });
       const intervals = createIntervalsRelay({ apiKey: env.INTERVALS_API_KEY });
+      const handle = async (request: Request) => (await relay(request)) ?? (await intervals(request));
       server.middlewares.use(async (req, res, next) => {
         if (!req.url?.startsWith(PREFIX) && !req.url?.startsWith(INTERVALS_PREFIX)) return next();
         try {
-          const method = req.method ?? 'GET';
-          const headers = new Headers();
-          for (const [k, v] of Object.entries(req.headers)) if (typeof v === 'string') headers.set(k, v);
-          const body = method === 'GET' || method === 'HEAD' ? undefined : new Uint8Array(await readBody(req));
-          const request = new Request(`http://${req.headers.host}${req.url}`, { method, headers, body });
-          const response = (await relay(request)) ?? (await intervals(request));
-          if (!response) return next();
-          res.statusCode = response.status;
-          response.headers.forEach((v, k) => res.setHeader(k, v));
-          res.end(Buffer.from(await response.arrayBuffer()));
+          if (!(await serveWith(handle, req, res, RELAY_MAX_BYTES))) next();
         } catch (e) {
           res.statusCode = 500;
-          res.end(e instanceof Error ? e.message : 'erreur du relais');
+          res.end(errMsg(e));
         }
       });
     },
@@ -85,6 +74,7 @@ function logReceiver(env: Record<string, string>): Plugin {
       const receiver = createLogReceiver({
         store: createFileStore('.logs/reports.jsonl'),
         // Dépôt ouvert : le serveur de dev n'écoute que sur localhost. Seule la lecture exige un jeton.
+        allowOpenIngest: true,
         readToken: env.LOG_READ_TOKEN,
       });
       server.middlewares.use(async (req, res, next) => {
@@ -93,7 +83,7 @@ function logReceiver(env: Record<string, string>): Plugin {
           if (!(await serveWith(receiver, req, res, LIMITS.bodyBytes))) next();
         } catch (e) {
           res.statusCode = 500;
-          res.end(e instanceof Error ? e.message : 'erreur du récepteur');
+          res.end(errMsg(e));
         }
       });
     },

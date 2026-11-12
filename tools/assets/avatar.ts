@@ -10,7 +10,7 @@ import { REGION } from '../../src/render/asset-contract.ts';
 import { BIND_CRANK, DEFAULT_BODY, footPitch, SKELETON, solvePose, solveTorsoAngle, type Pose, type V3 } from '../../src/render/rider-pose.ts';
 import { BIKE_FIT } from './bike.ts';
 import { GlbWriter } from './gltf.ts';
-import { angleDiff, bumps, curve, inflate, keys, loop, MeshBuilder, oval, polyline, roundEnds, smooth, type Bump, type SectionPoint, type Skin } from './mesh.ts';
+import { angleDiff, bumps, curve, keys, loop, MeshBuilder, oval, polyline, roundEnds, smooth, type Bump, type Skin } from './mesh.ts';
 import { buildHead, headFrame, type HeadOptions } from './head.ts';
 import { Body, Ellipsoid, ovalRadius, polygonize, simplify, smax, smin, splitRegions, Tube, type Shape, type TubeSpec } from './sdf.ts';
 
@@ -43,27 +43,6 @@ interface Profile {
   inner: (s: number) => number;
   bumps: Bump[];
   n?: number;
-}
-
-function sectionOf(p: Profile, extra = 0): (s: number, th: number) => SectionPoint {
-  return (s, th) => inflate(oval(th, p.front(s), p.back(s), p.outer(s), p.inner(s), p.n ?? 2.15), th, bumps(p.bumps, s, th) + extra);
-}
-
-/**
- * Couche de vêtement de `s0` à `s1` : section gonflée de `thickness`, avec un ourlet rentrant à chaque bout libre
- * (une section rabattue sous la peau sur 0,5 mm) pour que l'épaisseur du tissu se voie.
- */
-function garment(base: (s: number, th: number) => SectionPoint, thickness: number, s0: number, s1: number, hem: { start?: boolean; end?: boolean }) {
-  const lip = 0.0006;
-  return {
-    cuts: [hem.start ? s0 + lip : undefined, hem.end ? s1 - lip : undefined].filter((v): v is number => v !== undefined),
-    section: (s: number, th: number): SectionPoint => {
-      const inward = (hem.start && s < s0 + lip) || (hem.end && s > s1 - lip);
-      const [a, b] = base(s, th);
-      const t = inward ? -0.0015 : thickness;
-      return [a + Math.cos(th) * t, b + Math.sin(th) * t];
-    },
-  };
 }
 
 /** Rayon polaire d'un profil, bosses comprises. */
@@ -441,7 +420,12 @@ async function body(b: MeshBuilder, pose: Pose) {
   });
   const min = new Vector3(Infinity, Infinity, Infinity);
   const max = new Vector3(-Infinity, -Infinity, -Infinity);
-  for (const t of [torso, legL, legR, armL, armR, neck]) for (const p of t.spec.points) (min.min(p), max.max(p));
+  for (const t of [torso, legL, legR, armL, armR, neck]) {
+    for (const p of t.spec.points) {
+      min.min(p);
+      max.max(p);
+    }
+  }
   min.subScalar(0.15);
   max.addScalar(0.15);
   // Au-dessus de l'ourlet du maillot, c'est le maillot qui décide, même là où bassin ou cuisse dominent.

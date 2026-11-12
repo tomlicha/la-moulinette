@@ -21,6 +21,9 @@ import { SAMPLE_WORKOUTS } from '../workout/samples';
 import { effortSeconds, intensityWord, timeInZones, ZONES, zoneName, zoneReading, type ZoneTimes } from '../workout/zones';
 import { setBlocked } from './blocked';
 import { formatDuration, parseDuration } from './duration';
+import { $ } from './dom';
+import { download } from '../util/download';
+import { errMsg } from '../util/errors';
 
 const SVG = 'http://www.w3.org/2000/svg';
 const W = 1000;
@@ -64,12 +67,6 @@ function svg(tag: string, attrs: Record<string, string | number>): SVGElement {
   return e;
 }
 
-function download(name: string, text: string) {
-  const url = URL.createObjectURL(new Blob([text], { type: 'application/xml' }));
-  el('a', { href: url, download: name }).click();
-  setTimeout(() => URL.revokeObjectURL(url), 30_000);
-}
-
 const slug = (s: string) =>
   s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'seance';
 
@@ -83,7 +80,6 @@ const isTyping = (t: EventTarget | null) => t instanceof HTMLElement && !!t.clos
  * modification passe par `commit`, qui l'inscrit dans l'historique avant de redessiner.
  */
 export function setupWorkoutEditor(o: EditorOptions) {
-  const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
   const editor = $('editor');
   const nameIn = $<HTMLInputElement>('ed-name');
   const descIn = $<HTMLTextAreaElement>('ed-desc');
@@ -135,7 +131,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
                 { className: 'row' },
                 button('Utiliser', () => o.onUse(w.id)),
                 button('Modifier', () => open({ id: w.id, name: w.name, description: w.description ?? '', blocks: structuredClone(w.blocks) }), 'secondary'),
-                button('Exporter .zwo', () => download(`${slug(w.name)}.zwo`, toZwo(w.name, w.description, w.blocks)), 'secondary'),
+                button('Exporter .zwo', () => download(`${slug(w.name)}.zwo`, toZwo(w.name, w.description, w.blocks), 'application/xml'), 'secondary'),
                 button(
                   'Supprimer',
                   () => {
@@ -180,7 +176,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
     try {
       w = parseWorkout(fileName, text);
     } catch (e) {
-      o.log(`import impossible (${fileName}) : ${e instanceof Error ? e.message : e}`);
+      o.log(`import impossible (${fileName}) : ${errMsg(e)}`);
       return;
     }
     const { blocks, warnings } = workoutToBlocks(w, ftp());
@@ -235,7 +231,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
       render();
       return saved.id;
     } catch (e) {
-      o.log(`enregistrement impossible (stockage du navigateur plein ou bloqué) : ${e instanceof Error ? e.message : e}`);
+      o.log(`enregistrement impossible (stockage du navigateur plein ou bloqué) : ${errMsg(e)}`);
       return undefined;
     }
   }
@@ -842,7 +838,7 @@ export function setupWorkoutEditor(o: EditorOptions) {
     if (id) o.onUse(id);
   });
   $('ed-export').addEventListener('click', () => {
-    if (draft) download(`${slug(draft.name)}.zwo`, toZwo(draft.name, draft.description, draft.blocks));
+    if (draft) download(`${slug(draft.name)}.zwo`, toZwo(draft.name, draft.description, draft.blocks), 'application/xml');
   });
   $('ed-close').addEventListener('click', () => close());
   addEventListener('beforeunload', (e) => {

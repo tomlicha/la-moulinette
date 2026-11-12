@@ -15,7 +15,9 @@ Premier PoC de l'analyse (PoC 1, capteurs), réduit à la connexion : appairage 
 ```
 npm install
 npm run dev      # http://localhost:5173 dans Chrome ou Edge
-npm test         # décodeurs et encodeurs de trames
+npm test         # tests unitaires (lancer depuis PowerShell sous Windows)
+npm run typecheck   # code de la page, puis outils, configuration Vite et Worker (types Node)
+npm run lint     # ESLint, dont les promesses oubliées
 ```
 
 - `src/sensors/decoders.ts`, `control-point.ts` : décodage et encodage des trames FTMS, Cycling Power et Heart Rate, en TypeScript pur.
@@ -88,7 +90,7 @@ Sur l'écran Sortie, les mesures sont posées sur la vue 3D : parcours ou palier
 
 ### Journaux d'erreurs à distance
 
-`src/telemetry/` : tout ce que la page écrit dans son journal (connexion au trainer, reconnexions, échecs de commande, erreurs non gérées du navigateur) est gardé en mémoire (300 dernières lignes). Dès qu'une ligne ressemble à une erreur, la page envoie le tampon au récepteur, 5 s plus tard pour y embarquer les essais de reconnexion qui suivent, avec le contexte (navigateur, trainer, état de connexion, capacités). Chaque ligne n'est envoyée qu'une fois ; au plus un envoi toutes les 30 s et vingt par session. Hors ligne, l'envoi repart au retour du réseau ou à la fermeture de la page. Les envois ne font jamais d'erreur visible et ne sont jamais journalisés eux-mêmes.
+`src/telemetry/` : tout ce que la page écrit dans son journal (connexion au trainer, reconnexions, échecs de commande, erreurs non gérées du navigateur) est gardé en mémoire (300 dernières lignes). Dès qu'une ligne est marquée comme erreur par le code qui l'écrit (jamais devinée d'après ses mots : un sélecteur Bluetooth fermé ou une limite connue du navigateur n'en sont pas), la page envoie le tampon au récepteur, 5 s plus tard pour y embarquer les essais de reconnexion qui suivent, avec le contexte (navigateur, trainer, état de connexion, capacités). Chaque ligne n'est envoyée qu'une fois ; au plus un envoi toutes les 30 s et vingt par session, et moins de 60 Ko par envoi (les lignes les plus anciennes sont écartées d'abord). Hors ligne, l'envoi repart au retour du réseau ou à la fermeture de la page. Les envois ne font jamais d'erreur visible et ne sont jamais journalisés eux-mêmes.
 
 - **En développement** : rien à configurer. `npm run dev` reçoit les rapports dans `.logs/reports.jsonl` (ignoré par git).
 - **À distance** : héberger `tools/log-server.ts` sur une machine joignable (VPS, Raspberry Pi derrière un tunnel…) :
@@ -97,7 +99,7 @@ Sur l'écran Sortie, les mesures sont posées sur la vue 3D : parcours ou palier
   LOG_READ_TOKEN=<long et aléatoire> LOG_INGEST_TOKEN=<autre> npm run logs:serve
   ```
 
-  puis construire l'application avec `VITE_LOG_ENDPOINT=https://hôte/api/logs/ingest` et `VITE_LOG_TOKEN=<LOG_INGEST_TOKEN>`. Sans `VITE_LOG_ENDPOINT`, un build de production n'envoie rien. Le jeton d'envoi est visible dans le code de la page : il écarte le bruit, il ne protège pas un secret. Seul `LOG_READ_TOKEN` donne accès aux rapports, il ne va jamais dans l'application. Restreindre `LOG_ALLOWED_ORIGIN` au domaine de l'application.
+  puis construire l'application avec `VITE_LOG_ENDPOINT=https://hôte/api/logs/ingest` et `VITE_LOG_TOKEN=<LOG_INGEST_TOKEN>`. Sans `VITE_LOG_ENDPOINT`, un build de production n'envoie rien. Le jeton d'envoi est visible dans le code de la page : il écarte le bruit, il ne protège pas un secret. Seul `LOG_READ_TOKEN` donne accès aux rapports, il ne va jamais dans l'application. Restreindre `LOG_ALLOWED_ORIGIN` au domaine de l'application. Sans `LOG_INGEST_TOKEN`, le serveur refuse de démarrer (`LOG_ALLOW_OPEN_INGEST=1` pour accepter malgré tout les dépôts de tout le monde) ; de même, un récepteur dont le jeton d'envoi n'est pas configuré refuse les dépôts.
 - **Relire** : `curl -H "Authorization: Bearer $LOG_READ_TOKEN" "https://hôte/api/logs/reports?limit=20&since=<ms>"` (JSON, du plus ancien au plus récent).
 
 Le récepteur (`receiver.ts`) est un gestionnaire `Request` vers `Response` indépendant de Node : il peut être rejoué dans un Worker avec un autre `LogStore` (KV, D1…). Les rapports contiennent le nom de l'appareil Bluetooth et le navigateur, pas de position ni de compte ; le rapport est lisible par quiconque détient le jeton de lecture. Vérifié : tests unitaires, serveur autonome et serveur de dev avec `curl`. Non vérifié : un envoi réel depuis la page avec un vrai trainer.

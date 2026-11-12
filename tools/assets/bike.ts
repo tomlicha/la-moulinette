@@ -187,7 +187,11 @@ function frame(): MeshBuilder {
   tube(b, [HEAD_BOTTOM.clone().add(V(0.058, -0.012, 0.004)), HEAD_BOTTOM.clone().add(V(-0.058, -0.012, 0.004))], {
     front: STEER_FWD,
     region: REGION.carbon,
-    section: (t, th) => airfoil(th, 0.024, 0.04, 0.026).map((v) => v * roundEnds(t, 0, 1, 0.12)) as SectionPoint,
+    section: (t, th) => {
+      const [a, b] = airfoil(th, 0.024, 0.04, 0.026);
+      const k = roundEnds(t, 0, 1, 0.12);
+      return [a * k, b * k];
+    },
     ds: 0.012,
     radial: 18,
     caps: 'pole',
@@ -416,7 +420,8 @@ function derailleurs(b: MeshBuilder) {
   });
 }
 
-const PULLEYS: [number, number][] = [
+/** Galets du dérailleur : (y, z) du haut puis du bas. */
+const PULLEYS: [[number, number], [number, number]] = [
   [REAR_AXLE.y - 0.072, REAR_AXLE.z - 0.012],
   [REAR_AXLE.y - 0.14, REAR_AXLE.z + 0.002],
 ];
@@ -589,7 +594,6 @@ function cassette(b: MeshBuilder) {
 
 function crankset(): MeshBuilder {
   const b = new MeshBuilder();
-  const O = V(0, 0, 0);
   // Plateaux 52 et 36 dents : faces noires, denture claire.
   for (const [x, rMid, w, teeth] of [[-0.071, 0.094, 0.022, 52], [-0.064, 0.064, 0.016, 36]] as const) {
     const L = 2 * Math.PI * rMid;

@@ -1,0 +1,10 @@
+{
+  // Code exécuté par Node (outils, configuration Vite) ou par Cloudflare (worker/) : vérifié à part, avec les types de Node.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"]
+  },
+  "include": ["vite.config.ts", "tools/**/*.ts", "worker/**/*.ts"],
+  "exclude": ["tools/preview/**"]
+}

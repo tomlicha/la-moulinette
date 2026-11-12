@@ -1,3 +1,5 @@
+import type { LogLevel } from '../util/log';
+
 /** Mesure normalisée, quel que soit le transport ou le profil BLE d'origine. */
 export interface Measurement {
   /** Horodatage local en ms (performance.now ou Date.now selon l'appelant). */
@@ -37,7 +39,8 @@ export interface SensorEvents {
   state: (s: ConnectionState, detail?: string) => void;
   /** Trames brutes, utiles pour la matrice de compatibilité matérielle. */
   raw: (source: string, data: Uint8Array) => void;
-  log: (msg: string) => void;
+  /** `error` : une panne qui mérite un rapport (voir src/telemetry/). */
+  log: (msg: string, level?: LogLevel) => void;
 }
 
 /** Interface commune des transports : Web Bluetooth, simulateur, plus tard natif et relais. */

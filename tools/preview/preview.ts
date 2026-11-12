@@ -114,7 +114,7 @@ addEventListener('resize', resize);
 
 let last = performance.now();
 const info = document.getElementById('info')!;
-renderer.setAnimationLoop((now) => {
+void renderer.setAnimationLoop((now) => {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
   if (params.get('spin') === '1') for (const r of riders) r.animate(dt, 90, 9);

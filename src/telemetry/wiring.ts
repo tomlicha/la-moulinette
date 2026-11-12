@@ -1,11 +1,13 @@
 import { LogBuffer } from './log-buffer';
 import { createReporter } from './reporter';
+import type { LogFn, LogLevel } from '../util/log';
+import { errMsg } from '../util/errors';
 
 export interface TelemetryOptions {
   /** État du moment, joint à chaque rapport (trainer, connexion…). Appelé au moment de l'envoi. */
   context: () => Record<string, unknown>;
   /** Journal visible de la page : y sont aussi inscrites les erreurs que le navigateur remonte seul. */
-  log: (msg: string) => void;
+  log: LogFn;
 }
 
 /**
@@ -18,9 +20,9 @@ function endpoint(): string | undefined {
   return import.meta.env.DEV ? '/api/logs/ingest' : undefined;
 }
 
-const reason = (e: unknown) => (e instanceof Error ? `${e.name} : ${e.message}` : String(e));
+const reason = (e: unknown) => (e instanceof Error ? `${e.name} : ${e.message}` : errMsg(e));
 
-export function setupTelemetry(opts: TelemetryOptions): { record(msg: string): void } {
+export function setupTelemetry(opts: TelemetryOptions): { record(msg: string, level?: LogLevel): void } {
   const url = endpoint();
   if (!url) return { record() {} };
 
@@ -43,12 +45,12 @@ export function setupTelemetry(opts: TelemetryOptions): { record(msg: string): v
   // Une erreur partie hors ligne repart dès que le réseau revient, ou à la fermeture de la page.
   addEventListener('online', () => void reporter.retry('online'));
   addEventListener('pagehide', () => void reporter.retry('pagehide'));
-  addEventListener('error', (e) => opts.log(`erreur non gérée : ${e.message} (${e.filename}:${e.lineno})`));
-  addEventListener('unhandledrejection', (e) => opts.log(`erreur non gérée (promesse) : ${reason(e.reason)}`));
+  addEventListener('error', (e) => opts.log(`erreur non gérée : ${e.message} (${e.filename}:${e.lineno})`, 'error'));
+  addEventListener('unhandledrejection', (e) => opts.log(`erreur non gérée (promesse) : ${reason(e.reason)}`, 'error'));
 
   return {
-    record(msg) {
-      reporter.notify(buffer.add(msg));
+    record(msg, level) {
+      reporter.notify(buffer.add(msg, level));
     },
   };
 }

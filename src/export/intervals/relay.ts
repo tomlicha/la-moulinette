@@ -1,5 +1,7 @@
-import { CSRF_HEADER } from '../strava/relay';
-import { INTERVALS_SITE, IntervalsError, uploadActivity, type Fetch } from './api';
+import { CSRF_HEADER } from '../strava/relay.ts';
+import { INTERVALS_SITE, IntervalsError, uploadActivity, type Fetch } from './api.ts';
+import { json, sameOrigin } from '../../util/http.ts';
+import { errMsg } from '../../util/errors.ts';
 
 export const PREFIX = '/api/intervals/';
 const MAX_FIT_BYTES = 10 * 1024 * 1024;
@@ -10,9 +12,6 @@ export interface RelayOptions {
   fetch?: Fetch;
 }
 
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
-
 /**
  * Relais local entre la page et intervals.icu : la clé d'API ne quitte jamais ce module, donc jamais le navigateur.
  * Renvoie `undefined` pour une URL qui n'est pas de son ressort, afin de passer la main au serveur suivant.
@@ -20,11 +19,6 @@ const json = (body: unknown, status = 200) =>
 export function createIntervalsRelay(opts: RelayOptions) {
   const f: Fetch = opts.fetch ?? ((...a) => fetch(...a));
   const apiKey = opts.apiKey?.trim() || undefined;
-
-  const sameOrigin = (req: Request) => {
-    const origin = req.headers.get('origin');
-    return !origin || new URL(origin).host === new URL(req.url).host;
-  };
 
   return async function handle(req: Request): Promise<Response | undefined> {
     const url = new URL(req.url);
@@ -53,7 +47,7 @@ export function createIntervalsRelay(opts: RelayOptions) {
         });
       } catch (e) {
         if (e instanceof IntervalsError && (e.status === 401 || e.status === 403)) return json({ error: 'invalid_key' }, 401);
-        return json({ error: 'intervals', message: e instanceof Error ? e.message : String(e) }, 502);
+        return json({ error: 'intervals', message: errMsg(e) }, 502);
       }
     }
 

@@ -1,4 +1,4 @@
-import { webBluetoothAvailable } from './web-bluetooth';
+import { webBluetoothAvailable } from './gatt-device';
 
 export type DeviceRole = 'trainer' | 'hr';
 

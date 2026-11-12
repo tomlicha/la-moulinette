@@ -1,5 +1,6 @@
 import { CSRF_HEADER } from '../strava/relay';
 import { PREFIX } from './relay';
+import { errMsg } from '../../util/errors';
 
 export interface IntervalsStatus {
   configured: boolean;
@@ -28,7 +29,7 @@ export async function sendToIntervals(
     const q = new URLSearchParams(meta);
     res = await f(`${PREFIX}upload?${q}`, { method: 'POST', headers: { [CSRF_HEADER]: '1' }, body: fit as BodyInit });
   } catch (e) {
-    return { ok: false, reason: 'error', message: `relais injoignable : ${e instanceof Error ? e.message : e}` };
+    return { ok: false, reason: 'error', message: `relais injoignable : ${errMsg(e)}` };
   }
   const body = (await res.json().catch(() => ({}))) as {
     error?: string;

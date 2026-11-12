@@ -20,7 +20,12 @@ if (!env.LOG_READ_TOKEN) {
   console.error('LOG_READ_TOKEN est obligatoire : sans lui, personne ne pourrait relire les rapports.');
   process.exit(1);
 }
-if (!env.LOG_INGEST_TOKEN) console.warn("LOG_INGEST_TOKEN absent : n'importe qui peut déposer des rapports.");
+const openIngest = env.LOG_ALLOW_OPEN_INGEST === '1';
+if (!env.LOG_INGEST_TOKEN && !openIngest) {
+  console.error('LOG_INGEST_TOKEN est obligatoire (ou LOG_ALLOW_OPEN_INGEST=1 pour accepter les dépôts de tout le monde).');
+  process.exit(1);
+}
+if (!env.LOG_INGEST_TOKEN) console.warn("LOG_ALLOW_OPEN_INGEST=1 : n'importe qui peut déposer des rapports.");
 
 const file = env.LOG_FILE ?? '.logs/reports.jsonl';
 await mkdir(dirname(file), { recursive: true });
@@ -28,6 +33,7 @@ await mkdir(dirname(file), { recursive: true });
 const receiver = createLogReceiver({
   store: createFileStore(file),
   ingestToken: env.LOG_INGEST_TOKEN,
+  allowOpenIngest: openIngest,
   readToken: env.LOG_READ_TOKEN,
   allowedOrigin: env.LOG_ALLOWED_ORIGIN,
 });

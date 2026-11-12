@@ -1,28 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { classify, LogBuffer } from './log-buffer';
+import { LogBuffer } from './log-buffer';
 import { createLogReceiver, type LogStore } from './receiver';
-import { createReporter } from './reporter';
-import { parseReport, type LogEntry, type StoredReport } from './report';
-
-describe('classify', () => {
-  it.each([
-    'échec de connexion : GATT Server is disconnected',
-    'essai 2 échoué : Connection failed',
-    'trainer : error (reconnexion abandonnée)',
-    'consigne non rejouée : Error: boom',
-    'séance : consigne 200 W non envoyée (timeout)',
-    'erreur non gérée : x is undefined',
-  ])('erreur : %s', (m) => expect(classify(m)).toBe('error'));
-
-  it.each([
-    'trainer : connected (KICKR 81B5)',
-    'GATT déconnecté',
-    'reconnecté en 3.4 s',
-    'Contrôle propriétaire Wahoo disponible (ERG et SIM)',
-  ])('information : %s', (m) => expect(classify(m)).toBe('info'));
-});
+import { createReporter, MAX_BODY_BYTES } from './reporter';
+import { LIMITS, parseReport, type Level, type LogEntry, type StoredReport } from './report';
 
 describe('LogBuffer', () => {
+  it("prend le niveau donné par l'appelant, information par défaut", () => {
+    const b = new LogBuffer();
+    // Avant, le niveau était deviné d'après les mots : « indisponible » faisait partir un rapport à chaque lancement.
+    expect(b.add('reconnexion automatique indisponible').level).toBe('info');
+    expect(b.add('échec de connexion', 'error').level).toBe('error');
+  });
+
+  it('tronque les lignes trop longues', () => {
+    expect(new LogBuffer().add('x'.repeat(5000)).msg).toHaveLength(LIMITS.msgChars);
+  });
+
   it('garde les dernières lignes et numérote sans trou', () => {
     const b = new LogBuffer(3);
     for (const m of ['a', 'b', 'c', 'd']) b.add(m);
@@ -45,7 +38,7 @@ describe('Reporter', () => {
       fetch: fetchImpl,
       now: () => Date.now(),
     });
-    const add = (m: string) => reporter.notify(buffer.add(m));
+    const add = (m: string, level: Level = 'info') => reporter.notify(buffer.add(m, level));
     return { buffer, reporter, add };
   };
   const ok = () => vi.fn(async () => new Response('{}', { status: 200 }));
@@ -65,9 +58,9 @@ describe('Reporter', () => {
     const f = ok();
     const { add } = setup(f as unknown as typeof fetch);
     add('GATT déconnecté');
-    add('essai 1 échoué : Connection failed');
+    add('essai 1 échoué : Connection failed', 'error');
     await vi.advanceTimersByTimeAsync(2000);
-    add('essai 2 échoué : Connection failed'); // arrive pendant l'attente : part dans le même rapport
+    add('essai 2 échoué : Connection failed', 'error'); // arrive pendant l'attente : part dans le même rapport
     await vi.advanceTimersByTimeAsync(5000);
 
     expect(f).toHaveBeenCalledTimes(1);
@@ -86,9 +79,9 @@ describe('Reporter', () => {
   it('ne renvoie jamais une ligne déjà partie et espace les envois', async () => {
     const f = ok();
     const { add } = setup(f as unknown as typeof fetch);
-    add('échec A');
+    add('échec A', 'error');
     await vi.advanceTimersByTimeAsync(5000);
-    add('échec B'); // 5 s après le premier envoi : attend l'écart minimal de 30 s
+    add('échec B', 'error'); // 5 s après le premier envoi : attend l'écart minimal de 30 s
     await vi.advanceTimersByTimeAsync(10_000);
     expect(f).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(20_000);
@@ -102,7 +95,7 @@ describe('Reporter', () => {
       .mockRejectedValueOnce(new TypeError('Failed to fetch'))
       .mockResolvedValue(new Response('{}', { status: 200 }));
     const { add, reporter } = setup(f);
-    add('échec de connexion : réseau');
+    add('échec de connexion : réseau', 'error');
     await vi.advanceTimersByTimeAsync(5000);
     expect(f).toHaveBeenCalledTimes(1);
 
@@ -114,9 +107,20 @@ describe('Reporter', () => {
   it('un refus du serveur ne lève rien', async () => {
     const f = vi.fn<typeof fetch>(async () => new Response('{}', { status: 403 }));
     const { add, reporter } = setup(f);
-    add('échec');
+    add('échec', 'error');
     await vi.advanceTimersByTimeAsync(5000);
     expect(await reporter.flush('x')).toBe(false);
+  });
+
+  it('tient le corps sous la limite de keepalive en écartant les lignes les plus anciennes', async () => {
+    const f = ok();
+    const { add } = setup(f as unknown as typeof fetch);
+    for (let i = 0; i < 300; i++) add(`${i} ${'x'.repeat(900)}`);
+    add('échec final', 'error');
+    await vi.advanceTimersByTimeAsync(5000);
+    const body = callOf(f)[1].body as string;
+    expect(new TextEncoder().encode(body).length).toBeLessThanOrEqual(MAX_BODY_BYTES);
+    expect(JSON.parse(body).entries.at(-1).msg).toBe('échec final');
   });
 });
 
@@ -157,7 +161,7 @@ describe('récepteur', () => {
 
   it('stocke un rapport valide avec la date de réception', async () => {
     const store = memory();
-    const r = createLogReceiver({ store, now: () => 1234 });
+    const r = createLogReceiver({ store, now: () => 1234, allowOpenIngest: true });
     const res = (await r(post(report)))!;
     expect(res.status).toBe(200);
     expect(res.headers.get('access-control-allow-origin')).toBe('*');
@@ -180,8 +184,19 @@ describe('récepteur', () => {
     expect(store.rows).toHaveLength(1);
   });
 
+  it("refuse tout dépôt sans jeton configuré, sauf dépôt ouvert explicite", async () => {
+    const store = memory();
+    expect((await createLogReceiver({ store })(post(report)))!.status).toBe(503);
+    expect(store.rows).toHaveLength(0);
+  });
+
+  it('refuse un corps annoncé trop gros avant de le lire', async () => {
+    const r = createLogReceiver({ store: memory(), allowOpenIngest: true });
+    expect((await r(post(report, { 'content-length': String(10 * 1024 * 1024) })))!.status).toBe(413);
+  });
+
   it('refuse un rapport invalide ou trop gros', async () => {
-    const r = createLogReceiver({ store: memory() });
+    const r = createLogReceiver({ store: memory(), allowOpenIngest: true });
     expect((await r(post({ nimporte: 'quoi' })))!.status).toBe(400);
     expect((await r(new Request('http://h/api/logs/ingest', { method: 'POST', body: '{pas du json' })))!.status).toBe(400);
     expect((await r(post({ ...report, context: { x: 'y'.repeat(300_000) } })))!.status).toBe(413);

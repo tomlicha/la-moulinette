@@ -18,10 +18,10 @@ class Reader {
 }
 
 /** FTMS Indoor Bike Data (0x2AD2). Le bit 0 est inversé : 0 = vitesse présente. */
-export function decodeIndoorBikeData(b: Uint8Array, t: number): Measurement {
+export function decodeIndoorBikeData(b: Uint8Array): Omit<Measurement, 't'> {
   const r = new Reader(b);
   const flags = r.u16();
-  const m: Measurement = { t };
+  const m: Omit<Measurement, 't'> = {};
   if (!(flags & 0x0001)) m.speedKmh = r.u16() / 100;
   if (flags & 0x0002) r.skip(2); // vitesse moyenne
   if (flags & 0x0004) m.cadenceRpm = r.u16() / 2;

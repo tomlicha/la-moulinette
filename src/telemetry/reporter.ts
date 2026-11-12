@@ -1,6 +1,9 @@
 import type { LogBuffer } from './log-buffer';
 import type { LogEntry, Report } from './report';
 
+/** Sous la limite de 64 Ko des requêtes `keepalive`, avec de la marge pour les en-têtes. */
+export const MAX_BODY_BYTES = 60 * 1024;
+
 export interface ReporterOptions {
   endpoint: string;
   /** Jeton d'envoi (Authorization: Bearer). Il est dans le code de la page : il limite le bruit, il ne protège pas un secret. */
@@ -53,11 +56,11 @@ export function createReporter(buffer: LogBuffer, opts: ReporterOptions): Report
     }
     inFlight = true;
     try {
-      const report: Report = { session: opts.session, reason, context: opts.context?.() ?? {}, entries };
+      const body = encode(reason, entries);
       const res = await f(opts.endpoint, {
         method: 'POST',
         headers: { 'content-type': 'application/json', ...(opts.token ? { authorization: `Bearer ${opts.token}` } : {}) },
-        body: JSON.stringify(report),
+        body,
         keepalive: true,
       });
       if (!res.ok) return false;
@@ -70,6 +73,21 @@ export function createReporter(buffer: LogBuffer, opts: ReporterOptions): Report
       return false;
     } finally {
       inFlight = false;
+    }
+  }
+
+  /**
+   * Corps du rapport, tenu sous `MAX_BODY_BYTES` : avec `keepalive`, le navigateur refuse un corps de plus de 64 Ko,
+   * et le rapport ne partirait jamais. Les lignes les plus anciennes sont écartées d'abord : l'erreur est à la fin.
+   */
+  function encode(reason: string, entries: LogEntry[]): string {
+    const context = opts.context?.() ?? {};
+    let kept = entries;
+    for (;;) {
+      const report: Report = { session: opts.session, reason, context, entries: kept };
+      const body = JSON.stringify(report);
+      if (kept.length <= 1 || new TextEncoder().encode(body).length <= MAX_BODY_BYTES) return body;
+      kept = kept.slice(Math.ceil(kept.length / 4));
     }
   }
 

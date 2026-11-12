@@ -192,7 +192,7 @@ function nostrils(ax: number, y: number, z: number) {
  * Reliefs doux de la bouche, ajoutés à la distance (positif : creux). Ce sont des déplacements doux de
  * la surface, pas des entailles : ils se dessinent sans arête, quelle que soit la finesse du maillage.
  */
-function relief(ax: number, y: number, z: number) {
+function relief(ax: number, y: number, _z: number) {
   let r = 0;
   const u = ax / MOUTH_HALF;
   if (y < -0.04 && y > -0.095) {

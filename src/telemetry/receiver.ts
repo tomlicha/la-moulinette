@@ -1,4 +1,5 @@
 import { LIMITS, parseReport, type StoredReport } from './report.ts';
+import { json } from '../util/http.ts';
 
 export const PREFIX = '/api/logs/';
 
@@ -10,17 +11,20 @@ export interface LogStore {
 
 export interface ReceiverOptions {
   store: LogStore;
-  /** Jeton exigé pour déposer un rapport. Absent : dépôt ouvert (développement local). */
+  /** Jeton exigé pour déposer un rapport. */
   ingestToken?: string;
+  /**
+   * Sans `ingestToken`, accepter quand même les dépôts : réservé au serveur de dev, qui n'écoute que sur localhost.
+   * Par défaut, un récepteur sans jeton refuse tout : un secret oublié au déploiement ne doit pas ouvrir le dépôt
+   * (et le quota gratuit) à tout l'internet.
+   */
+  allowOpenIngest?: boolean;
   /** Jeton exigé pour lire. Absent : la lecture répond « non configuré ». */
   readToken?: string;
   /** Origine autorisée à déposer depuis un navigateur ; `*` par défaut. */
   allowedOrigin?: string;
   now?: () => number;
 }
-
-const json = (body: unknown, status = 200, extra: Record<string, string> = {}) =>
-  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...extra } });
 
 /** Comparaison en temps constant, pour ne pas laisser deviner un jeton caractère par caractère. */
 function sameToken(given: string | null, expected: string): boolean {
@@ -54,10 +58,13 @@ export function createLogReceiver(opts: ReceiverOptions) {
     if (route === 'ingest') {
       if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
       if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405, cors);
+      if (!opts.ingestToken && !opts.allowOpenIngest) return json({ error: 'not_configured' }, 503, cors);
       if (opts.ingestToken && !sameToken(bearer(req), opts.ingestToken)) return json({ error: 'forbidden' }, 403, cors);
+      // Refus avant lecture : inutile d'avaler un corps de plusieurs mégaoctets pour le jeter ensuite.
+      if (Number(req.headers.get('content-length')) > LIMITS.bodyBytes) return json({ error: 'too_large' }, 413, cors);
 
       const text = await req.text();
-      if (text.length > LIMITS.bodyBytes) return json({ error: 'too_large' }, 413, cors);
+      if (new TextEncoder().encode(text).length > LIMITS.bodyBytes) return json({ error: 'too_large' }, 413, cors);
       let parsed;
       try {
         parsed = parseReport(JSON.parse(text));

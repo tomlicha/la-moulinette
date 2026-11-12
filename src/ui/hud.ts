@@ -132,7 +132,7 @@ export class RideHud {
     cursor: SVGLineElement;
     dot: SVGCircleElement;
   };
-  private wo?: { key: string; shapes: SVGPathElement[]; cursor: SVGLineElement };
+  private wo?: { workout: Workout; ftpW: number; shapes: SVGPathElement[]; cursor: SVGLineElement };
 
   constructor(
     private readonly root: HTMLElement,
@@ -280,14 +280,13 @@ export class RideHud {
     this.wo!.shapes.forEach((sh, k) => sh.classList.toggle('past', k < s.stepIndex));
   }
 
-  /** Redessine le profil de séance quand la séance ou la FTP change. */
+  /** Redessine le profil de séance quand la séance (l'objet lui-même, pas son nom) ou la FTP change. */
   private drawWorkout(workout: Workout, ftpW: number) {
-    const key = `${workout.name}|${workout.steps.length}|${ftpW}`;
-    if (this.wo?.key === key) return;
+    if (this.wo?.workout === workout && this.wo.ftpW === ftpW) return;
     const svg = this.node('woSvg');
     svg.replaceChildren();
     const shapes = profileShapes(workout, ftpW, WO_W, WO_H).map((s) => svgEl('path', { d: s.d, class: s.zone }, svg));
-    this.wo = { key, shapes, cursor: svgEl('line', { y1: -2, y2: WO_H, class: 'wo-cursor' }, svg) };
+    this.wo = { workout, ftpW, shapes, cursor: svgEl('line', { y1: -2, y2: WO_H, class: 'wo-cursor' }, svg) };
   }
 
   private node<T extends HTMLElement | SVGElement = HTMLElement>(k: string): T {

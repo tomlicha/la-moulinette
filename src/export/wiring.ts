@@ -5,6 +5,10 @@ import { getStatus, sendToStrava, waitForLogin, type StravaStatus } from './stra
 import type { SensorHub } from '../sensors/hub';
 import type { ConnectionState } from '../sensors/types';
 import type { RideSnapshot } from '../sim/ride';
+import { download } from '../util/download';
+import { errMsg } from '../util/errors';
+import type { LogFn } from '../util/log';
+import { every } from '../util/ticker';
 
 export interface ExportWiring {
   /** À appeler à chaque snapshot de la sortie virtuelle. */
@@ -20,24 +24,13 @@ interface Exported {
   samples: number;
 }
 
-function download(name: string, bytes: Uint8Array) {
-  const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/octet-stream' }));
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 30_000); // libérer tout de suite peut interrompre le téléchargement sur certains navigateurs
-}
-
-const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
-
 /** Enregistre la sortie en continu et branche les boutons d'export FIT et d'envoi à Strava. */
 export function setupExport(opts: {
   hub: SensorHub;
   button: HTMLButtonElement;
   stravaButton: HTMLButtonElement;
   intervalsButton: HTMLButtonElement;
-  log: (msg: string) => void;
+  log: LogFn;
 }): ExportWiring {
   const { hub, button, stravaButton, intervalsButton, log } = opts;
   const recorder = new RideRecorder();
@@ -72,10 +65,11 @@ export function setupExport(opts: {
     setBlocked(intervalsButton, busy ? 'Envoi en cours…' : n === 0 && !exported ? nothing : undefined);
   }
 
-  setInterval(() => {
+  // Un échantillon par seconde, même onglet caché : sur `setInterval`, Chrome n'en prendrait plus qu'un par minute.
+  every(1000, () => {
     recorder.tick(Date.now());
     refreshButtons();
-  }, 1000);
+  });
 
   /** Fige la sortie en cours en fichier FIT ; sans sortie en cours, reprend la dernière non envoyée. */
   async function prepare(): Promise<Exported | undefined> {
@@ -89,6 +83,7 @@ export function setupExport(opts: {
 
   button.addEventListener('click', async () => {
     busy = true;
+    refreshButtons(); // un second clic pendant l'encodage ne relance pas l'export
     try {
       const out = await prepare();
       if (!out) {
@@ -96,10 +91,10 @@ export function setupExport(opts: {
         return;
       }
       const { fitFileName } = await import('./fit-activity');
-      download(fitFileName(out.startMs), out.bytes);
+      download(fitFileName(out.startMs), out.bytes as BlobPart);
       log(`export FIT : ${out.samples} échantillons, ${Math.round(out.bytes.length / 1024)} Ko`);
     } catch (e) {
-      log(`export FIT impossible : ${errMsg(e)}`);
+      log(`export FIT impossible : ${errMsg(e)}`, 'error');
     } finally {
       busy = false;
       refreshButtons();
@@ -130,10 +125,10 @@ export function setupExport(opts: {
             : `intervals.icu : déjà présente (fichier identique), rien de créé ${result.activityUrl ?? ''}`,
         );
       } else {
-        log(`intervals.icu : échec (${result.message})`);
+        log(`intervals.icu : échec (${result.message})`, 'error');
       }
     } catch (e) {
-      log(`intervals.icu : échec (${errMsg(e)}), la sortie est gardée en mémoire`);
+      log(`intervals.icu : échec (${errMsg(e)}), la sortie est gardée en mémoire`, 'error');
     } finally {
       busy = false;
       refreshButtons();
@@ -182,9 +177,9 @@ export function setupExport(opts: {
       if (result.reason === 'not_connected') await refreshStrava(); // le prochain clic rouvrira la connexion
       const duplicate = result.reason === 'rejected' && /duplicate/i.test(result.message);
       if (duplicate || result.reason === 'rejected') exported = undefined; // Strava a statué : inutile de renvoyer le même fichier
-      log(`Strava : ${duplicate ? 'déjà envoyée' : 'échec'} (${result.message})`);
+      log(`Strava : ${duplicate ? 'déjà envoyée' : 'échec'} (${result.message})`, duplicate ? 'info' : 'error');
     } catch (e) {
-      log(`Strava : échec (${errMsg(e)}), la sortie est gardée en mémoire`);
+      log(`Strava : échec (${errMsg(e)}), la sortie est gardée en mémoire`, 'error');
     } finally {
       busy = false;
       refreshButtons();

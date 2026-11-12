@@ -13,7 +13,7 @@ export async function serveWith(
   const headers = new Headers();
   for (const [k, v] of Object.entries(req.headers)) if (typeof v === 'string') headers.set(k, v);
 
-  let body: Uint8Array | undefined;
+  let body: Uint8Array<ArrayBuffer> | undefined;
   if (method !== 'GET' && method !== 'HEAD') {
     const chunks: Buffer[] = [];
     let size = 0;

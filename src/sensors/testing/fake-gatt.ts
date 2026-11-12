@@ -16,6 +16,9 @@ export class FakeChar {
     private readData?: DataView,
   ) {}
   addEventListener(_: string, fn: () => void) { this.listeners.push(fn); }
+  removeEventListener(_: string, fn: () => void) { this.listeners = this.listeners.filter((l) => l !== fn); }
+  /** Nombre d'écouteurs de notification : un seul attendu, même après plusieurs reconnexions. */
+  get listenerCount() { return this.listeners.length; }
   async startNotifications() { return this; }
   async readValue() {
     if (!this.readData) throw new Error('pas lisible');
@@ -73,9 +76,21 @@ export class FakeDevice {
 }
 
 
-/** `authorized` simule `getDevices()` (appareils déjà autorisés) ; absent, l'API n'existe pas, comme dans un Chrome qui ne l'expose pas. */
-export function install(device: FakeDevice, opts: { authorized?: FakeDevice[] } = {}) {
-  const bluetooth: Record<string, unknown> = { requestDevice: async () => device };
+/** Ce que lève Chrome quand l'utilisateur ferme le sélecteur sans choisir. */
+export const chooserCancelled = () =>
+  Object.assign(new Error('User cancelled the requestDevice() chooser.'), { name: 'NotFoundError' });
+
+/**
+ * `authorized` simule `getDevices()` (appareils déjà autorisés) ; absent, l'API n'existe pas, comme dans un Chrome qui ne l'expose pas.
+ * `device` à `undefined` : le sélecteur est fermé sans choix.
+ */
+export function install(device: FakeDevice | undefined, opts: { authorized?: FakeDevice[] } = {}) {
+  const bluetooth: Record<string, unknown> = {
+    requestDevice: async () => {
+      if (!device) throw chooserCancelled();
+      return device;
+    },
+  };
   if (opts.authorized) bluetooth.getDevices = async () => opts.authorized;
   vi.stubGlobal('navigator', { bluetooth });
   vi.stubGlobal('BluetoothUUID', { getService: uuid });

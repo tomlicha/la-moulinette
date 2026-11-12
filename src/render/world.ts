@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { SunLight } from 'three/addons/lights/SunLight.js';
 import { fbm, mulberry32 } from './noise';
+import { SectorInstances } from './sector-instances';
 import { ROAD_HALF, TERRAIN_HALF, type WorldPath } from './world-path';
 
 const HORIZON = new THREE.Color(0.74, 0.86, 0.96);
@@ -132,8 +133,8 @@ function buildTrees(path: WorldPath, count: number): THREE.Group {
   crownGeo.scale(2.1, 2.7, 2.1);
   crownGeo.translate(0, 4.0, 0);
 
-  const trunks = new THREE.InstancedMesh(trunkGeo, new THREE.MeshStandardNodeMaterial({ color: 0x5a3f2a, roughness: 1 }), count);
-  const crowns = new THREE.InstancedMesh(crownGeo, new THREE.MeshStandardNodeMaterial({ color: 0xffffff, roughness: 0.85 }), count);
+  const trunks = new SectorInstances(trunkGeo, new THREE.MeshStandardNodeMaterial({ color: 0x5a3f2a, roughness: 1 }));
+  const crowns = new SectorInstances(crownGeo, new THREE.MeshStandardNodeMaterial({ color: 0xffffff, roughness: 0.85 }));
   const dummy = new THREE.Object3D();
   const p = new THREE.Vector3();
   const s = new THREE.Vector3();
@@ -149,18 +150,13 @@ function buildTrees(path: WorldPath, count: number): THREE.Group {
     dummy.rotation.y = rand() * Math.PI * 2;
     dummy.scale.set(scale, scale * (0.9 + rand() * 0.4), scale);
     dummy.updateMatrix();
-    trunks.setMatrixAt(i, dummy.matrix);
-    crowns.setMatrixAt(i, dummy.matrix);
+    trunks.add(dummy.matrix);
     color.setRGB(0.12 + rand() * 0.1, 0.3 + rand() * 0.18, 0.1 + rand() * 0.08);
-    crowns.setColorAt(i, color);
+    crowns.add(dummy.matrix, color);
   }
-  for (const m of [trunks, crowns]) {
-    m.castShadow = true;
-    m.receiveShadow = true;
-    m.frustumCulled = false; // les instances couvrent toute la boucle : la sphère englobante de base ne vaut rien
-  }
+  // Par secteurs autour de la boucle : caméra et cascades d'ombre n'ont à dessiner que les arbres de leur champ.
   const g = new THREE.Group();
-  g.add(trunks, crowns);
+  g.add(trunks.build(), crowns.build());
   return g;
 }
 

@@ -28,7 +28,7 @@ export class GlbWriter {
   mesh(name: string, b: MeshBuilder, skinned = false): Mesh {
     const doc = this.doc;
     const n = b.positions.length / 3;
-    const acc = (type: 'SCALAR' | 'VEC3' | 'VEC4', array: Float32Array | Uint16Array | Uint32Array) =>
+    const acc = (type: 'SCALAR' | 'VEC3' | 'VEC4', array: Float32Array<ArrayBuffer> | Uint16Array<ArrayBuffer> | Uint32Array<ArrayBuffer>) =>
       doc.createAccessor().setType(type).setArray(array).setBuffer(this.buffer);
     const colors = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) colors.set(DEFAULT_LINEAR[b.regions[i]!]!, i * 3);
