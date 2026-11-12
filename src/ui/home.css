@@ -144,7 +144,9 @@ button.home-ride { display: flex; align-items: center; gap: 12px; height: 72px; 
 a.home-radar { display: block; color: inherit; text-decoration: none; border-radius: 18px; box-shadow: 0 8px 28px rgba(5, 10, 20, .3); }
 .home-workout { display: flex; flex-direction: column; gap: 10px; padding: 18px; border-radius: 18px; background: var(--glass); border: 1px solid var(--glass-line); backdrop-filter: blur(16px) saturate(1.3); box-shadow: 0 8px 28px rgba(5, 10, 20, .3); }
 .home-workout .home-kicker { color: var(--glass-muted); }
-.home-workout select { width: 100%; background: rgba(255, 255, 255, .1); color: #fff; border: 1px solid rgba(255, 255, 255, .3); border-radius: 8px; }
+.home-workout select { width: 100%; color-scheme: dark; background: rgba(255, 255, 255, .1); color: #fff; border: 1px solid rgba(255, 255, 255, .3); border-radius: 8px; }
+/* La liste déroulante native ne sait pas peindre un fond translucide : elle retomberait en blanc, texte blanc dessus. */
+.home-workout option, .home-workout optgroup { background: #0F1C31; color: #fff; }
 .home-workout-meta { margin: 0; color: var(--glass-muted); font-size: .95rem; }
 .home-workout .wo-profile { height: 64px; background: transparent; margin: 0; }
 .home-workout .row { margin: 0; }

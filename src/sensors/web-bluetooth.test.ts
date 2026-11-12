@@ -96,18 +96,43 @@ describe('WebBluetoothTrainer, reconnexion', () => {
     expect(device.connected).toBe(false);
   });
 
-  it("abandonne après le délai maximal si l'appareil ne revient pas", async () => {
+  it("abandonne après le délai maximal, puis se reconnecte quand l'appareil se signale de nouveau", async () => {
     const { device } = ftmsDevice();
+    device.enableAdvertisements();
     install(device);
     const { t, states } = trainer();
     t.reconnectTimeoutMs = 50;
     t.reconnectDelaysMs = [10];
     await t.connect();
+    const realConnect = device.gatt.connect;
     device.gatt.connect = async () => {
       throw new Error('hors de portée');
     };
     device.drop();
     await vi.waitFor(() => expect(states.at(-1)).toBe('error'));
+    expect(t.waitingForDevice).toBe(true);
+    expect(states.filter((s) => s === 'error')).toHaveLength(1);
+
+    device.gatt.connect = realConnect; // trainer rallumé
+    device.advertise();
+    await vi.waitFor(() => expect(states.at(-1)).toBe('connected'));
+    expect(t.waitingForDevice).toBe(false);
+    expect(device.watching).toBe(0); // surveillance arrêtée une fois l'appareil revenu
+  });
+
+  it("borne une connexion GATT restée sans réponse, puis réessaie", async () => {
+    const { device } = ftmsDevice();
+    install(device);
+    const { t, states, logs } = trainer();
+    t.connectTimeoutMs = 20;
+    await t.connect();
+    const realConnect = device.gatt.connect;
+    let calls = 0;
+    device.gatt.connect = () => (++calls === 1 ? new Promise(() => {}) : realConnect()); // le premier essai ne répond jamais
+    device.drop();
+    await vi.waitFor(() => expect(states.at(-1)).toBe('connected'));
+    expect(calls).toBe(2);
+    expect(logs.some((l) => l.includes('pas de réponse'))).toBe(true);
   });
 });
 

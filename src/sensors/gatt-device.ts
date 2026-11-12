@@ -26,10 +26,18 @@ export abstract class GattDevice extends Emitter {
   /** Pauses entre tentatives de reconnexion ; la dernière valeur se répète jusqu'à `reconnectTimeoutMs`. */
   reconnectDelaysMs = [0, 500, 1000, 2000, 3000];
   reconnectTimeoutMs = 60_000;
+  /** Au-delà, une connexion GATT sans réponse est abandonnée : sous Windows, elle peut sinon rester pendante. */
+  connectTimeoutMs = 20_000;
+  /** Pause entre deux essais quand le navigateur ne sait pas signaler le retour de l'appareil. */
+  idlePollMs = 5_000;
 
   protected device?: BluetoothDevice;
   private userDisconnect = false;
   private reconnecting = false;
+  private waiting = false;
+  private stopWaiting?: () => void;
+  /** `watchAdvertisements()` a déjà échoué : inutile de le redemander à chaque attente. */
+  private advertisementsUnavailable = false;
   /**
    * Un écouteur par caractéristique. Selon le navigateur, une reconnexion rend les mêmes objets caractéristique :
    * sans cette table, chaque reconnexion ajouterait un écouteur et chaque notification serait traitée plusieurs fois.
@@ -83,8 +91,17 @@ export abstract class GattDevice extends Emitter {
     return this.device?.id;
   }
 
+  /**
+   * Appareil injoignable (éteint, hors de portée) : on attend qu'il se signale, sans limite de durée.
+   * L'état reste « connexion » mais rien n'est en cours : l'interface peut proposer d'en choisir un autre.
+   */
+  get waitingForDevice(): boolean {
+    return this.waiting;
+  }
+
   async disconnect(): Promise<void> {
     this.userDisconnect = true;
+    this.stopWaiting?.();
     this.device?.gatt?.disconnect();
   }
 
@@ -92,6 +109,20 @@ export abstract class GattDevice extends Emitter {
     const gatt = this.device?.gatt;
     if (!gatt) throw new Error('Appareil sans serveur GATT');
     return gatt;
+  }
+
+  /** `gatt.connect()` borné par `connectTimeoutMs` ; la boucle de reconnexion annule ensuite l'essai pendant. */
+  protected async connectGatt(): Promise<BluetoothRemoteGATTServer> {
+    const gatt = this.gatt();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`pas de réponse en ${Math.round(this.connectTimeoutMs / 1000)} s`)), this.connectTimeoutMs);
+    });
+    try {
+      return await Promise.race([gatt.connect(), timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   /** S'abonne aux notifications de `c` ; un abonnement précédent sur le même objet est remplacé, jamais doublé. */
@@ -123,8 +154,10 @@ export abstract class GattDevice extends Emitter {
       this.emit('state', 'connected', this.name);
     } catch (e) {
       if (keepTrying) {
-        this.emit('log', `${this.name} pas encore joignable (${errMsg(e)}) : nouvel essai`);
-        void this.reconnect();
+        this.emit('log', `${this.name} pas encore joignable (${errMsg(e)})`);
+        this.onLinkLost();
+        this.device?.gatt?.disconnect(); // annule un essai resté pendant
+        void this.reconnect('launch');
         return;
       }
       this.emit('state', 'error', errMsg(e));
@@ -137,29 +170,50 @@ export abstract class GattDevice extends Emitter {
     this.onLinkLost();
     this.emit('log', `${this.name} : GATT déconnecté`);
     if (this.userDisconnect) this.emit('state', 'disconnected');
-    else void this.reconnect();
+    else void this.reconnect('drop');
   }
 
-  /** Reconnexion sans nouvelle sélection : Chrome garde l'autorisation tant que la page reste ouverte. */
-  private async reconnect() {
+  /**
+   * Reconnexion sans nouvelle sélection : Chrome garde l'autorisation tant que la page reste ouverte.
+   * Après une coupure (`drop`), essais rapprochés pendant `reconnectTimeoutMs`, puis « reconnexion abandonnée » :
+   * la sortie s'arrête. Dans les deux cas, on attend ensuite sans limite que l'appareil se signale de nouveau
+   * (rallumé, revenu à portée) pour s'y reconnecter. Au lancement (`launch`), l'appareil est souvent encore
+   * éteint : pas d'essais rapprochés, on attend directement son signal.
+   */
+  private async reconnect(cause: 'drop' | 'launch') {
     this.reconnecting = true;
     const started = performance.now();
+    const quickUntil = cause === 'drop' ? started + this.reconnectTimeoutMs : started;
+    let announce = true; // l'état « en attente » est à (re)publier : première attente, ou essai échoué après un signal
     try {
       for (let attempt = 0; !this.userDisconnect; attempt++) {
-        if (performance.now() - started > this.reconnectTimeoutMs) {
-          this.emit('state', 'error', 'reconnexion abandonnée');
-          return;
+        if (performance.now() < quickUntil) {
+          const delay = this.reconnectDelaysMs[Math.min(attempt, this.reconnectDelaysMs.length - 1)] ?? 0;
+          if (delay) await new Promise((r) => setTimeout(r, delay));
+          if (this.userDisconnect) break;
+          this.emit('state', 'connecting', `reconnexion, essai ${attempt + 1}`);
+        } else {
+          this.waiting = true;
+          if (announce) {
+            announce = false;
+            if (cause === 'drop') this.emit('state', 'error', 'reconnexion abandonnée');
+            else this.emit('state', 'connecting', `en attente de ${this.name}`);
+            this.emit('log', `${this.name} : en attente de son signal, reconnexion dès qu'il sera allumé`);
+          }
+          const woke = await this.waitUntilNearby();
+          this.waiting = false;
+          if (woke === 'stopped') break;
+          if (woke === 'seen') {
+            announce = true;
+            this.emit('state', 'connecting', `${this.name} détecté`);
+          }
         }
-        const delay = this.reconnectDelaysMs[Math.min(attempt, this.reconnectDelaysMs.length - 1)] ?? 0;
-        if (delay) await new Promise((r) => setTimeout(r, delay));
-        if (this.userDisconnect) break;
-        this.emit('state', 'connecting', `reconnexion, essai ${attempt + 1}`);
         try {
           await this.setup();
         } catch (e) {
           this.emit('log', `${this.name} : essai ${attempt + 1} échoué (${errMsg(e)})`);
           this.onLinkLost();
-          this.device?.gatt?.disconnect(); // repart d'une session propre
+          this.device?.gatt?.disconnect(); // repart d'une session propre, et annule un essai resté pendant
           continue;
         }
         this.emit('log', `${this.name} : reconnecté en ${((performance.now() - started) / 1000).toFixed(1)} s`);
@@ -170,6 +224,43 @@ export abstract class GattDevice extends Emitter {
       this.emit('state', 'disconnected');
     } finally {
       this.reconnecting = false;
+      this.waiting = false;
+    }
+  }
+
+  /**
+   * Attend que l'appareil émette une annonce Bluetooth (`watchAdvertisements`, disponible là où `getDevices` l'est).
+   * Sans cette API, simple pause de `idlePollMs` avant l'essai suivant (`tick`). Rend `stopped` si l'attente est
+   * interrompue par une déconnexion voulue.
+   */
+  private async waitUntilNearby(): Promise<'seen' | 'tick' | 'stopped'> {
+    const device = this.device;
+    if (!device || this.userDisconnect) return 'stopped';
+    const stop = new AbortController();
+    this.stopWaiting = () => stop.abort();
+    try {
+      if (!this.advertisementsUnavailable && typeof device.watchAdvertisements === 'function') {
+        try {
+          await new Promise<void>((resolve, reject) => {
+            device.addEventListener('advertisementreceived', () => resolve(), { once: true, signal: stop.signal });
+            stop.signal.addEventListener('abort', () => resolve(), { once: true });
+            device.watchAdvertisements({ signal: stop.signal }).catch(reject);
+          });
+          return this.userDisconnect ? 'stopped' : 'seen';
+        } catch (e) {
+          if (this.userDisconnect) return 'stopped';
+          this.advertisementsUnavailable = true;
+          this.emit('log', `${this.name} : signal Bluetooth non surveillable (${errMsg(e)}), essai toutes les ${this.idlePollMs / 1000} s`);
+        }
+      }
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, this.idlePollMs);
+        stop.signal.addEventListener('abort', () => (clearTimeout(timer), resolve()), { once: true });
+      });
+      return this.userDisconnect ? 'stopped' : 'tick';
+    } finally {
+      this.stopWaiting = undefined;
+      stop.abort(); // arrête la surveillance des annonces
     }
   }
 }

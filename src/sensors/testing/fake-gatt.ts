@@ -46,13 +46,39 @@ export class FakeService {
 
 let nextId = 1;
 
+type Listener = { type: string; fn: () => void; once: boolean };
+
 export class FakeDevice {
   readonly id = `fake-${nextId++}`;
   name = 'Faux trainer';
   connected = false;
-  private listeners: (() => void)[] = [];
+  /** Surveillances d'annonces en cours (`watchAdvertisements`). */
+  watching = 0;
+  private listeners: Listener[] = [];
   constructor(readonly services: FakeService[]) {}
-  addEventListener(_: string, fn: () => void) { this.listeners.push(fn); }
+  addEventListener(type: string, fn: () => void, opts?: { once?: boolean; signal?: AbortSignal }) {
+    if (opts?.signal?.aborted) return;
+    const l: Listener = { type, fn, once: !!opts?.once };
+    this.listeners.push(l);
+    opts?.signal?.addEventListener('abort', () => (this.listeners = this.listeners.filter((x) => x !== l)));
+  }
+  private dispatch(type: string) {
+    for (const l of this.listeners.filter((x) => x.type === type)) {
+      if (l.once) this.listeners = this.listeners.filter((x) => x !== l);
+      l.fn();
+    }
+  }
+  /** Rend `watchAdvertisements` disponible, comme dans un Chrome qui expose `getDevices`. */
+  enableAdvertisements() {
+    Object.assign(this, {
+      watchAdvertisements: async ({ signal }: { signal?: AbortSignal } = {}) => {
+        this.watching++;
+        signal?.addEventListener('abort', () => this.watching--);
+      },
+    });
+  }
+  /** L'appareil, rallumé ou revenu à portée, émet une annonce. */
+  advertise() { if (this.watching > 0) this.dispatch('advertisementreceived'); }
   gatt = {
     connect: async () => {
       this.connected = true;
@@ -68,7 +94,7 @@ export class FakeDevice {
     disconnect: () => {
       if (!this.connected) return;
       this.connected = false;
-      this.listeners.forEach((l) => l());
+      this.dispatch('gattserverdisconnected');
     },
   };
   /** Coupure côté trainer (hors de portée, piles, etc.). */

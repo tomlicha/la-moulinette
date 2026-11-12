@@ -15,7 +15,7 @@ export class HeartRateMonitor extends GattDevice {
   }
 
   protected async setup() {
-    const server = await this.gatt().connect();
+    const server = await this.connectGatt();
     const svc = await server.getPrimaryService(SERVICE.heartRate);
     const c = await svc.getCharacteristic(CHAR.heartRateMeasurement);
     await this.subscribe(c, 'Heart Rate', (b) =>

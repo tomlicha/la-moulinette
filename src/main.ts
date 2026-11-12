@@ -272,6 +272,8 @@ function refreshControls() {
 // --- Connexion des appareils ---
 
 function attach(t: TrainerAdapter) {
+  // L'adaptateur remplacé peut encore attendre son appareil : il ne doit pas s'y reconnecter dans notre dos.
+  if (trainer && trainer !== t) void trainer.disconnect();
   trainer = t;
   hub.attachTrainer(t);
   t.on('state', (s, d) => {
@@ -297,6 +299,7 @@ async function start(t: TrainerAdapter, nameHint?: string) {
 
 function newHeartRateMonitor(): HeartRateMonitor {
   const m = new HeartRateMonitor();
+  void hrMonitor?.disconnect(); // voir attach()
   hrMonitor = m;
   hub.attachHeartRate(m);
   m.on('state', (s, d) => {
@@ -521,8 +524,10 @@ const STATUS_LABEL: Record<ConnectionState, string> = {
 function renderDevices() {
   const t = registry.get('trainer');
   const h = registry.get('hr');
-  const busyT = roleState.trainer === 'connecting' || roleState.trainer === 'connected';
-  const busyH = roleState.hr === 'connecting' || roleState.hr === 'connected';
+  // Un appareil attendu (éteint) n'occupe pas le rôle : on peut toujours en choisir un autre.
+  const waitingT = trainer instanceof WebBluetoothTrainer && trainer.waitingForDevice;
+  const busyT = roleState.trainer === 'connected' || (roleState.trainer === 'connecting' && !waitingT);
+  const busyH = roleState.hr === 'connected' || (roleState.hr === 'connecting' && !hrMonitor?.waitingForDevice);
   el.known.trainer.textContent = t ? `Connu : ${t.name}` : 'Aucun trainer connu.';
   el.known.hr.textContent = h ? `Connue : ${h.name}` : 'Aucune ceinture connue. Facultatif.';
   el.connectBle.textContent = t ? `Reconnecter ${t.name}` : 'Rechercher un trainer';

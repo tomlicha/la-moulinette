@@ -22,7 +22,7 @@
 
     <main>
       <!-- Écran 1 : premier écran au lancement. Radar des appareils (maquette B1, docs/design/accueil-appareils.md) -->
-      <section data-view="appareils">
+      <section data-view="appareils" hidden>
         <div class="dev-layout">
           <div id="radar-devices" class="dev-radar"></div>
           <div class="dev-side">
@@ -84,7 +84,7 @@
       </section>
 
       <!-- Écran 2 : accueil, plein écran. Point de départ de la navigation (la barre du haut est masquée ici) -->
-      <section data-view="accueil" hidden>
+      <section data-view="accueil">
         <h1 class="visually-hidden">Accueil</h1>
         <div class="home">
             <div id="home-scenes" class="home-scenes" aria-hidden="true"></div>

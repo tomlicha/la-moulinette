@@ -236,7 +236,7 @@ export class WebBluetoothTrainer extends GattDevice implements TrainerAdapter {
   protected async setup() {
     this.resetSession();
     this.capabilities = { targetPower: false, simulation: false };
-    const server = await this.gatt().connect();
+    const server = await this.connectGatt();
     const services = await server.getPrimaryServices();
     const find = (u: number | string) => services.find((s) => s.uuid === BluetoothUUID.getService(u));
     this.emit('log', `Services : ${services.map((s) => s.uuid).join(', ')}`);
