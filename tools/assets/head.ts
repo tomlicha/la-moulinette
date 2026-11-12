@@ -261,12 +261,15 @@ function eyeRegion(ax: number, y: number, z: number) {
 
 /**
  * Crâne : 14,8 cm de large aux oreilles. Vu de dessus, l'avant est plus carré qu'une ellipse (front large, tempes
- * droites) ; il ne se resserre (jusqu'à 13,8 cm) qu'au niveau des yeux, pas sur le front.
+ * droites) ; il ne se resserre (jusqu'à 13,8 cm) qu'au niveau des yeux, pas sur le front. Vu de face, le sommet est
+ * large et plat plutôt qu'en œuf.
  */
 function cranium(x: number, y: number, z: number) {
   const sx = 1 + 0.072 * smooth(0, 0.05, z) * (1 - smooth(0.018, 0.045, y));
-  const lx = Math.abs(x * sx) / 0.074;
   const ly = (y - 0.032) / 0.094;
+  // Vu de face, le haut du crâne reste large au lieu de monter en dôme : la largeur seule est gonflée vers le
+  // sommet (jusqu'à 18 %), le profil (en x = 0) ne change pas.
+  const lx = (Math.abs(x * sx) / 0.074) * (1 - 0.18 * smooth(0.25, 0.85, ly));
   const lz = (z + 0.008) / 0.101;
   const n = 2 + 0.7 * smooth(0, 0.5, lz); // super-ellipse vers l'avant ; ellipse aux oreilles et derrière
   const h = Math.pow(Math.pow(lx, n) + Math.pow(Math.abs(lz), n), 1 / n);
@@ -576,10 +579,10 @@ function straps(b: MeshBuilder, F: Frame, head: Body, headBone: number) {
 function glasses(b: MeshBuilder, F: Frame, faceSdf: (x: number, y: number, z: number) => number, headBone: number) {
   const skin = () => ({ joints: [headBone], weights: [1] });
   const Y = 0.006;
-  const span = 1.3;
+  const span = 1.22;
   const Z0 = 0.02;
-  const top = (phi: number) => 0.018 - 0.004 * smooth(0.9, span, Math.abs(phi));
-  const bottom = (phi: number) => -0.021 + 0.027 * Math.exp(-((phi / 0.16) ** 2)) + 0.011 * smooth(0.85, span, Math.abs(phi));
+  const top = (phi: number) => 0.015 - 0.0035 * smooth(0.85, span, Math.abs(phi));
+  const bottom = (phi: number) => -0.017 + 0.023 * Math.exp(-((phi / 0.15) ** 2)) + 0.009 * smooth(0.8, span, Math.abs(phi));
   // Profondeur de l'ellipse : la plus petite qui laisse partout un jour avec le visage.
   let A = 0.09;
   const at = (B: number, phi: number, v: number): V3 => [A * Math.sin(phi), Y + v, Z0 + B * Math.cos(phi)];
