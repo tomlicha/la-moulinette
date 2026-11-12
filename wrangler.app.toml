@@ -1,0 +1,11 @@
+# L'application (site statique construit par Vite dans dist/), servie par Cloudflare Workers : `npm run deploy:app`.
+# Le récepteur de journaux a sa propre configuration : wrangler.toml.
+name = "la-moulinette"
+compatibility_date = "2026-11-01"
+workers_dev = true
+preview_urls = false
+
+[assets]
+directory = "./dist"
+# Une seule page : toute adresse inconnue renvoie index.html.
+not_found_handling = "single-page-application"

@@ -6,6 +6,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
+    "deploy:app": "npm run build && npx wrangler deploy -c wrangler.app.toml",
     "test": "vitest run",
     "assets": "node tools/assets/build.ts",
     "logs:serve": "node tools/log-server.ts"
