@@ -43,7 +43,7 @@ Panneaux de scène (radar, visuel) aux couleurs fixes, comme le HUD ; le reste s
 
 ## À faire
 
-- Le portrait du coureur (`public/assets/rider-portrait.jpg`) est recadré d'une planche de la maquette : à remplacer par un rendu de l'avatar réel, personnalisable.
+- Le portrait du coureur est **rendu au chargement d'après `avatar.glb` et `bike.glb`** ([`src/render/rider-portrait.ts`](../../src/render/rider-portrait.ts), même classe `Rider` que la sortie) : il suit donc toute évolution de l'avatar, sans image à régénérer. `public/assets/rider-portrait.jpg` n'est plus qu'un repli (chargement, rendu impossible) ; il peut être supprimé quand ce repli ne sert plus. Reste à rendre l'avatar personnalisable (maillot, couleurs).
 - Un seul monde existe : la sélection de mondes (Col des Érables, Rive du lac, Quais de nuit) de la maquette B n'est pas reprise.
 - Le visuel du parcours est un dessin SVG ; à remplacer par un rendu de la scène 3D.
 - Accent : décider si menthe devient l'accent de toute l'application (le HUD l'utilise déjà).

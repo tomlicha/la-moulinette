@@ -78,9 +78,14 @@ export function createRadar(root: HTMLElement, variant: RadarVariant): Radar {
   el('div', 'radar-ping', box);
   const core = el('div', 'radar-core', box);
   const img = el('img', '', core);
+  // Image de repli le temps du rendu (ou si WebGL/WebGPU est indisponible) ; remplacée par le rendu du vrai avatar.
   img.src = `${import.meta.env.BASE_URL}assets/rider-portrait.jpg`;
   img.alt = '';
   img.decoding = 'async';
+  void import('../render/rider-portrait')
+    .then((m) => m.riderPortrait())
+    .then((url) => { if (core.isConnected) img.src = url; })
+    .catch((e) => console.warn('portrait du coureur : repli sur l’image statique', e));
 
   const parts = {} as Record<RadarRole, { dot: HTMLElement; tag: HTMLElement; role: HTMLElement; name: HTMLElement; status: HTMLElement }>;
   for (const role of ['trainer', 'hr'] as const) {
