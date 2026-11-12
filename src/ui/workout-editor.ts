@@ -547,12 +547,90 @@ export function setupWorkoutEditor(o: EditorOptions) {
       btn.style.borderLeftColor = main === undefined ? 'var(--muted)' : `var(--${zoneOf(main)})`;
       btn.setAttribute('aria-pressed', String(i === selected));
       btn.title = `${BLOCK_LABEL[b.type]} · ${blockShort(b)}`;
-      btn.addEventListener('click', () => select(i));
+      btn.addEventListener('click', () => {
+        if (!justDragged) select(i);
+      });
       items.push(btn);
     });
     items.push(ins(blocks.length));
     $('ed-strip').replaceChildren(...items);
   }
+
+  // --- Déplacer un bloc par glisser-déposer dans la bande de structure ---
+
+  /** Un glisser vient de finir : le clic qui le suit ne doit pas sélectionner un bloc. */
+  let justDragged = false;
+  interface BlockDrag {
+    from: number;
+    to: number;
+    startX: number;
+    pointerId: number;
+    active: boolean;
+    el: HTMLElement;
+    rects: DOMRect[];
+    line?: HTMLElement;
+  }
+  let drag: BlockDrag | undefined;
+  const stripEl = $('ed-strip');
+  const DRAG_THRESHOLD_PX = 10;
+
+  /** Place le bloc `from` à l'indice `to` et le sélectionne : une seule entrée d'historique. */
+  function moveBlock(from: number, to: number) {
+    if (from === to) return;
+    commit((bs) => {
+      const c = [...bs];
+      const [m] = c.splice(from, 1);
+      c.splice(to, 0, m!);
+      return c;
+    }, to);
+  }
+
+  stripEl.addEventListener('pointerdown', (e) => {
+    if (!draft || draft.readOnly || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    const blk = (e.target as HTMLElement).closest<HTMLElement>('.blk');
+    if (!blk) return;
+    const blks = [...stripEl.querySelectorAll<HTMLElement>('.blk')];
+    const from = blks.indexOf(blk);
+    drag = { from, to: from, startX: e.clientX, pointerId: e.pointerId, active: false, el: blk, rects: blks.map((b) => b.getBoundingClientRect()) };
+    blk.setPointerCapture?.(e.pointerId);
+  });
+  stripEl.addEventListener('pointermove', (e) => {
+    const d = drag;
+    if (!d || e.pointerId !== d.pointerId) return;
+    const dx = e.clientX - d.startX;
+    if (!d.active) {
+      if (Math.abs(dx) < DRAG_THRESHOLD_PX) return;
+      d.active = true;
+      stripEl.classList.add('dragging');
+      d.el.classList.add('lifted');
+      d.line = el('div', { className: 'drop-line' });
+      stripEl.append(d.line);
+    }
+    d.el.style.translate = `${dx}px 0`;
+    // Place visée : autant de blocs que de milieux franchis par le centre du bloc tenu.
+    const me = d.rects[d.from]!;
+    const centre = me.left + me.width / 2 + dx;
+    const others = d.rects.filter((_, i) => i !== d.from);
+    d.to = others.filter((r) => r.left + r.width / 2 < centre).length;
+    const edge = d.to < others.length ? others[d.to]!.left : others[others.length - 1]!.right;
+    d.line!.style.left = `${edge - stripEl.getBoundingClientRect().left}px`;
+  });
+  const endDrag = (e: PointerEvent) => {
+    const d = drag;
+    if (!d || e.pointerId !== d.pointerId) return;
+    drag = undefined;
+    d.el.releasePointerCapture?.(e.pointerId);
+    d.el.style.translate = '';
+    d.el.classList.remove('lifted');
+    stripEl.classList.remove('dragging');
+    d.line?.remove();
+    if (!d.active) return; // un simple appui : le clic sélectionne
+    justDragged = true;
+    setTimeout(() => (justDragged = false));
+    if (e.type === 'pointerup') moveBlock(d.from, d.to);
+  };
+  stripEl.addEventListener('pointerup', endDrag);
+  stripEl.addEventListener('pointercancel', endDrag);
 
   // --- Ligne de réglages du bloc sélectionné ---
 
