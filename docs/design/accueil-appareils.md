@@ -4,6 +4,19 @@ Référence permanente des deux écrans d'entrée de l'application. Toute évolu
 
 - Code : [`src/ui/radar.ts`](../../src/ui/radar.ts) (radar), [`src/ui/radar-model.ts`](../../src/ui/radar-model.ts) (textes des bulles, testés), [`src/ui/home.css`](../../src/ui/home.css) (style), balisage dans [`index.html`](../../index.html), branchement dans `renderDevices()` de [`src/main.ts`](../../src/main.ts).
 - Maquettes (claude.ai) : [Direction graphique](https://claude.ai/artifact/XsuzQxwA5WEKoyn8Jxu4nP), propositions A, B, C puis B1, B2, B3 sous la planche de style. Retenue : **B1 · Médaillon**.
+- Appareils plein écran (même canevas, rangée « Appareils plein écran ») : **D1 · Radar en scène**, **D2 · Check-list de départ**, **D3 · Au stand**. En attente de choix.
+
+## Propositions en cours : Appareils plein écran (2026-11-12)
+
+But : passer l'écran Appareils dans la direction de l'accueil (scène plein cadre, panneaux de verre, barre du haut de l'accueil avec « Accueil » ajouté et « Appareils » marqué), plus simple à comprendre.
+
+| Proposition | Idée | État dessiné |
+|---|---|---|
+| D1 · Radar en scène | Le radar B1 en disque de verre sur la scène ; à droite une ligne par appareil, une seule action visible, le reste (Déconnecter, Oublier, protocole) dans un menu « ⋯ » ; puissance du trainer en direct. | Trainer connecté, ceinture en recherche |
+| D2 · Check-list de départ | Parcours guidé en 3 étapes (Trainer → Cardio facultatif → En selle), trois consignes illustrées, un gros bouton « Rechercher mon trainer », le trainer simulé proposé comme essai. | Premier lancement, rien de connu |
+| D3 · Au stand | Une grande tuile par appareil avec sa mesure en direct, l'aide et le protocole dépliés dans la tuile en cas d'erreur, un dock en bas avec le coureur, le bilan et Rouler. | Trainer en erreur, ceinture connectée |
+
+Piste recommandée : D1 comme base, le mode guidé de D2 au premier lancement, la mesure en direct et l'aide dans la tuile de D3.
 
 ## Décisions
 
