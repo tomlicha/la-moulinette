@@ -241,6 +241,9 @@ export class RideHud {
       root.style.setProperty('--hud-s', String(s));
       root.style.setProperty('--hud-x', `${(w - REF_W * s) / 2}px`);
       root.style.setProperty('--hud-y', `${(h - REF_H * s) / 2}px`);
+      // Marges autour de la scène centrée, en pixels de scène : les panneaux s'en servent pour se caler sur les bords de la fenêtre.
+      root.style.setProperty('--hud-ox', `${(w / s - REF_W) / 2}px`);
+      root.style.setProperty('--hud-oy', `${(h / s - REF_H) / 2}px`);
     };
     new ResizeObserver(fit).observe(root);
     fit();

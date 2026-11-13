@@ -20,6 +20,7 @@
   --hud-shadow: 0 8px 28px rgba(5, 10, 20, .25);
   --hud-blur: blur(16px) saturate(1.3);
   --hud-k: .9;
+  --hud-m: 24px; /* marge entre un panneau et le bord de la fenêtre, en pixels de scène */
   /* Zones, version vive (2026-11-13) : mêmes teintes de jour comme de nuit, la scène ne change pas avec le thème. */
   --hz1: #C4CDD8; --hz2: #2E9BFF; --hz3: #1FE07F; --hz4: #FFD60A; --hz5: #FF7A1A; --hz6: #FF2D55;
   --hud-num: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
@@ -47,11 +48,15 @@
   .hud-p { background: var(--hud-panel-flat); }
 }
 
-.hud-left { left: 64px; top: 36px; width: 250px; padding: 14px 16px; gap: 6px; transform-origin: 0 0; }
-.hud-center { left: 340px; top: 36px; width: 600px; padding: 14px 20px; gap: 10px; transform-origin: 50% 0; }
-.hud-bottom { left: 64px; top: 596px; width: 1152px; height: 90px; padding: 10px 20px; justify-content: center; transform-origin: 50% 100%; }
+/*
+ * La scène est centrée, mais les panneaux se calent sur les bords de la fenêtre (--hud-ox, --hud-oy : marges autour de la
+ * scène) : celui de gauche dans le coin, les autres à --hud-m du haut ou du bas. Le milieu de l'écran reste à la route.
+ */
+.hud-left { left: calc(var(--hud-m) - var(--hud-ox, 0px)); top: calc(var(--hud-m) - var(--hud-oy, 0px)); width: 250px; padding: 14px 16px; gap: 6px; transform-origin: 0 0; }
+.hud-center { left: 340px; top: calc(var(--hud-m) - var(--hud-oy, 0px)); width: 600px; padding: 14px 20px; gap: 10px; transform-origin: 50% 0; }
+.hud-bottom { left: 64px; top: calc(630px - var(--hud-m) + var(--hud-oy, 0px)); width: 1152px; height: 90px; padding: 10px 20px; justify-content: center; transform-origin: 50% 100%; }
 /* Message de la séance (consigne écrite dans le fichier), sous le panneau central. */
-.hud-message { left: 340px; top: 214px; width: 600px; padding: 12px 20px; transform-origin: 50% 0; background: var(--hud-accent); color: var(--hud-ink); border-color: transparent; font-size: 24px; font-weight: 700; text-align: center; }
+.hud-message { left: 340px; top: calc(178px + var(--hud-m) - var(--hud-oy, 0px)); width: 600px; padding: 12px 20px; transform-origin: 50% 0; background: var(--hud-accent); color: var(--hud-ink); border-color: transparent; font-size: 24px; font-weight: 700; text-align: center; }
 
 /* Ce qui s'affiche selon l'état : sortie libre (ou pas encore démarrée), séance. */
 .hud:not([data-mode='ride']) [data-when='ride'],
