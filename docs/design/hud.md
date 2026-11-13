@@ -36,6 +36,8 @@ Le HUD est mis en page dans une scène fixe de **1280 × 720 px**, puis ajustée
 - **Sortie libre**, y compris avant le départ : les trois panneaux, version sortie. Avant le départ, le parcours et la pente sont en « – », le profil montre le départ et le premier sommet ; le HUD ne change donc pas de forme au démarrage.
 - **Séance** : les trois panneaux, version séance ; la vitesse sort du bloc central pour laisser la place à la cible.
 
+**Porte du palier suivant** (dans la scène 3D, pas dans le HUD) : en séance, 30 s avant chaque changement de palier, une arche enjambe la route devant le cycliste, de la couleur de la zone du palier qui commence (`--hz1` … `--hz6`, blanc devant un palier libre). La séance avançant au temps, la porte est posée là où le cycliste sera à sa vitesse du moment (au moins 2 m/s, au plus 400 m devant) et se recale en douceur ; il la franchit au début du palier, puis elle s'efface. Rien sur le dernier palier ni en pause. Logique dans `workout/gate.ts`, rendu dans `render/interval-gate.ts`.
+
 **Liste « À suivre »** (séance, panneau gauche, sous un filet) :
 
 - En-tête : « À suivre », à droite le nombre de paliers après la liste et le temps jusqu'à la fin (« + 31 · fin dans 47:12 ») ; « Dernier palier » quand il n'y a plus rien.

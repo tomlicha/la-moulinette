@@ -5,6 +5,8 @@ import { loadRiderAssets, type RiderAssets } from './assets';
 import { Rider } from './rider';
 import { buildWorld, WORLD_HIGH, WORLD_LOW } from './world';
 import { WorldPath } from './world-path';
+import { IntervalGates } from './interval-gate';
+import type { IntervalGate } from '../workout/gate';
 
 export type Quality = 'high' | 'low';
 
@@ -43,6 +45,7 @@ export class RideView {
   private readonly path: WorldPath;
   private readonly rider: Rider;
   private readonly sky: THREE.Mesh;
+  private readonly gates: IntervalGates;
   private readonly frameTimes: number[] = [];
   private readonly resizeObserver: ResizeObserver;
 
@@ -66,7 +69,8 @@ export class RideView {
     this.path = new WorldPath(route);
     const world = buildWorld(this.path, this.scene, quality === 'high' ? WORLD_HIGH : WORLD_LOW);
     this.sky = world.sky;
-    this.scene.add(this.rider.group);
+    this.gates = new IntervalGates(this.path);
+    this.scene.add(this.rider.group, this.gates.group);
     renderer.setPixelRatio(quality === 'high' ? Math.min(window.devicePixelRatio, 2) : 1);
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -89,6 +93,11 @@ export class RideView {
     this.state = s;
     // La simulation tourne à 10 Hz : on interpole entre ses mises à jour et on recale si l'écart devient grand.
     if (Math.abs(s.distanceM - this.dist) > 30) this.dist = s.distanceM;
+  }
+
+  /** Porte du prochain palier de séance, ou rien hors séance. */
+  setGate(g: IntervalGate | undefined) {
+    this.gates.set(g);
   }
 
   dispose() {
@@ -162,6 +171,7 @@ export class RideView {
     this.dist += (this.state.distanceM - this.dist) * Math.min(1, dt * 3); // recalage doux sur la simulation
     this.place(this.dist);
     this.rider.animate(dt, this.state.cadenceRpm, speedMs);
+    this.gates.update(dt, this.dist);
     this.follow(dt);
     this.renderer.render(this.scene, this.camera);
 

@@ -14,6 +14,7 @@ import { ErgFollower } from './workout/erg-follower';
 import { STEP_LABEL, type Workout } from './workout/model';
 import { profileShapes } from './workout/profile';
 import { parseWorkout, WorkoutRunner, type WorkoutState } from './workout/runner';
+import { nextIntervalGate } from './workout/gate';
 import { browserStore, canRecallDevices, DeviceRegistry, recallDevices, type DeviceRole } from './sensors/device-registry';
 import { ALL_PROTOCOLS, PROTOCOL_LABEL, type ControlProtocol } from './sensors/trainer-profiles';
 import { formatDuration } from './ui/duration';
@@ -544,6 +545,8 @@ function chooseWorkout(value: string) {
 /** L'état de la séance est affiché par le HUD (palier, profil, curseur, message) : on ne fait que le garder pour lui. */
 function renderWorkout(s: WorkoutState | undefined) {
   lastWoState = s;
+  // Porte du palier suivant, dans la scène 3D (docs/design/hud.md) : seulement en séance, sortie en cours.
+  view?.setGate(runner && s && ride && lastRide ? nextIntervalGate(s, runner.ftpW, lastRide.speedKmh, woPaused) : undefined);
 }
 
 /** Relâche l'ERG pris par la séance : hors sortie virtuelle, le trainer ne le quitte qu'avec une consigne de pente. */
