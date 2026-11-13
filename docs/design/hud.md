@@ -4,7 +4,7 @@ Référence permanente du HUD affiché par-dessus la vue 3D (écran **Sortie**, 
 
 - Code : [`src/ui/hud.ts`](../../src/ui/hud.ts) (affichage), [`src/ui/hud.css`](../../src/ui/hud.css) (style), [`src/ui/hud-model.ts`](../../src/ui/hud-model.ts) (calculs purs, testés).
 - Branchement : `renderHud()` dans [`src/main.ts`](../../src/main.ts), rafraîchi à 4 Hz tant que l'écran Sortie est affiché.
-- Planches de travail (claude.ai) : [trois propositions](https://claude.ai/artifact/749sgeL3BqXciEr1dpn4q2), [lisibilité](https://claude.ai/artifact/BwzRiDrk5v9ZZM63hjqmaK). Direction graphique d'origine : [Direction graphique](https://claude.ai/artifact/XsuzQxwA5WEKoyn8Jxu4nP), planches Main, Erg et Style.
+- Planches de travail (claude.ai) : [trois propositions](https://claude.ai/artifact/749sgeL3BqXciEr1dpn4q2), [lisibilité](https://claude.ai/artifact/BwzRiDrk5v9ZZM63hjqmaK), [paliers à venir](https://claude.ai/artifact/7NTViEqa8FnhgmXXgDvoif). Direction graphique d'origine : [Direction graphique](https://claude.ai/artifact/XsuzQxwA5WEKoyn8Jxu4nP), planches Main, Erg et Style.
 
 ## Décisions
 
@@ -16,6 +16,8 @@ Référence permanente du HUD affiché par-dessus la vue 3D (écran **Sortie**, 
 | 2026-11-11 | Cartes de mesures sous la vue retirées ; HUD complet affiché dès l'écran Sortie ; téléphone en paysage uniquement. | Le HUD est l'affichage unique ; pas de saut de mise en page au départ de la sortie. |
 | 2026-11-12 | La sortie passe **plein écran** : le HUD couvre la fenêtre, sa scène 1280 × 720 est ajustée et centrée ; le message de la séance s'y affiche. | Voir [sortie.md](sortie.md). |
 | 2026-11-11 | **Verre dépoli** retenu pour la lisibilité, face à « Bandeau opaque » et « Clair adaptatif ». | Le gris translucide laissait passer le ciel clair : libellés gris clair autour de 2,5:1 devant les nuages (calcul à la main, à remesurer dans la planche « Lisibilité »). Le flou supprime les contours nets sous le texte ; la teinte plus dense et les libellés éclaircis remontent le contraste, sans changer l'esprit de la maquette. |
+| 2026-11-13 | Liste **« À suivre »** sous la tuile du palier, proposition **A′ · Pile compacte**, face à « Barres d'intensité » et « Fil du temps ». Une ligne par palier : les watts et la durée, sans le type. Une série d'intervalles tient dans un cadre, avec ses deux paliers et le numéro de répétition. | Lisible d'un regard en plein effort, sans second panneau. Le type de palier n'apporte rien : la couleur et les watts suffisent. Avec des 30/30, quatre lignes identiques ne disaient rien de plus ; le cadre montre la série et où on en est. |
+| 2026-11-13 | **Zones plus vives** dans tout le HUD (tuile, liste, barre de zones, profil de séance), Z1 en gris clair ; texte foncé sur toutes les pastilles, Z6 compris. | Les teintes de la planche de style paraissaient ternes sur le verre sombre, surtout en série d'intervalles. Le gris de Z1 reste gris, comme le veut l'usage, mais clair. |
 
 ## Repère et mise en page
 
@@ -23,7 +25,7 @@ Le HUD est mis en page dans une scène fixe de **1280 × 720 px**, puis ajustée
 
 | Panneau | Position (scène 1280 × 720) | Ancrage du 90 % | Contenu |
 |---|---|---|---|
-| Gauche | x 64, y 36, l 250 | haut gauche | Sortie libre : nom du parcours, temps, distance, dénivelé positif. Séance : palier (type, n° / total), compte à rebours, barre de progression, temps fait / durée, cadence visée. |
+| Gauche | x 64, y 36, l 250 | haut gauche | Sortie libre : nom du parcours, temps, distance, dénivelé positif. Séance : palier (type, n° / total, ou « rép. 3 / 10 » dans une série), compte à rebours, barre de progression, temps fait / durée, cadence visée, puis la liste « À suivre » (voir plus bas). |
 | Centre | x 340, y 36, l 600 | haut centre | Puissance 3 s (76 px), séparateur, puis trois colonnes à 38 px : FC, cadence, vitesse (sortie libre) ou cible, FC, cadence (séance). Barre de zones. Ligne du bas : pastille de zone et % de la FTP, ou en séance pastille de zone, ERG, écart, plage cible ± 5 %. |
 | Bas | x 64, y 596, l 1152, h 90 | bas centre | Sortie libre : pente, profil du tour avec position, prochain sommet en pointillé, mode SIM ou ERG, état du trainer et de la ceinture. Séance : nom, temps fait / total, palier suivant, profil de la séance avec curseur, paliers passés atténués. |
 | Message | x 340, y 214, l 600 | haut centre | Message de la séance en cours (consigne du fichier), sous le panneau central ; absent sans message. |
@@ -34,6 +36,15 @@ Le HUD est mis en page dans une scène fixe de **1280 × 720 px**, puis ajustée
 - **Sortie libre**, y compris avant le départ : les trois panneaux, version sortie. Avant le départ, le parcours et la pente sont en « – », le profil montre le départ et le premier sommet ; le HUD ne change donc pas de forme au démarrage.
 - **Séance** : les trois panneaux, version séance ; la vitesse sort du bloc central pour laisser la place à la cible.
 
+**Liste « À suivre »** (séance, panneau gauche, sous un filet) :
+
+- En-tête : « À suivre », à droite le nombre de paliers après la liste et le temps jusqu'à la fin (« + 31 · fin dans 47:12 ») ; « Dernier palier » quand il n'y a plus rien.
+- Au plus **4 éléments**. Une ligne par palier (30 px) : un bloc plein de la couleur de zone avec les watts en texte foncé, dont la longueur suit la consigne (66 px à 0, toute la largeur à 150 % de la FTP), puis la durée (« 30 s » sous la minute). Un dégradé de la zone part du bloc et s'efface vers la droite. Rampe : bloc en dégradé d'une zone à l'autre, « 156→117 ». Palier libre : bloc vide cerclé de blanc, « libre ».
+- Le premier élément, ce qui arrive, est plus haut (38 px), plus grand, cerclé de sa zone avec un léger halo. Les troisième et quatrième s'estompent un peu (92 %, 82 %).
+- **Série d'intervalles** : deux paliers A et B différents qui alternent (A, B, A…), A au moins deux fois ; un palier qui rompt l'alternance clôt la série. Elle compte pour un élément : un cadre clair avec A et B une seule fois, et à droite « rép. 4/10 », la répétition en cours ou sur le point de commencer. En tête de liste, celui des deux qui arrive est cerclé. Le dernier palier d'une série, s'il reste seul, s'affiche comme une ligne normale.
+- Les watts suivent l'intensité réglée en cours de séance. La liste est reconstruite à chaque changement de palier et glisse vers le haut (0,45 s, sans animation si l'utilisateur réduit les mouvements).
+
+Le HUD est le seul affichage des mesures : il n'y a plus de cartes sous la vue (retirées le 2026-11-11). Sous la vue ne restent que les commandes (sortie, séance, pilotage manuel, enregistrement).
 Le HUD est le seul affichage des mesures : il n'y a plus de cartes sous la vue (retirées le 2026-11-11), et depuis le 2026-11-12 plus rien sous la vue du tout : les commandes (sortie, séance, pilotage manuel, enregistrement) sont dans le menu contextuel de la sortie ([sortie.md](sortie.md)).
 
 Téléphone : application en **paysage uniquement**, pas de version portrait du HUD à prévoir.
@@ -55,7 +66,7 @@ Couleurs fixes, indépendantes du thème clair ou sombre de la page : le HUD est
 | `--hud-muted` | `#D3DCE8` | libellés et unités (et non plus `#A9B8CC`, trop faible devant un ciel clair) |
 | `--hud-accent` | `#5BE3C9` | pastilles ERG / SIM, partie parcourue du profil, capteur connecté |
 | `--hud-relief` | `#66758B` | profil du parcours à venir |
-| `--hz1` … `--hz6` | `#8C99A8` `#3B82D6` `#2FA36B` `#F2C230` `#F08A3C` `#B8322C` | zones de puissance de la planche de style ; texte foncé `#0B1422` sur les pastilles, blanc sur Z6 |
+| `--hz1` … `--hz6` | `#C4CDD8` `#2E9BFF` `#1FE07F` `#FFD60A` `#FF7A1A` `#FF2D55` | zones de puissance, version vive (celles de la planche de style étaient `#8C99A8` `#3B82D6` `#2FA36B` `#F2C230` `#F08A3C` `#B8322C`) ; texte foncé `#0B1422` sur les pastilles et les blocs, Z6 compris |
 
 Panneaux : rayon 14 px. Chiffres : ombre portée légère `0 1px 2px rgba(5, 10, 20, .35)`.
 
@@ -83,6 +94,7 @@ Typographie (polices servies par l'application via `@fontsource`, jamais depuis 
 | Prochain sommet, profil du tour | segments du parcours (`nextSummitM`, `routeProfile`) |
 | Zone | `zoneOf` de `workout/profile.ts`, FTP de la séance ou saisie |
 | Cible, écart, palier, profil de séance | `WorkoutState` du déroulement de séance, `profileShapes` |
+| Liste « À suivre », n° de répétition | `upcoming`, `findSeries` et `repetitionAt` de `ui/hud-model.ts` (testés), intensité de la séance |
 
 ## À faire
 

@@ -882,7 +882,7 @@ function renderHud() {
     speedKmh: ride && lastRide ? lastRide.speedKmh : fresh(lastSpeed.at) ? lastSpeed.kmh : undefined,
     ftpW: runner?.ftpW ?? readFtp(),
     ride: ride && lastRide ? { snapshot: lastRide, climbM: climb.total } : undefined,
-    workout: runner && lastWoState ? { workout: runner.workout, state: lastWoState, ftpW: runner.ftpW } : undefined,
+    workout: runner && lastWoState ? { workout: runner.workout, state: lastWoState, ftpW: runner.ftpW, intensity: runner.intensity } : undefined,
     message: runner ? lastWoState?.message : undefined,
     control: ergActive ? 'erg' : ride && trainer?.capabilities.simulation ? 'sim' : undefined,
     trainerConnected: roleState.trainer === 'connected',
