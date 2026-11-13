@@ -1,4 +1,5 @@
-import { Emitter } from './emitter';
+import { bytes, GattDevice } from './gatt-device';
+import { errMsg } from '../util/errors';
 import { CHAR, SERVICE } from './uuids';
 import {
   cadenceFromCrank,
@@ -94,12 +95,6 @@ export const TRAINER_SERVICES: BluetoothServiceUUID[] = [
 /** Accessoires qui portent un nom de trainer sans en être un. */
 const NOT_TRAINERS = ['KICKR CLIMB', 'KICKR HEADWIND', 'HEADWIND'];
 
-const bytes = (dv: DataView) => new Uint8Array(dv.buffer.slice(dv.byteOffset, dv.byteOffset + dv.byteLength));
-
-export function webBluetoothAvailable(): boolean {
-  return typeof navigator !== 'undefined' && 'bluetooth' in navigator;
-}
-
 /** Échec d'une commande FTMS, avec le code de résultat renvoyé par le trainer. */
 class FtmsError extends Error {
   constructor(readonly result: number, message: string) {
@@ -141,18 +136,17 @@ const DATA_ORDER: Record<ControlProtocol | 'aucun', DataSource[]> = {
  * piloté par le premier protocole disponible dans l'ordre de son profil : FTMS, contrôle propriétaire Wahoo ou
  * FE-C over BLE (Tacx). Sans aucun des trois, il reste lisible via FTMS, Cycling Power ou FE-C.
  */
-export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
+export class WebBluetoothTrainer extends GattDevice implements TrainerAdapter {
   name = 'Web Bluetooth';
   capabilities: TrainerCapabilities = { targetPower: false, simulation: false };
   identity?: TrainerIdentity;
   /** Protocole imposé par l'utilisateur ou le support ; essayé en premier, les autres restent en repli. */
   forcedProtocol?: ControlProtocol;
+  protected readonly fallbackName = 'Trainer inconnu';
 
-  private device?: BluetoothDevice;
   private controlPoint?: BluetoothRemoteGATTCharacteristic;
   private pending?: { op: number; resolve: (r: ControlResponse) => void };
   private queue: Promise<unknown> = Promise.resolve();
-  private last: Measurement = { t: 0 };
   private lastCrank?: CyclingPowerFrame['crank'];
   private lastCrankEventAt = 0;
 
@@ -163,14 +157,8 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
   private fecWrite?: BluetoothRemoteGATTCharacteristic;
   /** Paramètres de simulation déjà écrits sur cette session (Wahoo, FE-C) ; inutile de les renvoyer à chaque pente. */
   private simKey?: string;
-  private userDisconnect = false;
-  private reconnecting = false;
   /** Dernière consigne ERG ou SIM, rejouée après une reconnexion. */
   private lastCommand?: () => Promise<void>;
-
-  /** Pauses entre tentatives de reconnexion ; la dernière valeur se répète jusqu'à `reconnectTimeoutMs`. */
-  reconnectDelaysMs = [0, 500, 1000, 2000, 3000];
-  reconnectTimeoutMs = 60_000;
 
   /**
    * Écritures BLE refusées par la pile (commande précédente pas terminée, sur les KICKR notamment) : nouvel essai,
@@ -196,74 +184,34 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
   private fecWarned = new Set<string>();
   private lastSim?: SimulationParams;
 
-  async connect(nameHint?: string): Promise<void> {
-    if (!webBluetoothAvailable()) {
-      const msg = 'Web Bluetooth indisponible (Chrome ou Edge requis, en HTTPS ou sur localhost)';
-      this.emit('state', 'error', msg);
-      throw new Error(msg);
-    }
-    this.emit('state', 'connecting');
-    let device: BluetoothDevice;
-    try {
-      const options: RequestDeviceOptions & { exclusionFilters?: BluetoothLEScanFilter[] } = {
-        filters: nameHint
-          ? [{ name: nameHint }]
-          : [
-              { services: [SERVICE.fitnessMachine] },
-              { services: [SERVICE.cyclingPower] },
-              { services: [FEC_SERVICE] },
-              ...TRAINER_NAME_PREFIXES.map((namePrefix) => ({ namePrefix })),
-            ],
-        optionalServices: TRAINER_SERVICES,
-      };
-      // Chrome 114 et plus ; les versions antérieures ignorent l'option.
-      if (!nameHint) options.exclusionFilters = NOT_TRAINERS.map((namePrefix) => ({ namePrefix }));
-      device = await navigator.bluetooth.requestDevice(options);
-    } catch (e) {
-      this.emit('state', 'error', e instanceof Error ? e.message : String(e));
-      throw e;
-    }
-    await this.open(device);
+  protected requestOptions(nameHint?: string): RequestDeviceOptions {
+    const options: RequestDeviceOptions & { exclusionFilters?: BluetoothLEScanFilter[] } = {
+      filters: nameHint
+        ? [{ name: nameHint }]
+        : [
+            { services: [SERVICE.fitnessMachine] },
+            { services: [SERVICE.cyclingPower] },
+            { services: [FEC_SERVICE] },
+            ...TRAINER_NAME_PREFIXES.map((namePrefix) => ({ namePrefix })),
+          ],
+      optionalServices: TRAINER_SERVICES,
+    };
+    // Chrome 114 et plus ; les versions antérieures ignorent l'option.
+    if (!nameHint) options.exclusionFilters = NOT_TRAINERS.map((namePrefix) => ({ namePrefix }));
+    return options;
   }
 
-  /**
-   * Connexion à un appareil déjà choisi, par exemple retrouvé au lancement par `getDevices()` : pas de sélecteur,
-   * donc pas de clic nécessaire. Avec `keepTrying`, un appareil éteint ou hors de portée est attendu pendant
-   * `reconnectTimeoutMs` au lieu d'échouer aussitôt.
-   */
-  async connectDevice(device: BluetoothDevice, keepTrying = false): Promise<void> {
-    this.emit('state', 'connecting', device.name ?? 'Trainer inconnu');
-    return this.open(device, keepTrying);
-  }
-
-  private async open(device: BluetoothDevice, keepTrying = false): Promise<void> {
-    this.userDisconnect = false;
-    if (this.device !== device) device.addEventListener('gattserverdisconnected', () => this.onDisconnected());
-    this.device = device;
-    this.name = device.name ?? 'Trainer inconnu';
-    try {
-      await this.setup();
-      this.emit('state', 'connected', this.name);
-    } catch (e) {
-      if (keepTrying) {
-        this.emit('log', `${this.name} pas encore joignable (${e instanceof Error ? e.message : e}) : nouvel essai`);
-        void this.reconnect();
-        return;
-      }
-      this.emit('state', 'error', e instanceof Error ? e.message : String(e));
-      throw e;
-    }
-  }
-
-  /** Identifiant de l'appareil pour cette origine, stable d'une session à l'autre : sert à le retrouver au lancement. */
-  get deviceId(): string | undefined {
-    return this.device?.id;
-  }
-
-  async disconnect(): Promise<void> {
-    this.userDisconnect = true;
+  override async disconnect(): Promise<void> {
     this.lastCommand = undefined;
-    this.device?.gatt?.disconnect();
+    return super.disconnect();
+  }
+
+  protected override onLinkLost() {
+    this.resetSession();
+  }
+
+  protected override async afterReconnect() {
+    await this.lastCommand?.().catch((e) => this.emit('log', `consigne non rejouée : ${errMsg(e)}`, 'error'));
   }
 
   private resetSession() {
@@ -285,56 +233,16 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
     this.fecRefreshTimer = undefined;
   }
 
-  private onDisconnected() {
-    if (this.reconnecting) return; // coupure provoquée par la boucle de reconnexion elle-même
-    this.resetSession();
-    this.emit('log', 'GATT déconnecté');
-    if (this.userDisconnect) this.emit('state', 'disconnected');
-    else void this.reconnect();
-  }
-
-  /** Reconnexion sans nouvelle sélection : Chrome garde l'autorisation tant que la page reste ouverte. */
-  private async reconnect() {
-    this.reconnecting = true;
-    const started = performance.now();
-    try {
-      for (let attempt = 0; !this.userDisconnect; attempt++) {
-        if (performance.now() - started > this.reconnectTimeoutMs) {
-          this.emit('state', 'error', 'reconnexion abandonnée');
-          return;
-        }
-        const delay = this.reconnectDelaysMs[Math.min(attempt, this.reconnectDelaysMs.length - 1)] ?? 0;
-        if (delay) await new Promise((r) => setTimeout(r, delay));
-        if (this.userDisconnect) break;
-        this.emit('state', 'connecting', `reconnexion, essai ${attempt + 1}`);
-        try {
-          await this.setup();
-        } catch (e) {
-          this.emit('log', `essai ${attempt + 1} échoué : ${e instanceof Error ? e.message : e}`);
-          this.device?.gatt?.disconnect(); // repart d'une session propre : évite les abonnements en double
-          continue;
-        }
-        this.emit('log', `reconnecté en ${((performance.now() - started) / 1000).toFixed(1)} s`);
-        this.emit('state', 'connected', this.name);
-        await this.lastCommand?.().catch((e) => this.emit('log', `consigne non rejouée : ${e}`));
-        return;
-      }
-      this.emit('state', 'disconnected');
-    } finally {
-      this.reconnecting = false;
-    }
-  }
-
-  private async setup() {
+  protected async setup() {
     this.resetSession();
     this.capabilities = { targetPower: false, simulation: false };
-    const server = await this.device!.gatt!.connect();
+    const server = await this.connectGatt();
     const services = await server.getPrimaryServices();
     const find = (u: number | string) => services.find((s) => s.uuid === BluetoothUUID.getService(u));
     this.emit('log', `Services : ${services.map((s) => s.uuid).join(', ')}`);
 
     const info = await this.readDeviceInfo(find(SERVICE.deviceInformation));
-    const profile = identifyTrainer(this.device!.name, info);
+    const profile = identifyTrainer(this.device?.name, info);
 
     let protocol: ControlProtocol | undefined;
     for (const p of protocolOrder(profile, this.forcedProtocol)) {
@@ -344,7 +252,7 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
           break;
         }
       } catch (e) {
-        this.emit('log', `${PROTOCOL_LABEL[p]} inutilisable : ${e instanceof Error ? e.message : e}`);
+        this.emit('log', `${PROTOCOL_LABEL[p]} inutilisable : ${errMsg(e)}`);
       }
     }
     if (this.forcedProtocol && protocol !== this.forcedProtocol) {
@@ -366,7 +274,7 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
     if (advice) this.emit('log', advice);
 
     const hr = find(SERVICE.heartRate);
-    if (hr) await this.setupHeartRate(hr).catch((e) => this.emit('log', `Cardio ignoré : ${e}`));
+    if (hr) await this.setupHeartRate(hr).catch((e) => this.emit('log', `Cardio ignoré : ${errMsg(e)}`, 'error'));
   }
 
   /** Fabricant, modèle et versions, lus un par un : beaucoup de piles BLE refusent les lectures simultanées. */
@@ -418,7 +326,7 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
           const svc = find(SERVICE.fitnessMachine);
           if (!svc) continue;
           await this.subscribe(await svc.getCharacteristic(CHAR.indoorBikeData), 'Indoor Bike Data', (b) =>
-            this.push(decodeIndoorBikeData(b, 0)),
+            this.push(decodeIndoorBikeData(b)),
           );
         } else if (source === 'cps') {
           const svc = find(SERVICE.cyclingPower);
@@ -432,28 +340,18 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
         }
         return source;
       } catch (e) {
-        this.emit('log', `Mesures ${source.toUpperCase()} indisponibles : ${e instanceof Error ? e.message : e}`);
+        this.emit('log', `Mesures ${source.toUpperCase()} indisponibles : ${errMsg(e)}`);
       }
     }
     return undefined;
   }
 
+  /**
+   * Publie les champs portés par la trame reçue, et eux seuls : un champ absent n'est pas reconduit avec un horodatage
+   * neuf. C'est au consommateur de garder la dernière valeur de chaque champ et de juger de sa fraîcheur.
+   */
   private push(patch: Partial<Measurement>) {
-    this.last = { ...this.last, ...patch, t: performance.now() };
-    this.emit('measurement', this.last);
-  }
-
-  private async subscribe(c: BluetoothRemoteGATTCharacteristic, label: string, fn: (b: Uint8Array) => void) {
-    c.addEventListener('characteristicvaluechanged', () => {
-      const b = bytes(c.value!);
-      this.emit('raw', label, b);
-      try {
-        fn(b);
-      } catch (e) {
-        this.emit('log', `${label} : trame illisible (${e instanceof Error ? e.message : e})`);
-      }
-    });
-    await c.startNotifications();
+    this.emit('measurement', { ...patch, t: performance.now() });
   }
 
   private async setupFtmsControl(svc?: BluetoothRemoteGATTService): Promise<boolean> {
@@ -544,10 +442,10 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
           this.wahooPending = undefined;
           p.resolve(r.status);
         }
-      }).catch((e) => this.emit('log', `Indications Wahoo non activées : ${e}`));
+      }).catch((e) => this.emit('log', `Indications Wahoo non activées : ${errMsg(e)}`, 'error'));
       this.wahooCp = c;
       const status = await this.wahooSend(c, wahooUnlock()).catch((e) => {
-        this.emit('log', `Déverrouillage Wahoo non écrit : ${e instanceof Error ? e.message : e}`);
+        this.emit('log', `Déverrouillage Wahoo non écrit : ${errMsg(e)}`);
         return undefined;
       });
       if (status !== undefined && status !== WAHOO_STATUS_OK) {
@@ -567,7 +465,7 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
     if (!svc) return false;
     this.fecWrite = await svc.getCharacteristic(FEC_WRITE_CHAR);
     await this.subscribeFec(svc).catch((e) =>
-      this.emit('log', `Notifications FE-C indisponibles, consignes sans confirmation : ${e instanceof Error ? e.message : e}`),
+      this.emit('log', `Notifications FE-C indisponibles, consignes sans confirmation : ${errMsg(e)}`),
     );
     this.capabilities = { targetPower: true, simulation: true };
     clearInterval(this.fecRefreshTimer);
@@ -629,7 +527,7 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
     const last = this.fecLast;
     await this.serial(async () => {
       for (const frame of [...fecConfigFrames(p), ...(last ? [last.frame] : [])]) await this.writeWithRetry(this.fecWrite, frame);
-    }).catch((e) => this.emit('log', `configuration FE-C non renvoyée : ${e}`));
+    }).catch((e) => this.emit('log', `configuration FE-C non renvoyée : ${errMsg(e)}`, 'error'));
     this.simKey = fecSimKey(p);
   }
 
@@ -638,32 +536,33 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
     await this.subscribe(c, 'Heart Rate', (b) => this.push({ heartRateBpm: decodeHeartRate(b) }));
   }
 
-  /** Les écritures sur le Control Point sont sérialisées : une réponse est attendue avant la commande suivante. */
+  /** Commande FTMS : écrite sur le Control Point, puis réponse attendue avant la commande suivante. */
   private command(payload: Uint8Array<ArrayBuffer>): Promise<ControlResponse> {
-    const run = async (): Promise<ControlResponse> => {
+    return this.serial(async () => {
       const cp = this.controlPoint;
       if (!cp) throw new Error('Pas de Control Point : trainer non pilotable');
       const op = payload[0]!;
+      let timer: ReturnType<typeof setTimeout> | undefined;
       const response = new Promise<ControlResponse>((resolve, reject) => {
         this.pending = { op, resolve };
-        setTimeout(() => {
-          if (this.pending?.op === op) {
-            this.pending = undefined;
-            reject(new Error(`Pas de réponse à la commande 0x${op.toString(16)}`));
-          }
+        timer = setTimeout(() => {
+          if (this.pending?.op !== op) return;
+          this.pending = undefined;
+          reject(new Error(`Pas de réponse à la commande 0x${op.toString(16)}`));
         }, RESPONSE_TIMEOUT_MS);
       });
       response.catch(() => {}); // évite un rejet non géré si l'écriture échoue avant
-      await cp.writeValueWithResponse(payload);
-      const r = await response;
-      const label = RESULT_LABEL[r.result] ?? `code ${r.result}`;
-      this.emit('log', `Commande 0x${op.toString(16)} : ${label}`);
-      if (!r.ok) throw new FtmsError(r.result, label);
-      return r;
-    };
-    const p = this.queue.then(run, run);
-    this.queue = p.catch(() => {});
-    return p;
+      try {
+        await cp.writeValueWithResponse(payload);
+        const r = await response;
+        const label = RESULT_LABEL[r.result] ?? `code ${r.result}`;
+        this.emit('log', `Commande 0x${op.toString(16)} : ${label}`);
+        if (!r.ok) throw new FtmsError(r.result, label);
+        return r;
+      } finally {
+        clearTimeout(timer);
+      }
+    });
   }
 
   /**
@@ -676,7 +575,7 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
       await this.command(encodeRequestControl());
     } catch (e) {
       if (e instanceof FtmsError && e.result === RESULT_CONTROL_NOT_PERMITTED) throw e;
-      this.emit('log', `Prise de contrôle FTMS sans accord (${e instanceof Error ? e.message : e}) : consignes tentées quand même`);
+      this.emit('log', `Prise de contrôle FTMS sans accord (${errMsg(e)}) : consignes tentées quand même`);
     }
     await this.command(encodeStart()).catch(() => {}); // facultatif selon les appareils
     this.hasControl = true;
@@ -696,7 +595,7 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
   }
 
   /** Toutes les écritures de contrôle passent l'une après l'autre : les piles BLE refusent les opérations simultanées. */
-  private serial(run: () => Promise<void>): Promise<void> {
+  private serial<T>(run: () => Promise<T>): Promise<T> {
     const p = this.queue.then(run, run);
     this.queue = p.catch(() => {});
     return p;
@@ -709,7 +608,7 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
         return await writeChar(c, frame);
       } catch (e) {
         if (attempt >= this.writeAttempts) throw e;
-        this.emit('log', `écriture ${hex(frame[0]!)} refusée (${e instanceof Error ? e.message : e}) : essai ${attempt + 1}/${this.writeAttempts}`);
+        this.emit('log', `écriture ${hex(frame[0]!)} refusée (${errMsg(e)}) : essai ${attempt + 1}/${this.writeAttempts}`);
         await sleep(this.writeRetryDelayMs);
       }
     }
@@ -719,10 +618,11 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
   private async wahooSend(c: BluetoothRemoteGATTCharacteristic, frame: Uint8Array<ArrayBuffer>): Promise<number | undefined> {
     const op = frame[0]!;
     let response: Promise<number | undefined> = Promise.resolve(undefined);
+    let timer: ReturnType<typeof setTimeout> | undefined;
     if (this.wahooAcks !== false) {
       response = new Promise((resolve) => {
         this.wahooPending = { op, resolve };
-        setTimeout(() => {
+        timer = setTimeout(() => {
           if (this.wahooPending?.op !== op) return;
           this.wahooPending = undefined;
           resolve(undefined);
@@ -733,9 +633,11 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
       await this.writeWithRetry(c, frame);
     } catch (e) {
       if (this.wahooPending?.op === op) this.wahooPending = undefined;
+      clearTimeout(timer);
       throw e;
     }
     const status = await response;
+    clearTimeout(timer);
     if (status !== undefined) this.wahooAcks = true;
     else if (this.wahooAcks === undefined) {
       this.wahooAcks = false;
@@ -773,7 +675,7 @@ export class WebBluetoothTrainer extends Emitter implements TrainerAdapter {
       this.fecLast = { page: control[4]!, frame: control, retried: false };
       if (this.fecNotify) {
         await this.writeWithRetry(this.fecWrite, fecRequestPage(FEC_PAGE.commandStatus)).catch((e) =>
-          this.emit('log', `état de commande FE-C non demandé : ${e}`),
+          this.emit('log', `état de commande FE-C non demandé : ${errMsg(e)}`),
         );
       }
       this.emit('log', `FE-C ${label} écrit`);

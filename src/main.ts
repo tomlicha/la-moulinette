@@ -1,7 +1,8 @@
 import { HeartRateMonitor } from './sensors/heart-rate-monitor';
 import { SensorHub } from './sensors/hub';
 import { SimulatedTrainer } from './sensors/simulator';
-import { WebBluetoothTrainer, webBluetoothAvailable } from './sensors/web-bluetooth';
+import { WebBluetoothTrainer } from './sensors/web-bluetooth';
+import { webBluetoothAvailable } from './sensors/gatt-device';
 import { RideView } from './render/ride-view';
 import { GradeThrottle } from './sim/grade-throttle';
 import { DEFAULT_RIDER } from './sim/physics';
@@ -185,6 +186,8 @@ function setState(s: ConnectionState, detail?: string) {
 }
 
 function attach(t: TrainerAdapter) {
+  // L'adaptateur remplacé peut encore attendre son appareil : il ne doit pas s'y reconnecter dans notre dos.
+  if (trainer && trainer !== t) void trainer.disconnect();
   trainer = t;
   hub.attachTrainer(t);
   t.on('state', (s, d) => {
@@ -321,6 +324,7 @@ async function send(label: string, fn: () => Promise<void>): Promise<boolean> {
 
 function newHeartRateMonitor(): HeartRateMonitor {
   const m = new HeartRateMonitor();
+  void hrMonitor?.disconnect(); // voir attach()
   hrMonitor = m;
   hub.attachHeartRate(m);
   m.on('state', (s, d) => {
@@ -744,8 +748,10 @@ void import('./render/rider-portrait')
 function renderDevices() {
   const t = registry.get('trainer');
   const h = registry.get('hr');
-  const busyT = roleState.trainer === 'connecting' || roleState.trainer === 'connected';
-  const busyH = roleState.hr === 'connecting' || roleState.hr === 'connected';
+  // Un appareil attendu (éteint) n'occupe pas le rôle : on peut toujours en choisir un autre.
+  const waitingT = trainer instanceof WebBluetoothTrainer && trainer.waitingForDevice;
+  const busyT = roleState.trainer === 'connected' || (roleState.trainer === 'connecting' && !waitingT);
+  const busyH = roleState.hr === 'connected' || (roleState.hr === 'connecting' && !hrMonitor?.waitingForDevice);
   // Le nom de l'appareil branché prime (le trainer simulé n'est pas mémorisé) ; sinon le dernier appareil connu.
   $('trainer-known').textContent =
     roleState.trainer === 'connected' && trainer?.name ? trainer.name : t ? `Connu : ${t.name}` : 'Aucun trainer connu.';

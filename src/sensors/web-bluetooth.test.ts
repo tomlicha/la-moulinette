@@ -80,7 +80,7 @@ describe('WebBluetoothTrainer, reconnexion', () => {
     await vi.waitFor(() => expect(cp.writes.filter((w) => w[0] === 0x05)).toHaveLength(2));
 
     expect(states).toEqual(['connecting', 'connected', 'connecting', 'connected']);
-    expect(logs.some((l) => l.startsWith('reconnecté en'))).toBe(true);
+    expect(logs.some((l) => l.includes('reconnecté en'))).toBe(true);
     // le contrôle est repris sur la nouvelle session avant la consigne rejouée
     expect(cp.writes.slice(-3)).toEqual([[0x00], [0x07], [0x05, 200, 0]]);
   });
@@ -96,18 +96,81 @@ describe('WebBluetoothTrainer, reconnexion', () => {
     expect(device.connected).toBe(false);
   });
 
-  it("abandonne après le délai maximal si l'appareil ne revient pas", async () => {
+  it("abandonne après le délai maximal, puis se reconnecte quand l'appareil se signale de nouveau", async () => {
     const { device } = ftmsDevice();
+    device.enableAdvertisements();
     install(device);
     const { t, states } = trainer();
     t.reconnectTimeoutMs = 50;
     t.reconnectDelaysMs = [10];
     await t.connect();
+    const realConnect = device.gatt.connect;
     device.gatt.connect = async () => {
       throw new Error('hors de portée');
     };
     device.drop();
     await vi.waitFor(() => expect(states.at(-1)).toBe('error'));
+    expect(t.waitingForDevice).toBe(true);
+    expect(states.filter((s) => s === 'error')).toHaveLength(1);
+
+    device.gatt.connect = realConnect; // trainer rallumé
+    device.advertise();
+    await vi.waitFor(() => expect(states.at(-1)).toBe('connected'));
+    expect(t.waitingForDevice).toBe(false);
+    expect(device.watching).toBe(0); // surveillance arrêtée une fois l'appareil revenu
+  });
+
+  it("borne une connexion GATT restée sans réponse, puis réessaie", async () => {
+    const { device } = ftmsDevice();
+    install(device);
+    const { t, states, logs } = trainer();
+    t.connectTimeoutMs = 20;
+    await t.connect();
+    const realConnect = device.gatt.connect;
+    let calls = 0;
+    device.gatt.connect = () => (++calls === 1 ? new Promise(() => {}) : realConnect()); // le premier essai ne répond jamais
+    device.drop();
+    await vi.waitFor(() => expect(states.at(-1)).toBe('connected'));
+    expect(calls).toBe(2);
+    expect(logs.some((l) => l.includes('pas de réponse'))).toBe(true);
+  });
+});
+
+describe('WebBluetoothTrainer, abonnements et sélecteur', () => {
+  it("garde un seul écouteur par caractéristique après plusieurs reconnexions", async () => {
+    const { device, bikeData, cp } = ftmsDevice();
+    install(device);
+    const { t, states } = trainer();
+    const got: number[] = [];
+    t.on('measurement', (m) => got.push(m.powerW ?? -1));
+    await t.connect();
+    for (let i = 0; i < 3; i++) {
+      device.drop();
+      await vi.waitFor(() => expect(states.at(-1)).toBe('connected'));
+    }
+    expect(bikeData.listenerCount).toBe(1);
+    expect(cp.listenerCount).toBe(1);
+    bikeData.emit(0x44, 0x00, 0xb8, 0x0b, 0xaa, 0x00, 0xfa, 0x00);
+    expect(got).toEqual([250]);
+  });
+
+  it("n'émet que les champs portés par la trame", async () => {
+    const { device, bikeData } = ftmsDevice();
+    install(device);
+    const { t } = trainer();
+    const got: object[] = [];
+    t.on('measurement', ({ t: _, ...m }) => got.push(m));
+    await t.connect();
+    bikeData.emit(0x44, 0x00, 0xb8, 0x0b, 0xaa, 0x00, 0xfa, 0x00); // vitesse, cadence, puissance
+    bikeData.emit(0x01, 0x00); // « More Data » : aucun champ
+    expect(got).toEqual([{ speedKmh: 30, cadenceRpm: 85, powerW: 250 }, {}]);
+  });
+
+  it("traite la fermeture du sélecteur comme un abandon, pas comme une erreur", async () => {
+    install(undefined);
+    const { t, states } = trainer();
+    await expect(t.connect()).resolves.toBeUndefined();
+    expect(states).toEqual(['connecting', 'disconnected']);
   });
 });
 
@@ -166,7 +229,7 @@ describe('WebBluetoothTrainer, chemin Wahoo', () => {
     expect(rpm.at(-1)).toBeCloseTo(60);
 
     power.emit(0x20, 0x00, 100, 0, 11, 0, 0x00, 0x04); // compteurs inchangés, délai pas écoulé
-    expect(rpm.at(-1)).toBeCloseTo(60);
+    expect(rpm.at(-1)).toBeUndefined(); // pas de nouvelle cadence : le consommateur garde 60 tant qu'elle est fraîche
 
     await new Promise((r) => setTimeout(r, 50));
     power.emit(0x20, 0x00, 0, 0, 11, 0, 0x00, 0x04); // toujours inchangés, délai écoulé

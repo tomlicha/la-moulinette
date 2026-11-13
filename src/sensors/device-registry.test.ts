@@ -102,7 +102,7 @@ describe('retrouver les appareils au lancement', () => {
       return realConnect();
     };
     const belt = new HeartRateMonitor();
-    belt.reconnectDelaysMs = [5];
+    belt.idlePollMs = 5; // navigateur sans watchAdvertisements : essais périodiques
     const states: string[] = [];
     belt.on('state', (s) => states.push(s));
     await belt.connectDevice(h as unknown as BluetoothDevice, true);
@@ -110,6 +110,71 @@ describe('retrouver les appareils au lancement', () => {
     expect(attempts).toBe(3);
     expect(states[0]).toBe('connecting');
     expect(states).not.toContain('error');
+  });
+
+  it("attend sans limite de durée le signal d'un trainer éteint au lancement, puis s'y connecte", async () => {
+    const t = trainerDevice();
+    t.enableAdvertisements();
+    install(t, { authorized: [t] });
+    const realConnect = t.gatt.connect;
+    let attempts = 0;
+    t.gatt.connect = async () => {
+      attempts++;
+      throw new Error('hors de portée');
+    };
+    const trainer = new WebBluetoothTrainer();
+    trainer.reconnectTimeoutMs = 10; // sans effet au lancement : pas d'abandon
+    const states: string[] = [];
+    trainer.on('state', (s) => states.push(s));
+    await trainer.connectDevice(t as unknown as BluetoothDevice, true);
+    await vi.waitFor(() => expect(trainer.waitingForDevice).toBe(true));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(attempts).toBe(1); // pas d'essai à l'aveugle tant que le trainer ne s'est pas signalé
+    expect(states).not.toContain('error');
+
+    t.gatt.connect = realConnect; // trainer allumé
+    t.advertise();
+    await vi.waitFor(() => expect(states.at(-1)).toBe('connected'));
+    expect(states).not.toContain('error');
+  });
+
+  it("une déconnexion voulue arrête l'attente", async () => {
+    const t = trainerDevice();
+    t.enableAdvertisements();
+    install(t, { authorized: [t] });
+    t.gatt.connect = async () => {
+      throw new Error('hors de portée');
+    };
+    const trainer = new WebBluetoothTrainer();
+    const states: string[] = [];
+    trainer.on('state', (s) => states.push(s));
+    await trainer.connectDevice(t as unknown as BluetoothDevice, true);
+    await vi.waitFor(() => expect(trainer.waitingForDevice).toBe(true));
+    await trainer.disconnect();
+    await vi.waitFor(() => expect(states.at(-1)).toBe('disconnected'));
+    expect(t.watching).toBe(0);
+    expect(trainer.waitingForDevice).toBe(false);
+  });
+
+  it('sans watchAdvertisements utilisable, se rabat sur des essais périodiques', async () => {
+    const h = beltDevice();
+    Object.assign(h, { watchAdvertisements: async () => { throw new Error('NotSupportedError'); } });
+    install(h, { authorized: [h] });
+    const realConnect = h.gatt.connect;
+    let attempts = 0;
+    h.gatt.connect = async () => {
+      if (++attempts < 3) throw new Error('hors de portée');
+      return realConnect();
+    };
+    const belt = new HeartRateMonitor();
+    belt.idlePollMs = 5;
+    const logs: string[] = [];
+    belt.on('log', (l) => logs.push(l));
+    const states: string[] = [];
+    belt.on('state', (s) => states.push(s));
+    await belt.connectDevice(h as unknown as BluetoothDevice, true);
+    await vi.waitFor(() => expect(states.at(-1)).toBe('connected'));
+    expect(logs.filter((l) => l.includes('non surveillable'))).toHaveLength(1);
   });
 
   it('sans keepTrying, un appareil injoignable est une erreur', async () => {

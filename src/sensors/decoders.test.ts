@@ -15,19 +15,19 @@ describe('Indoor Bike Data', () => {
   it('décode vitesse, cadence et puissance', () => {
     // flags 0x0044 : cadence (bit 2) + puissance (bit 6), vitesse présente (bit 0 à 0)
     // vitesse 3000 = 30,00 km/h ; cadence 170 = 85 rpm ; puissance 250 W
-    const m = decodeIndoorBikeData(u8(0x44, 0x00, 0xb8, 0x0b, 0xaa, 0x00, 0xfa, 0x00), 1);
+    const m = decodeIndoorBikeData(u8(0x44, 0x00, 0xb8, 0x0b, 0xaa, 0x00, 0xfa, 0x00));
     expect(m).toMatchObject({ speedKmh: 30, cadenceRpm: 85, powerW: 250 });
   });
 
   it('saute les champs non exploités pour atteindre la fréquence cardiaque', () => {
     // flags 0x0340 : puissance, énergie (5 octets), cardio
-    const m = decodeIndoorBikeData(u8(0x40, 0x03, 0x00, 0x00, 0x64, 0x00, 1, 0, 2, 0, 3, 142), 1);
+    const m = decodeIndoorBikeData(u8(0x40, 0x03, 0x00, 0x00, 0x64, 0x00, 1, 0, 2, 0, 3, 142));
     expect(m.powerW).toBe(100);
     expect(m.heartRateBpm).toBe(142);
   });
 
   it('refuse une trame tronquée', () => {
-    expect(() => decodeIndoorBikeData(u8(0x44, 0x00, 0xb8), 0)).toThrow(RangeError);
+    expect(() => decodeIndoorBikeData(u8(0x44, 0x00, 0xb8))).toThrow(RangeError);
   });
 });
 
