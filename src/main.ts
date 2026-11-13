@@ -567,7 +567,10 @@ function tickWorkout() {
   const running = !woPaused && currentState === 'connected';
   const s = running ? runner.advance(dt) : runner.state();
   renderWorkout(s);
-  if (s.done) return finishWorkout('séance terminée');
+  if (s.done) {
+    exporter.onWorkoutFinished(); // l'export s'arrêtera à la fin du dernier palier (export/wiring.ts)
+    return finishWorkout('séance terminée');
+  }
   if (!running || woErgOptOut || woSending || now < woHoldUntil) return;
 
   if (s.targetW === undefined) {
@@ -609,6 +612,7 @@ function startWorkout() {
   $('wo-intensity').textContent = '100 %';
   refreshWorkoutButtons();
   log(`séance démarrée : ${workout.name}, FTP ${runner.ftpW} W`);
+  exporter.onWorkoutStarted();
   tickWorkout();
 }
 
