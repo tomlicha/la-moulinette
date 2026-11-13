@@ -11,7 +11,18 @@ import { profileShapes } from '../workout/profile';
 import type { WorkoutState } from '../workout/runner';
 import { ZONES } from '../workout/zones';
 import { formatDuration } from './duration';
-import { fmt1, nextSummitM, routeProfile, signed, zoneLabel } from './hud-model';
+import {
+  findSeries,
+  fmt1,
+  nextSummitM,
+  repetitionAt,
+  routeProfile,
+  signed,
+  upcoming,
+  zoneLabel,
+  type Series,
+  type UpcomingStep,
+} from './hud-model';
 
 /** Tout ce que le HUD affiche ; une valeur absente s'affiche « – ». */
 export interface HudInput {
@@ -22,7 +33,8 @@ export interface HudInput {
   speedKmh?: number;
   ftpW: number;
   ride?: { snapshot: RideSnapshot; climbM: number };
-  workout?: { workout: Workout; state: WorkoutState; ftpW: number };
+  /** `intensity` : multiplicateur des consignes en cours (1 = séance telle quelle). */
+  workout?: { workout: Workout; state: WorkoutState; ftpW: number; intensity?: number };
   /** Mode de résistance du trainer, s'il est piloté. */
   control?: 'erg' | 'sim';
   trainerConnected: boolean;
@@ -38,6 +50,8 @@ const TARGET_BAND = 0.05;
 const ROUTE_W = 744;
 const ROUTE_H = 34;
 const WO_W = 1112;
+/** Bout de l'échelle des blocs de puissance de la liste « À suivre », en fraction de FTP. */
+const UP_MAX = 1.5;
 const WO_H = 42;
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -57,6 +71,10 @@ const TEMPLATE = `
       <div style="display:flex; align-items:baseline; gap:8px"><span class="n" style="font-size:64px; font-weight:700" data-h="stepLeft">–</span><span class="lab">restant</span></div>
       <div class="hud-prog"><i class="hud-fill" data-h="stepProg"></i></div>
       <div class="row lab"><span data-h="stepDone">–</span><span data-h="stepCadence"></span></div>
+      <div class="hud-next" aria-label="Paliers à venir">
+        <div class="hud-next-head"><span data-h="upTitle"></span><span data-h="upInfo"></span></div>
+        <div class="hud-next-list" data-h="upList"></div>
+      </div>
     </div>
   </section>
 
@@ -101,7 +119,7 @@ const TEMPLATE = `
       <div class="row">
         <span style="font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:420px" data-h="woName"></span>
         <span class="lab" data-h="woTime"></span>
-        <span style="white-space:nowrap"><span class="lab">Ensuite</span> · <span data-h="next"></span></span>
+        <span class="lab" style="white-space:nowrap">fin dans <span style="color:var(--hud-fg); font-weight:600" data-h="woLeft"></span></span>
       </div>
       <svg data-h="woSvg" width="${WO_W}" height="${WO_H}" viewBox="0 0 ${WO_W} ${WO_H}" role="img" aria-label="Profil de la séance"></svg>
     </div>
@@ -115,6 +133,33 @@ const svgEl = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<strin
   return n;
 };
 const fmtTime = (s: number) => formatDuration(Math.floor(s));
+
+const hEl = (tag: string, cls: string, text?: string) => {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined) n.textContent = text;
+  return n;
+};
+
+/** Une ligne de la liste « À suivre » : bloc de la couleur de zone, long comme l'intensité, puis la durée. */
+function upRow(s: UpcomingStep, ftpW: number, cls: string) {
+  const free = s.fromW === undefined || s.toW === undefined;
+  const ramp = !free && s.fromW !== s.toW;
+  const row = hEl('div', ['hud-up', cls, ramp ? 'ramp' : '', free ? 'free' : ''].filter(Boolean).join(' '));
+  row.dataset.z = s.zoneFrom;
+  if (ramp) {
+    row.style.setProperty('--z-from', `var(--h${s.zoneFrom})`);
+    row.style.setProperty('--z-to', `var(--h${s.zoneTo})`);
+  }
+  const frac = free ? 0 : Math.min(1, Math.max(s.fromW!, s.toW!) / (ftpW * UP_MAX));
+  const pw = hEl('span', 'hud-up-pw', free ? 'libre' : ramp ? `${s.fromW}→${s.toW}` : String(s.fromW));
+  if (!free && !ramp) pw.append(hEl('small', '', 'W'));
+  pw.style.width = `calc(66px + (100% - 66px) * ${frac.toFixed(3)})`;
+  const track = hEl('span', 'hud-up-track');
+  track.append(pw);
+  row.append(track, hEl('span', 'hud-up-dur', s.durationS < 60 ? `${s.durationS} s` : fmtTime(s.durationS)));
+  return row;
+}
 
 /**
  * HUD de la sortie (docs/design/hud.md) : parcours ou palier à gauche, puissance et mesures du cycliste au centre,
@@ -133,6 +178,8 @@ export class RideHud {
     dot: SVGCircleElement;
   };
   private wo?: { workout: Workout; ftpW: number; shapes: SVGPathElement[]; cursor: SVGLineElement };
+  private series?: { workout: Workout; list: Series[] };
+  private upKey = '';
 
   constructor(
     private readonly root: HTMLElement,
@@ -244,9 +291,15 @@ export class RideHud {
     else this.line(this.route.summit, this.route.x(toSummit));
   }
 
-  private updateWorkout({ workout, state: s, ftpW }: NonNullable<HudInput['workout']>, p: number | undefined) {
+  private updateWorkout({ workout, state: s, ftpW, intensity = 1 }: NonNullable<HudInput['workout']>, p: number | undefined) {
     const free = s.targetW === undefined;
-    this.text('stepName', `${STEP_LABEL[s.step.kind]} · ${s.stepIndex + 1} / ${workout.steps.length}`);
+    const fresh = this.series?.workout !== workout;
+    if (fresh) this.series = { workout, list: findSeries(workout.steps) };
+    const r = repetitionAt(this.series!.list, s.stepIndex);
+    this.text(
+      'stepName',
+      r ? `${STEP_LABEL[s.step.kind]} · rép. ${r.rep} / ${r.reps}` : `${STEP_LABEL[s.step.kind]} · ${s.stepIndex + 1} / ${workout.steps.length}`,
+    );
     this.text('stepLeft', fmtTime(s.stepRemainingS));
     this.text('stepDone', `${fmtTime(s.stepElapsedS)} / ${fmtTime(s.step.durationS)}`);
     this.text('stepCadence', s.step.cadenceRpm ? `cadence ${s.step.cadenceRpm}` : '');
@@ -270,14 +323,46 @@ export class RideHud {
 
     this.text('woName', workout.name);
     this.text('woTime', `${fmtTime(s.elapsedS)} / ${fmtTime(s.totalS)}`);
-    this.text(
-      'next',
-      s.next ? `${STEP_LABEL[s.next.kind]}, ${s.nextTargetW === undefined ? 'libre' : `${s.nextTargetW} W`}, ${fmtTime(s.next.durationS)}` : 'dernier palier',
-    );
+    this.text('woLeft', fmtTime(s.totalS - s.elapsedS));
+    this.drawUpcoming(s, ftpW, intensity, fresh);
     this.drawWorkout(workout, ftpW);
     const x = (s.elapsedS / (s.totalS || 1)) * WO_W;
     this.line(this.wo!.cursor, x);
     this.wo!.shapes.forEach((sh, k) => sh.classList.toggle('past', k < s.stepIndex));
+  }
+
+  /** Liste « À suivre » : reconstruite au changement de palier (elle glisse alors vers le haut), sinon seul l'en-tête bouge. */
+  private drawUpcoming(s: WorkoutState, ftpW: number, intensity: number, fresh: boolean) {
+    const { workout, list: series } = this.series!;
+    const { items, rest } = upcoming(workout.steps, series, s.stepIndex, ftpW, intensity);
+    this.text('upTitle', items.length ? 'À suivre' : 'Dernier palier');
+    this.text('upInfo', `${rest > 0 ? `+ ${rest} · ` : ''}fin dans ${fmtTime(s.totalS - s.elapsedS)}`);
+    const key = `${s.stepIndex}|${ftpW}|${intensity}`;
+    if (!fresh && key === this.upKey) return;
+    const animate = !fresh && this.upKey.split('|')[0] !== String(s.stepIndex);
+    this.upKey = key;
+    const list = this.node('upList');
+    list.replaceChildren(
+      ...items.map((it, k) => {
+        const cls = `f${k + 1}`;
+        if (it.kind === 'step') return upRow(it.step, ftpW, k === 0 ? `${cls} first` : cls);
+        const g = hEl('div', `hud-up-grp ${cls}`);
+        const rows = hEl('div', 'hud-up-rows');
+        rows.append(...it.steps.map((x, i) => upRow(x, ftpW, it.nextIs === i ? 'first' : '')));
+        const n = hEl('div', 'hud-up-x');
+        n.setAttribute('aria-label', `Répétition ${it.rep} sur ${it.reps}`);
+        const b = hEl('b', '', String(it.rep));
+        b.append(hEl('i', '', `/${it.reps}`));
+        n.append(hEl('small', '', 'rép.'), b);
+        g.append(rows, n);
+        return g;
+      }),
+    );
+    if (animate) {
+      list.classList.remove('enter');
+      void list.offsetWidth; // relance l'animation
+      list.classList.add('enter');
+    }
   }
 
   /** Redessine le profil de séance quand la séance (l'objet lui-même, pas son nom) ou la FTP change. */

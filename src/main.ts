@@ -655,7 +655,7 @@ function renderHud() {
     ...session.readings(),
     ftpW: w?.ftpW ?? readFtp(),
     ride: session.riding && session.lastRide ? { snapshot: session.lastRide, climbM: session.climb.total } : undefined,
-    workout: w && session.workoutState ? { workout: w.workout, state: session.workoutState, ftpW: w.ftpW } : undefined,
+    workout: w && session.workoutState ? { workout: w.workout, state: session.workoutState, ftpW: w.ftpW, intensity: w.intensity } : undefined,
     control: session.control,
     trainerConnected: roleState.trainer === 'connected',
     heartRateConnected: roleState.hr === 'connected',

@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { DEMO_ROUTE, Route } from '../sim/route';
-import { ClimbCounter, fmt1, nextSummitM, PowerAverage, routeProfile, signed, summitsOf, zoneLabel } from './hud-model';
+import type { StepKind, WorkoutStep } from '../workout/model';
+import {
+  ClimbCounter,
+  findSeries,
+  fmt1,
+  nextSummitM,
+  PowerAverage,
+  repetitionAt,
+  routeProfile,
+  signed,
+  summitsOf,
+  upcoming,
+  zoneLabel,
+} from './hud-model';
 
 describe('PowerAverage', () => {
   it('moyenne les mesures des 3 dernières secondes', () => {
@@ -68,5 +81,87 @@ describe('formats', () => {
   it('nomme la zone d’après la FTP', () => {
     expect(zoneLabel(215, 260)).toEqual({ id: 'z3', label: 'Z3 · Tempo' });
     expect(zoneLabel(270, 260).id).toBe('z4');
+  });
+});
+
+const st = (kind: StepKind, durationS: number, from?: number, to = from): WorkoutStep => ({
+  kind,
+  durationS,
+  target: from === undefined ? { kind: 'free' } : { kind: 'ftp', from, to: to! },
+});
+const rep = (n: number, a: WorkoutStep, b: WorkoutStep) => Array.from({ length: n }, () => [a, b]).flat();
+// Échauffement, 30/30 × 10, récupération 5 min, 40/20 × 8, retour au calme.
+const VO2 = [
+  st('warmup', 600, 0.5, 0.75),
+  ...rep(9, st('on', 30, 1.2), st('off', 30, 0.5)),
+  st('on', 30, 1.2),
+  st('off', 300, 0.55),
+  ...rep(8, st('on', 40, 1.3), st('off', 20, 0.5)),
+  st('cooldown', 480, 0.6, 0.45),
+];
+
+describe('findSeries', () => {
+  it('repère les séries d’intervalles et leurs répétitions', () => {
+    expect(findSeries(VO2)).toEqual([
+      { start: 1, end: 19, reps: 10 },
+      { start: 21, end: 36, reps: 8 },
+    ]);
+  });
+
+  it('ignore les paliers qui ne se répètent pas', () => {
+    expect(findSeries([st('warmup', 600, 0.5, 0.75), st('steady', 300, 0.8), st('on', 60, 1.1), st('cooldown', 300, 0.5)])).toEqual([]);
+    expect(findSeries([st('steady', 60, 0.8), st('steady', 60, 0.8), st('steady', 60, 0.8)])).toEqual([]);
+  });
+
+  it('numérote la répétition de l’effort comme de sa récupération', () => {
+    const s = findSeries(VO2);
+    expect(repetitionAt(s, 5)).toEqual({ rep: 3, reps: 10 });
+    expect(repetitionAt(s, 6)).toEqual({ rep: 3, reps: 10 });
+    expect(repetitionAt(s, 20)).toBeUndefined();
+  });
+});
+
+describe('upcoming', () => {
+  const series = findSeries(VO2);
+
+  it('pendant un effort : la série en tête, sa récupération à venir', () => {
+    const { items, rest } = upcoming(VO2, series, 5, 260);
+    expect(items.map((i) => i.kind)).toEqual(['series', 'step', 'series', 'step']);
+    const first = items[0]!;
+    expect(first.kind === 'series' && { nextIs: first.nextIs, rep: first.rep, reps: first.reps }).toEqual({ nextIs: 1, rep: 3, reps: 10 });
+    expect(first.kind === 'series' && first.steps.map((x) => [x.fromW, x.durationS, x.zoneFrom])).toEqual([
+      [312, 30, 'z5'],
+      [130, 30, 'z1'],
+    ]);
+    const next = items[2]!;
+    expect(next.kind === 'series' && { nextIs: next.nextIs, rep: next.rep, reps: next.reps }).toEqual({ nextIs: undefined, rep: 1, reps: 8 });
+    expect(rest).toBe(0);
+  });
+
+  it('pendant une récupération : la répétition suivante arrive', () => {
+    const first = upcoming(VO2, series, 6, 260).items[0]!;
+    expect(first.kind === 'series' && [first.nextIs, first.rep]).toEqual([0, 4]);
+  });
+
+  it('montre seul le dernier effort d’une série', () => {
+    const first = upcoming(VO2, series, 18, 260).items[0]!;
+    expect(first).toEqual({ kind: 'step', step: { fromW: 312, toW: 312, durationS: 30, zoneFrom: 'z5', zoneTo: 'z5' } });
+  });
+
+  it('suit l’intensité, les rampes et les paliers libres', () => {
+    const steps = [st('steady', 60, 1), st('cooldown', 300, 0.6, 0.45), st('free', 120)];
+    const { items } = upcoming(steps, [], 0, 200, 1.1);
+    expect(items).toEqual([
+      { kind: 'step', step: { fromW: 132, toW: 99, durationS: 300, zoneFrom: 'z2', zoneTo: 'z1' } },
+      { kind: 'step', step: { fromW: undefined, toW: undefined, durationS: 120, zoneFrom: 'free', zoneTo: 'free' } },
+    ]);
+  });
+
+  it('s’arrête au nombre d’éléments demandé et compte le reste', () => {
+    const steps = Array.from({ length: 8 }, (_, k) => st('steady', 60 + k, 0.7));
+    const { items, rest } = upcoming(steps, [], 0, 260);
+    expect(items).toHaveLength(4);
+    expect(rest).toBe(3);
+    expect(upcoming(steps, [], 7, 260)).toEqual({ items: [], rest: 0 });
   });
 });
