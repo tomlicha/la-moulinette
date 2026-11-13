@@ -12,6 +12,7 @@ import type { ConnectionState, TrainerAdapter, TrainerCapabilities } from './sen
 import { STEP_LABEL, type Workout } from './workout/model';
 import { profileShapes } from './workout/profile';
 import { parseWorkout, type WorkoutState } from './workout/runner';
+import { nextIntervalGate } from './workout/gate';
 import { browserStore, canRecallDevices, DeviceRegistry, recallDevices, type DeviceRole } from './sensors/device-registry';
 import { ALL_PROTOCOLS, PROTOCOL_LABEL, type ControlProtocol } from './sensors/trainer-profiles';
 import { formatDuration } from './ui/duration';
@@ -693,5 +694,12 @@ onTrainerState('disconnected'); // chaque bouton reçoit dès le départ sa rais
 every(100, () => {
   session.tick();
   renderWorkout(session.workoutState);
+  const w = session.workout;
+  const s = session.workoutState;
+  view?.setGate(
+    w && s && session.riding && session.lastRide
+      ? nextIntervalGate(s, w.ftpW, session.lastRide.speedKmh, session.paused)
+      : undefined,
+  );
 });
 void reconnectKnownDevices();
