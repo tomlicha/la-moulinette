@@ -28,6 +28,10 @@ export interface SessionOptions {
   onRide?: (s: RideSnapshot) => void;
   /** Sortie virtuelle arrêtée, à cette distance. */
   onRideStopped?: (distanceM: number) => void;
+  /** Séance démarrée. */
+  onWorkoutStarted?: () => void;
+  /** Séance menée jusqu'à la fin de son dernier palier (pas arrêtée à la main). */
+  onWorkoutFinished?: () => void;
   now?: () => number;
   later?: (fn: () => void, ms: number) => void;
 }
@@ -268,6 +272,7 @@ export class TrainingSession {
     this.follower.reset();
     this.woLastTick = this.now();
     this.o.log(`séance démarrée : ${workout.name}, FTP ${ftpW} W`);
+    this.o.onWorkoutStarted?.();
     this.tickWorkout();
     this.changed();
   }
@@ -330,7 +335,10 @@ export class TrainingSession {
     const running = !this.paused && this.connected;
     const s = running ? runner.advance(dt) : runner.state();
     this.workoutState = s;
-    if (s.done) return this.stopWorkout('séance terminée');
+    if (s.done) {
+      this.o.onWorkoutFinished?.();
+      return this.stopWorkout('séance terminée');
+    }
     if (!running || this.ergOptOut || this.sending || now < this.holdUntil) return;
 
     if (s.targetW === undefined) {

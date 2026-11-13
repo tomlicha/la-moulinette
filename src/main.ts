@@ -150,6 +150,8 @@ const session = new TrainingSession({
     view?.setState({ distanceM: s.distanceM, speedKmh: s.speedKmh, cadenceRpm: session.readings().cadenceRpm ?? 0 });
   },
   onRideStopped: (distanceM) => view?.setState({ distanceM, speedKmh: 0, cadenceRpm: 0 }),
+  onWorkoutStarted: () => exporter.onWorkoutStarted(),
+  onWorkoutFinished: () => exporter.onWorkoutFinished(),
 });
 
 const exporter = setupExport({

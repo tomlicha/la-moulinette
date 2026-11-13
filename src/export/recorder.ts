@@ -95,29 +95,41 @@ export class RideRecorder {
 
   /** Termine l'enregistrement et le remet à zéro ; `undefined` si aucun échantillon n'a été pris. */
   finish(nowMs: number): Recording | undefined {
-    if (this.pausedAt !== undefined) this.resume(nowMs);
+    const recording = this.snapshot(nowMs);
+    this.reset();
+    return recording;
+  }
+
+  /** Sortie enregistrée jusqu'ici, sans arrêter l'enregistrement ; `undefined` si aucun échantillon n'a été pris. */
+  snapshot(nowMs: number): Recording | undefined {
     const first = this.samples[0];
     const last = this.samples.at(-1);
-    if (!first || !last) {
-      this.reset();
-      return undefined;
-    }
+    if (!first || !last) return undefined;
     const startMs = first.t;
     const endMs = last.t + 1000; // chaque échantillon couvre la seconde qu'il ouvre
-    const pauses = this.pauses
+    const open = this.pausedAt !== undefined ? [{ fromMs: this.pausedAt, toMs: nowMs }] : []; // pause en cours, refermée
+    const pauses = [...this.pauses, ...open]
       .map((p) => ({ fromMs: Math.max(p.fromMs, startMs), toMs: Math.min(p.toMs, endMs) }))
       .filter((p) => p.toMs > p.fromMs);
     const pausedMs = pauses.reduce((sum, p) => sum + (p.toMs - p.fromMs), 0);
-    const recording: Recording = {
+    return {
       startMs,
       endMs,
       elapsedS: (endMs - startMs) / 1000,
       timerS: Math.max(0, (endMs - startMs - pausedMs) / 1000),
-      samples: this.samples,
+      samples: this.samples.slice(),
       pauses,
     };
-    this.reset();
-    return recording;
+  }
+
+  /** Secondes enregistrées après `tMs` où le cycliste pédalait (puissance ou cadence non nulle). */
+  pedalingSecondsAfter(tMs: number): number {
+    let n = 0;
+    for (let i = this.samples.length - 1; i >= 0 && this.samples[i]!.t >= tMs; i--) {
+      const s = this.samples[i]!;
+      if ((s.powerW ?? 0) > 0 || (s.cadenceRpm ?? 0) > 0) n++;
+    }
+    return n;
   }
 
   reset() {

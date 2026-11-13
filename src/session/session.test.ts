@@ -25,11 +25,14 @@ function setup() {
   const clock = { t: 1000 };
   const trainer = new FakeTrainer();
   const logs: [string, LogLevel | undefined][] = [];
+  const events: string[] = [];
   const session = new TrainingSession({
     trainer,
     route: DEMO_ROUTE,
     log: (m, l) => logs.push([m, l]),
     manualGradePct: () => 1,
+    onWorkoutStarted: () => events.push('started'),
+    onWorkoutFinished: () => events.push(`finished à ${session.workoutState?.elapsedS} s`),
     now: () => clock.t,
     later: () => {},
   });
@@ -41,7 +44,7 @@ function setup() {
       for (let k = 0; k < 4; k++) await Promise.resolve();
     }
   };
-  return { clock, trainer, logs, session, advance };
+  return { clock, trainer, logs, session, advance, events };
 }
 
 const WORKOUT: Workout = {
@@ -131,6 +134,19 @@ describe('TrainingSession, séance', () => {
     await advance(31_000);
     expect(session.workout).toBeUndefined();
     expect(session.ergActive).toBe(false);
+  });
+
+  it("prévient à la fin du dernier palier, pas sur un arrêt à la main", async () => {
+    const { session, advance, events } = setup();
+    session.setConnection('connected', CAPS);
+    session.startWorkout(WORKOUT, 200);
+    await advance(31_000);
+    expect(events).toEqual(['started', 'finished à 30 s']);
+
+    session.startWorkout(WORKOUT, 200);
+    await advance(5000);
+    session.stopWorkout();
+    expect(events).toEqual(['started', 'finished à 30 s', 'started']);
   });
 
   it('ne compte pas le temps sans trainer connecté', async () => {

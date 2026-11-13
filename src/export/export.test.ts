@@ -97,6 +97,35 @@ describe('RideRecorder', () => {
   });
 });
 
+describe('RideRecorder, fin de séance', () => {
+  it("fige la sortie sans arrêter l'enregistrement", () => {
+    const rec = record(10, () => ({ powerW: 200 }));
+    const cut = rec.snapshot(T0 + 10_000)!;
+    record(5, () => ({ powerW: 0 }), rec, 10);
+    expect(cut.samples).toHaveLength(10);
+    expect(cut.endMs).toBe(T0 + 10_000);
+    expect(cut.elapsedS).toBe(10);
+    expect(rec.sampleCount).toBe(15);
+    expect(rec.finish(T0 + 15_000)!.samples).toHaveLength(15);
+  });
+
+  it('referme dans l’instantané une pause en cours, sans la refermer dans l’enregistrement', () => {
+    const rec = record(10, () => ({ powerW: 200 }));
+    rec.pause(T0 + 5000);
+    const cut = rec.snapshot(T0 + 20_000)!;
+    expect(cut.pauses).toEqual([{ fromMs: T0 + 5000, toMs: T0 + 10_000 }]);
+    expect(cut.timerS).toBe(5);
+    expect(rec.state).toBe('paused');
+  });
+
+  it('compte les secondes pédalées après un instant, roue libre exclue', () => {
+    const rec = record(10, () => ({ powerW: 200 }));
+    record(20, (i) => (i < 20 ? { powerW: 0, cadenceRpm: 0 } : { powerW: 120, cadenceRpm: 85 }), rec, 10);
+    expect(rec.pedalingSecondsAfter(T0 + 10_000)).toBe(10);
+    expect(rec.pedalingSecondsAfter(T0)).toBe(20);
+  });
+});
+
 describe('FIT Activity', () => {
   it('produit un fichier valide qui se relit identique', () => {
     const rec = record(60, (i) => ({
