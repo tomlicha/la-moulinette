@@ -233,7 +233,7 @@ kbd { font: inherit; font-size: .75rem; border: 1px solid var(--ctl-line); borde
  */
 @media (pointer: coarse) and (orientation: landscape) and (max-height: 460px) {
   html:has([data-view='seances']:not([hidden])), body:has([data-view='seances']:not([hidden])) { overflow: hidden; height: 100dvh; }
-  .sea { height: 100dvh; min-height: 0; padding: 6px 8px; gap: 6px; grid-template-columns: 46px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); --plot-h: clamp(110px, calc(100dvh - 176px), 340px); }
+  .sea { height: 100dvh; min-height: 0; padding: 6px 8px; gap: 6px; grid-template-columns: 54px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); --plot-h: clamp(110px, calc(100dvh - 176px), 340px); }
 
   /* Rail de navigation */
   .sea .home-top { grid-column: 1; grid-row: 1; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 6px; }
@@ -242,7 +242,7 @@ kbd { font: inherit; font-size: .75rem; border: 1px solid var(--ctl-line); borde
   .sea .home-brand .logo-word { font-size: 0; transform: none; }
   .sea .home-brand .logo-o { width: 26px; height: 26px; margin: 0; }
   .sea .home-nav { position: static; transform: none; width: auto; border: 0; box-shadow: none; background: var(--glass); flex-direction: column; flex: 1; gap: 2px; padding: 3px; border-radius: 12px; align-content: flex-start; }
-  .sea .home-nav a { flex-direction: column; height: auto; padding: 6px 0 4px; font-size: 9px; gap: 1px; justify-content: center; border-radius: 9px; }
+  .sea .home-nav a { flex-direction: column; height: auto; padding: 6px 0 4px; font-size: 11px; gap: 1px; justify-content: center; border-radius: 9px; }
   .sea .home-nav .nav-ico { display: block; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
   /* Sans niveau d'empilement propre : ses menus et feuilles passent au-dessus du voile. */
@@ -255,7 +255,7 @@ kbd { font: inherit; font-size: .75rem; border: 1px solid var(--ctl-line); borde
   .sea-hero .home-kicker, .ed-desc, .sea-hero-r, .ed-summary, .sea-hero-row .spacer { display: none; }
   .ed-name { min-width: 0; }
   .ed-name input { font-size: 17px; line-height: 1.05; padding: 0 2px; border-bottom: 0; }
-  .ed-sub { display: block; padding-left: 2px; font-size: 10px; line-height: 1.1; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ed-sub { display: block; padding-left: 2px; font-size: 12px; line-height: 1.1; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #lib-open { order: 1; } #ed-bbar { order: 2; } #ed-del { order: 3; } #ed-undo2 { order: 4; } #ed-redo2 { order: 5; } #ed-more { order: 6; } #ed-ride { order: 7; }
   .ph-del { color: var(--err); }
   button.sea-ride { height: 36px; padding: 0 14px; font-size: 16px; border-radius: 10px; gap: 6px; box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 30%, transparent); }
@@ -283,8 +283,8 @@ kbd { font: inherit; font-size: .75rem; border: 1px solid var(--ctl-line); borde
   /* Profil, bande de blocs et outils */
   .ed-card { position: relative; flex: 1; min-height: 0; padding: 6px 10px 5px; gap: 4px; border-radius: 14px; backdrop-filter: none; background: rgba(255, 255, 255, .95); }
   .ed-chart { flex: 1; min-height: 0; }
-  .ed-yaxis { width: 76px; font-size: .62rem; }
-  .ed-xaxis { font-size: .62rem; }
+  .ed-yaxis { width: 88px; font-size: .75rem; }
+  .ed-xaxis { font-size: .75rem; }
   .ed-zone-labels, .ed-zones, .ed-keys-d { display: none; }
   .ed-srow { display: none; }
   .ed-bbar { flex: 0 0 192px; min-width: 128px; height: 34px; margin: 0; gap: 3px; }

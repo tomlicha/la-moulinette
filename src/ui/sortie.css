@@ -21,6 +21,9 @@ html:has([data-view='sortie']:not([hidden])), body:has([data-view='sortie']:not(
 /* Pastille quand il manque le trainer : la sortie ne peut pas démarrer, le menu dit pourquoi. */
 .ride-menu-open[data-alert]::after { content: ''; position: absolute; top: -4px; right: -4px; width: 12px; height: 12px; border-radius: 50%; background: #F08A3C; border: 2px solid #fff; }
 
+/* Commandes de séance sur la vue : téléphone couché seulement (plus bas), absentes ailleurs. */
+.ride-quick { display: none; }
+
 .view-stats { position: absolute; z-index: 2; right: var(--edge-r); top: calc(var(--edge-t) + 54px); width: 210px; text-align: right; padding: 4px 8px; border-radius: 6px; background: rgb(0 0 0 / .55); color: #fff; font: .75rem/1.3 ui-monospace, monospace; }
 
 /* --- Menu contextuel : une boîte de dialogue modale posée en feuille à droite (Échap ou toucher à côté pour fermer) --- */
@@ -90,5 +93,21 @@ html:has([data-view='sortie']:not([hidden])), body:has([data-view='sortie']:not(
   .rm-sec .row button { min-height: 40px; }
   .rm-fold pre { height: 120px; }
   .ride-menu-open { width: 40px; height: 40px; }
+  /* Sous le bouton du menu, même verre sombre : pause, palier suivant, intensité. */
+  .ride-quick { position: absolute; z-index: 3; top: calc(var(--edge-t) + 46px); right: var(--edge-r); width: 40px; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .ride-quick button {
+    width: 46px; height: 42px; padding: 0; display: grid; place-items: center; border-radius: 12px; border: 1px solid rgb(255 255 255 / .22);
+    background: rgb(24 30 40 / .78); color: #fff; font: 700 14px Barlow, system-ui, sans-serif; white-space: nowrap;
+    -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+  }
+  .ride-quick button:active { background: rgb(24 30 40 / .95); }
+  .ride-quick button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+  .ride-quick svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+  .ride-quick .rq-ico-play { display: none; fill: currentColor; }
+  .ride-quick [aria-pressed='true'] .rq-ico-pause { display: none; }
+  .ride-quick [aria-pressed='true'] .rq-ico-play { display: block; }
+  .ride-quick output { color: #fff; font: 700 13px Barlow, system-ui, sans-serif; white-space: nowrap; text-shadow: 0 1px 3px rgb(5 10 20 / .8); }
+  /* Les statistiques de rendu, si on les demande, passent à gauche des commandes. */
+  .view-stats { right: calc(var(--edge-r) + 56px); }
   .view-stats { top: calc(var(--edge-t) + 48px); }
 }

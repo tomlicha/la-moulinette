@@ -321,7 +321,7 @@ button.rider-chip:hover { background: #FBF6EF; }
   .sensor-head > div { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
   /* Une seule ligne de boutons, qui se resserrent plutôt que de passer dessous : la carte ne grandit pas sous la navigation. */
   .sensor .row { gap: 6px; flex-wrap: nowrap; }
-  .sensor .row button { flex: 0 1 auto; min-width: 0; padding: 7px 10px; font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sensor .row button { flex: 0 1 auto; min-width: 0; min-height: 40px; padding: 7px 10px; font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sensor .note, .dev-radar .radar-tag { display: none; }
   .dev-radar .radar { --core: 46%; }
   .rider-card { padding: 14px 18px; gap: 8px; }

@@ -17,6 +17,7 @@ Référence permanente du HUD affiché par-dessus la vue 3D (écran **Sortie**, 
 | 2026-11-12 | La sortie passe **plein écran** : le HUD couvre la fenêtre, sa scène 1280 × 720 est ajustée et centrée ; le message de la séance s'y affiche. | Voir [sortie.md](sortie.md). |
 | 2026-11-11 | **Verre dépoli** retenu pour la lisibilité, face à « Bandeau opaque » et « Clair adaptatif ». | Le gris translucide laissait passer le ciel clair : libellés gris clair autour de 2,5:1 devant les nuages (calcul à la main, à remesurer dans la planche « Lisibilité »). Le flou supprime les contours nets sous le texte ; la teinte plus dense et les libellés éclaircis remontent le contraste, sans changer l'esprit de la maquette. |
 | 2026-11-13 | Panneaux **calés sur les bords de la fenêtre** : celui de gauche dans le coin, à 24 px, au lieu de x 64 dans la scène centrée. | Sur une fenêtre plus large que 16:9, le panneau gauche flottait loin du bord et masquait le paysage ; dans le coin, la route est dégagée. |
+| 2026-11-13 | **Version téléphone** (paysage) : échelle plancher de 0,75, panneaux à 100 %, bloc central étroit sur deux rangées, liste « À suivre » à 3 ou 2 éléments, bandeau du bas sur toute la largeur. Face à un bloc central large (zone et écart en colonne à droite des mesures) et à un bloc centré avec la ligne de zone dessous. | Des utilisateurs trouvaient l'application illisible sur mobile : la scène 1280 × 720 ajustée à la hauteur tombait à 0,54 sur un iPhone 13 couché, soit des libellés de 7,8 px et un en-tête « À suivre » de 6 px. Le bloc étroit garde toutes les données en laissant la route visible de part et d'autre. |
 | 2026-11-13 | Liste **« À suivre »** sous la tuile du palier, proposition **A′ · Pile compacte**, face à « Barres d'intensité » et « Fil du temps ». Une ligne par palier : les watts et la durée, sans le type. Une série d'intervalles tient dans un cadre, avec ses deux paliers et le numéro de répétition. | Lisible d'un regard en plein effort, sans second panneau. Le type de palier n'apporte rien : la couleur et les watts suffisent. Avec des 30/30, quatre lignes identiques ne disaient rien de plus ; le cadre montre la série et où on en est. |
 | 2026-11-13 | **Zones plus vives** dans tout le HUD (tuile, liste, barre de zones, profil de séance), Z1 en gris clair ; texte foncé sur toutes les pastilles, Z6 compris. | Les teintes de la planche de style paraissaient ternes sur le verre sombre, surtout en série d'intervalles. Le gris de Z1 reste gris, comme le veut l'usage, mais clair. |
 
@@ -50,7 +51,20 @@ Le HUD est mis en page dans une scène fixe de **1280 × 720 px**, puis ajustée
 Le HUD est le seul affichage des mesures : il n'y a plus de cartes sous la vue (retirées le 2026-11-11). Sous la vue ne restent que les commandes (sortie, séance, pilotage manuel, enregistrement).
 Le HUD est le seul affichage des mesures : il n'y a plus de cartes sous la vue (retirées le 2026-11-11), et depuis le 2026-11-12 plus rien sous la vue du tout : les commandes (sortie, séance, pilotage manuel, enregistrement) sont dans le menu contextuel de la sortie ([sortie.md](sortie.md)).
 
-Téléphone : application en **paysage uniquement**, pas de version portrait du HUD à prévoir.
+## Téléphone
+
+L'application est en **paysage uniquement** : pas de version portrait du HUD. Sur un téléphone couché (`(pointer: coarse) and (orientation: landscape) and (max-height: 600px)`, la même condition que les autres écrans), `hud.ts` pose la classe `compact` sur le HUD et la scène ne descend pas sous l'échelle **0,75** : elle déborde alors de la fenêtre, et les panneaux, calés sur les bords, sont à 100 % (`--hud-k: 1`, `--hud-m: 20px`). **Rien sous 16 px de scène**, soit 12 px réels.
+
+| Panneau | Version téléphone |
+|---|---|
+| Gauche | l 256. En séance, la ligne « fait / durée » et le décompte « + 31 · fin dans » disparaissent ; la cadence visée reste. Liste « À suivre » à **3 éléments** si la vue fait au moins 380 px de haut, **2** en dessous (un iPhone dont Safari garde ses barres). |
+| Centre | l 268, centré. Rangée 1 : la puissance (58 px, sans son libellé) et à sa droite la zone réduite à son numéro (« Z4 »), ERG, l'écart, la plage (ou le % de la FTP en sortie libre). Rangée 2 : les trois mesures à 30 px, sans unités. Rangée 3 : la barre de zones. |
+| Bas | Large comme la fenêtre, à 20 px du bas. Sortie libre : sans les voyants des capteurs (un capteur muet affiche déjà « – »). Séance : le profil seul ; temps fait / total et « fin dans » en étiquette au-dessus, à gauche ; le nom de la séance disparaît. |
+| Message | l 400, centré, sous le bloc central. |
+
+Les commandes de la séance (pause, palier suivant, ± 5 %) sont posées sur la vue, sous le bouton du menu : voir [sortie.md](sortie.md).
+
+Mesuré en émulation (iPhone 13 844 × 390, le même avec les barres de Safari 844 × 340, Pixel 9 915 × 412) : libellés 12 px, puissance 43,5 px, compte à rebours 48 px, mesures 22,5 px, watts de la liste 15 à 18 px. À 340 px de haut, le bloc central s'arrête à une quinzaine de pixels du casque ; un message de séance, lui, le recouvre le temps de son affichage.
 
 Une mesure absente ou muette depuis plus de 3 s s'affiche « – », jamais la dernière valeur connue.
 
@@ -103,4 +117,4 @@ Typographie (polices servies par l'application via `@fontsource`, jamais depuis 
 
 - Mesurer le coût du flou au-dessus du canevas WebGPU sur un Android d'entrée de gamme ; sinon basculer en `flat` (`?quality=low` le fait déjà).
 - Vérifier le contraste sur des captures du vrai rendu, pas seulement sur les maquettes.
-- Téléphone en paysage : vérifier la taille des libellés à l'échelle réelle (vers 0,6 sur un écran de 800 px de large) ; au besoin, passer `--hud-k` à 1 sous une certaine largeur.
+- Téléphone : vérifier la version compacte sur de vrais appareils (elle n'a été mesurée qu'en émulation), et la place du message de séance sur les écrans de moins de 360 px de haut.

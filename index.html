@@ -256,6 +256,20 @@
           <button id="ride-menu-open" class="ride-menu-open" type="button" aria-haspopup="dialog" aria-controls="ride-menu" aria-label="Menu de la sortie">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
           </button>
+          <!-- Téléphone couché : les commandes de la séance sous le bouton du menu, sans l'ouvrir (docs/design/sortie.md).
+               Elles relaient les boutons du menu ; affichées seulement pendant une séance. -->
+          <div id="ride-quick" class="ride-quick" role="group" aria-label="Commandes de la séance" hidden>
+            <button id="rq-pause" type="button" aria-label="Pause">
+              <svg class="rq-ico-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>
+              <svg class="rq-ico-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button id="rq-skip" type="button" aria-label="Palier suivant">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5v14l9-7zM18 5v14"/></svg>
+            </button>
+            <button id="rq-harder" type="button" aria-label="Intensité plus 5 %">+5 %</button>
+            <output id="rq-intensity" aria-live="polite">100 %</output>
+            <button id="rq-easier" type="button" aria-label="Intensité moins 5 %">−5 %</button>
+          </div>
 
           <!-- Valeurs du coureur : elles se règlent dans la fiche de l'écran Appareils, ces champs en sont la source de vérité. -->
           <div hidden>

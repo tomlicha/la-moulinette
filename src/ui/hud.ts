@@ -55,6 +55,15 @@ const ROUTE_H = 34;
 const WO_W = 1112;
 /** Bout de l'échelle des blocs de puissance de la liste « À suivre », en fraction de FTP. */
 const UP_MAX = 1.5;
+/** Éléments de la liste « À suivre » : 4 sur grand écran ; sur téléphone couché, 3 si la vue fait au moins COMPACT_TALL_PX de haut, sinon 2. */
+const UP_ITEMS = 4;
+const UP_ITEMS_COMPACT_TALL = 3;
+const UP_ITEMS_COMPACT = 2;
+const COMPACT_TALL_PX = 380;
+/** Téléphone couché : même condition que les feuilles de style des autres écrans. */
+const PHONE_QUERY = '(pointer: coarse) and (orientation: landscape) and (max-height: 600px)';
+/** Échelle plancher de la scène sur téléphone : les libellés de 16 px y font 12 px réels. */
+const COMPACT_SCALE = 0.75;
 const WO_H = 42;
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -96,10 +105,12 @@ const TEMPLATE = `
       </div>
     </div>
     <div class="hud-zbar" data-h="zbar"></div>
-    <div class="row lab" data-when="not-workout"><span class="hud-pill" data-h="zone">–</span><span><span data-h="pctFtp">–</span> % de la FTP</span></div>
-    <div class="row lab" data-when="workout">
-      <span style="display:flex; align-items:center; gap:10px"><span class="hud-pill" data-h="woZone">–</span><span class="hud-chip" data-h="woChip">ERG</span><span>écart <span data-h="delta">–</span> W</span></span>
-      <span data-h="range"></span>
+    <div class="hud-side">
+      <div class="row lab" data-when="not-workout"><span class="hud-pill" data-h="zone">–</span><span><span data-h="pctFtp">–</span> % de la FTP</span></div>
+      <div class="row lab" data-when="workout">
+        <span class="hud-wo-line"><span class="hud-pill" data-h="woZone">–</span><span class="hud-chip" data-h="woChip">ERG</span><span>écart <span data-h="delta">–</span> W</span></span>
+        <span data-h="range"></span>
+      </div>
     </div>
   </section>
 
@@ -107,7 +118,7 @@ const TEMPLATE = `
     <div data-when="ride" style="display:flex; align-items:center; gap:24px">
       <div class="col" style="width:120px; flex:none">
         <span class="lab">Pente</span>
-        <span class="n" style="font-size:40px; font-weight:700"><span data-h="grade">–</span> %</span>
+        <span class="n hud-grade"><span data-h="grade">–</span> %</span>
       </div>
       <div class="col" style="gap:4px; width:${ROUTE_W}px; flex:none">
         <div class="row lab"><span data-h="routeInfo"></span><span style="color:var(--hud-fg); font-weight:600" data-h="summit"></span></div>
@@ -119,12 +130,12 @@ const TEMPLATE = `
       </div>
     </div>
     <div data-when="workout" class="col" style="gap:6px">
-      <div class="row">
-        <span style="font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:420px" data-h="woName"></span>
+      <div class="row hud-wo-head">
+        <span class="hud-wo-name" data-h="woName"></span>
         <span class="lab" data-h="woTime"></span>
         <span class="lab" style="white-space:nowrap">fin dans <span style="color:var(--hud-fg); font-weight:600" data-h="woLeft"></span></span>
       </div>
-      <svg data-h="woSvg" width="${WO_W}" height="${WO_H}" viewBox="0 0 ${WO_W} ${WO_H}" role="img" aria-label="Profil de la séance"></svg>
+      <svg data-h="woSvg" width="${WO_W}" height="${WO_H}" viewBox="0 0 ${WO_W} ${WO_H}" preserveAspectRatio="none" role="img" aria-label="Profil de la séance"></svg>
     </div>
   </section>
 
@@ -185,6 +196,7 @@ export class RideHud {
   private wo?: { key: string; shapes: SVGPathElement[]; cursor: SVGLineElement };
   private series?: { workout: Workout; list: Series[] };
   private upKey = '';
+  private upMax = UP_ITEMS;
 
   constructor(
     private readonly root: HTMLElement,
@@ -234,10 +246,16 @@ export class RideHud {
     };
 
     // Le HUD est mis en page dans une scène de 1280 × 720 : on l'ajuste à la fenêtre (le plus grand 16:9 qui y tient) et on la centre.
+    // Téléphone couché : la hauteur manque. La scène ne descend pas sous COMPACT_SCALE, quitte à déborder de la fenêtre ;
+    // les panneaux, calés sur les bords, passent en version compacte (hud.css, `.hud.compact`).
+    const phone = matchMedia(PHONE_QUERY);
     const fit = () => {
       const w = root.clientWidth;
       const h = root.clientHeight;
-      const s = Math.min(w / REF_W, h / REF_H);
+      const compact = phone.matches;
+      root.classList.toggle('compact', compact);
+      this.upMax = !compact ? UP_ITEMS : h >= COMPACT_TALL_PX ? UP_ITEMS_COMPACT_TALL : UP_ITEMS_COMPACT;
+      const s = Math.max(Math.min(w / REF_W, h / REF_H), compact ? COMPACT_SCALE : 0);
       root.style.setProperty('--hud-s', String(s));
       root.style.setProperty('--hud-x', `${(w - REF_W * s) / 2}px`);
       root.style.setProperty('--hud-y', `${(h - REF_H * s) / 2}px`);
@@ -246,6 +264,7 @@ export class RideHud {
       root.style.setProperty('--hud-oy', `${(h / s - REF_H) / 2}px`);
     };
     new ResizeObserver(fit).observe(root);
+    phone.addEventListener('change', fit);
     fit();
   }
 
@@ -351,10 +370,10 @@ export class RideHud {
   /** Liste « À suivre » : reconstruite au changement de palier (elle glisse alors vers le haut), sinon seul l'en-tête bouge. */
   private drawUpcoming(s: WorkoutState, ftpW: number, intensity: number, fresh: boolean) {
     const { workout, list: series } = this.series!;
-    const { items, rest } = upcoming(workout.steps, series, s.stepIndex, ftpW, intensity);
+    const { items, rest } = upcoming(workout.steps, series, s.stepIndex, ftpW, intensity, this.upMax);
     this.text('upTitle', items.length ? 'À suivre' : 'Dernier palier');
     this.text('upInfo', `${rest > 0 ? `+ ${rest} · ` : ''}fin dans ${fmtTime(s.totalS - s.elapsedS)}`);
-    const key = `${s.stepIndex}|${ftpW}|${intensity}`;
+    const key = `${s.stepIndex}|${ftpW}|${intensity}|${this.upMax}`;
     if (!fresh && key === this.upKey) return;
     const animate = !fresh && this.upKey.split('|')[0] !== String(s.stepIndex);
     this.upKey = key;
@@ -403,7 +422,9 @@ export class RideHud {
 
   private zone(k: string, id: string, label: string) {
     this.text(k, label);
-    this.node(k).dataset.z = id;
+    const n = this.node(k);
+    n.dataset.z = id;
+    n.dataset.short = id ? id.toUpperCase() : label; // « Z4 » : la version téléphone n'affiche que le numéro
   }
 
   private pct(w: number, ftpW: number) {

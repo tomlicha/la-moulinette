@@ -410,6 +410,8 @@ const woSkip = $<HTMLButtonElement>('wo-skip');
 const woStop = $<HTMLButtonElement>('wo-stop');
 const woEasier = $<HTMLButtonElement>('wo-easier');
 const woHarder = $<HTMLButtonElement>('wo-harder');
+const rideQuick = $('ride-quick');
+const rqPause = $<HTMLButtonElement>('rq-pause');
 // La séance se choisit sur l'accueil (ou dans l'écran Séances) ; la sortie, elle, ne fait que la dérouler.
 const homeShapes = $('home-wo-shapes');
 const homeSelect = $<HTMLSelectElement>('home-wo-select');
@@ -465,6 +467,13 @@ function workoutStartBlock(): string | BlockReason | undefined {
         : undefined;
 }
 
+/** Intensité de la séance, affichée dans le menu et dans les commandes posées sur la vue. */
+function showIntensity(fraction: number) {
+  const text = `${Math.round(fraction * 100)} %`;
+  $('wo-intensity').textContent = text;
+  $('rq-intensity').textContent = text;
+}
+
 function refreshWorkoutButtons() {
   const startReason = !workout && !runner ? 'Choisis d’abord une séance dans la liste.' : workoutStartBlock();
   setBlocked(woStart, startReason);
@@ -472,6 +481,10 @@ function refreshWorkoutButtons() {
   refreshEditorRide?.();
   for (const b of [woPause, woSkip, woStop, woEasier, woHarder]) setBlocked(b, runner ? undefined : 'Démarre d’abord la séance.');
   woPause.textContent = woPaused ? 'Reprendre' : 'Pause';
+  // Téléphone couché : les mêmes commandes, posées sur la vue (voir ui/sortie.css).
+  rideQuick.hidden = !runner;
+  rqPause.setAttribute('aria-pressed', String(woPaused));
+  rqPause.setAttribute('aria-label', woPaused ? 'Reprendre' : 'Pause');
   // Dans le menu de la sortie : « Démarrer » avant la séance, les commandes de déroulement pendant.
   woStart.hidden = !!runner;
   for (const b of [woPause, woSkip, woStop]) b.hidden = !runner;
@@ -613,7 +626,7 @@ function startWorkout() {
   follower.reset();
   woLastTick = performance.now();
   woTimer = setInterval(tickWorkout, 250);
-  $('wo-intensity').textContent = '100 %';
+  showIntensity(1);
   refreshWorkoutButtons();
   log(`séance démarrée : ${workout.name}, FTP ${runner.ftpW} W`);
   exporter.onWorkoutStarted();
@@ -659,6 +672,15 @@ woFtp.addEventListener('change', () => {
   editor.refresh();
 });
 woStart.addEventListener('click', startWorkout);
+// Commandes posées sur la vue : elles relaient celles du menu, qui portent les règles.
+for (const [quick, target] of [
+  [rqPause, woPause],
+  [$<HTMLButtonElement>('rq-skip'), woSkip],
+  [$<HTMLButtonElement>('rq-easier'), woEasier],
+  [$<HTMLButtonElement>('rq-harder'), woHarder],
+] as const) {
+  quick.addEventListener('click', () => target.click());
+}
 woPause.addEventListener('click', () => {
   woPaused = !woPaused;
   follower.reset();
@@ -680,7 +702,7 @@ for (const [btn, delta] of [
   btn.addEventListener('click', () => {
     if (!runner) return;
     runner.intensity = Math.min(1.5, Math.max(0.5, Math.round((runner.intensity + delta) * 100) / 100));
-    $('wo-intensity').textContent = `${Math.round(runner.intensity * 100)} %`;
+    showIntensity(runner.intensity);
     follower.reset();
   });
 }

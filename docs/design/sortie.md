@@ -23,6 +23,7 @@ Référence permanente de l'écran **Sortie** : le rendu 3D en plein écran, le 
 - `[data-view='sortie']` est fixe sur toute la fenêtre ; `html` et `body` ne défilent plus sur cet écran. Les zones sûres (encoche, barre de gestes) sont respectées par le HUD et les boutons ; le canevas va jusqu'au bord.
 - Haut droit : bouton du menu (44 px, 40 px en téléphone paysage), puis, si la case est cochée, les statistiques de rendu. La liste du groupe (multijoueur, prévue au HUD) viendra dessous.
 - Téléphone en paysage : la feuille se resserre (360 px au plus, 62 % de la largeur) et défile.
+- Téléphone en paysage, pendant une séance : sous le bouton du menu, quatre boutons de 46 × 42 px posés sur la vue (pause ou reprise, palier suivant, + 5 %, − 5 %) et l'intensité en cours entre les deux derniers. Ils relaient les boutons du menu, qui portent les règles ; il fallait sinon ouvrir le menu et faire défiler en plein effort (décision du 2026-11-13). Absents hors séance et sur ordinateur. Les statistiques de rendu, si on les demande, passent à leur gauche.
 
 ## Menu contextuel
 
